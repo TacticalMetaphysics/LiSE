@@ -14,6 +14,7 @@ class Color:
 tuples that Pyglet uses to identify colors.
 
     """
+    maintab = "color"
     coldecls = {"color":
                 {'name': 'text',
                  'red': 'integer not null ',
@@ -27,7 +28,8 @@ tuples that Pyglet uses to identify colors.
               "blue between 0 and 255",
               "alpha between 0 and 255"]}
 
-    def __init__(self, db, rowdict):
+    def setup(self):
+        rowdict = self.tabdict["color"][0]
         self.name = rowdict["name"]
         self.red = rowdict["red"]
         self.green = rowdict["green"]
@@ -64,9 +66,10 @@ class MenuItem:
     primarykeys = {'menuitem': ('menu', 'idx')}
     foreignkeys = {'menuitem': {"menu": ("menu", "name")}}
 
-    def __init__(self, db, rowdict, board):
+    def setup(self):
+        db = self.db
+        rowdict = self.tabdict["menu"][0]
         self.menuname = rowdict["menu"]
-        self.menu = db.boardmenudict[board][self.menuname]
         self.idx = rowdict["idx"]
         self.text = rowdict["text"]
         self.onclick_core = db.func[rowdict["onclick"]]
@@ -158,6 +161,7 @@ class MenuItem:
 
 
 class Menu:
+    maintab = "menu"
     coldecls = {'menu':
                 {'name': 'text',
                  'left': 'float not null',
@@ -170,7 +174,9 @@ class Menu:
     primarykeys = {'menu': ('name',)}
     interactive = True
 
-    def __init__(self, db, rowdict):
+    def setup(self):
+        rowdict = self.tabdict["menu"][0]
+        db = self.db
         self.name = rowdict["name"]
         self.left = rowdict["left"]
         self.bottom = rowdict["bottom"]
@@ -180,11 +186,6 @@ class Menu:
         self.visible = rowdict["visible"]
         self.main_for_window = rowdict["main_for_window"]
         self.items = []
-        self._scrolled_to = 0
-        self.key = [
-            rowdict[keyname] for keyname in self.keydecldict.iterkeys()]
-        self.val = [
-            rowdict[valname] for valname in self.valdecldict.iterkeys()]
         # In order to actually draw these things you need to give them
         # an attribute called window, and it should be a window of the
         # pyglet kind. It isn't in the constructor because that would

@@ -557,8 +557,11 @@ def deep_lookup(dic, keylst):
 
 class SaveableMetaclass(type):
     def __new__(metaclass, clas, parents, attrs):
-        if 'coldecls' not in attrs or 'primarykeys' not in attrs:
+        if('coldecls' not in attrs or
+           'primarykeys' not in attrs or
+           'maintab' not in attrs):
             return type(clas, parents, attrs)
+        maintab = attrs['maintab']
         coldecls = attrs['coldecls']
         keynames = [key for key in coldecls]
         primarykeys = attrs['primarykeys']
@@ -590,6 +593,7 @@ class SaveableMetaclass(type):
         keynames = {}
         valnames = {}
         colnames = {}
+        colnamestr = {}
         for item in primarykeys.iteritems():
             (tablename, pkey) = item
             keynames[tablename] = sorted(pkey)
@@ -625,7 +629,7 @@ class SaveableMetaclass(type):
             pkeynamestr = ", ".join(sorted(pkeys))
             vals = [valname for (valname, typ) in coldecl.iteritems()
                     if valname not in pkey]
-            colnamestr = ", ".join(sorted(pkeys) + sorted(vals))
+            colnamestr[tablename] = ", ".join(sorted(pkeys) + sorted(vals))
             pkeystr = "PRIMARY KEY (%s)" % (pkeycolstr,)
             fkeystrs = ["FOREIGN KEY (%s) REFERENCES %s(%s)" %
                         (item[0], item[1][0], item[1][1])
@@ -646,10 +650,10 @@ class SaveableMetaclass(type):
                 tablename, pkeycolstr)
             deletes[tablename] = delete_stmt_start
             detect_stmt_start = "SELECT %s FROM %s WHERE (%s) IN " % (
-                colnamestr, tablename, pkeynamestr)
+                colnamestr[tablename], tablename, pkeynamestr)
             detects[tablename] = detect_stmt_start
             missing_stmt_start = "SELECT %s FROM %s WHERE (%s) NOT IN " % (
-                colnamestr, tablename, pkeynamestr)
+                colnamestr[tablename], tablename, pkeynamestr)
             missings[tablename] = missing_stmt_start
             schemata.append(create_stmt)
 
@@ -705,12 +709,25 @@ class SaveableMetaclass(type):
             db.c.execute(qrystr, qrytup)
             return db.c.fetchall()
 
+        def build(self):
+            pass
+
+        def pull(self, db, tabdict):
+            return tabdict
+
+        def setup(self):
+            if not self.built:
+                self.build()
+                self.built = True
+
         dbop = {'insert': insert_rowdicts_table,
                 'delete': delete_keydicts_table,
                 'detect': detect_keydicts_table,
                 'missing': missing_keydicts_table}
         atrdic = {'coldecls': coldecls,
                   'colnames': colnames,
+                  'colnamestr': colnamestr,
+                  'cols': colnames[maintab],
                   'primarykeys': primarykeys,
                   'foreignkeys': foreignkeys,
                   'checks': checks,
@@ -719,7 +736,10 @@ class SaveableMetaclass(type):
                   'rowlen': rowlen,
                   'keyqms': keyqms,
                   'rowqms': rowqms,
-                  'dbop': dbop}
+                  'dbop': dbop,
+                  'build': build,
+                  'built': False,
+                  'pull': pull}
         atrdic.update(attrs)
 
         return type.__new__(metaclass, clas, parents, atrdic)
