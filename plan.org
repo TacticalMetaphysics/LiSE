@@ -1,0 +1,170 @@
+* database
+** [9/9]place
+*** DONE knowplace
+*** DONE haveplace
+*** DONE mkplace
+*** DONE updplace
+*** DONE writeplace
+*** DONE saveplace
+*** DONE loadplace
+*** DONE getplace
+*** DONE delplace
+** [9/9] thing
+*** DONE knowthing
+*** DONE havething
+*** DONE mkthing
+*** DONE updthing
+*** DONE writething
+*** DONE savething
+*** DONE loadthing
+*** DONE getthing
+*** DONE delthing
+** [10/10] portal
+*** DONE knowportal
+*** DONE haveportal
+*** DONE mkportal
+*** DONE updportal
+*** DONE writeportal
+*** DONE saveportal
+*** DONE loadportal
+*** DONE getportal
+*** DONE delportal
+*** DONE cullportals
+    The partial key is a place name. Delete portals originating here that aren't in the list.
+
+    keeps are strictly the NAMES of portals.
+** [10/10] containment
+*** DONE knowcontainment
+*** DONE havecontainment
+*** DONE mkcontainment
+*** DONE updcontainment
+*** DONE writecontainment
+*** DONE savecontainment
+*** DONE loadcontainment
+*** DONE getcontainment
+*** DONE delcontainment
+*** DONE cullcontainment
+** [9/9] spot
+*** DONE knowspot
+*** DONE havespot
+*** DONE mkspot
+*** DONE updspot
+*** DONE writespot
+*** DONE savespot
+*** DONE loadspot
+*** DONE getspot
+*** DONE delspot
+** [8/8] attribute
+*** DONE knowattribute
+*** DONE mkattribute
+*** DONE updattribute
+*** DONE writeattribute
+*** DONE saveattribute
+*** DONE loadattribute
+*** DONE getattribute
+*** DONE delattribute
+** [11/11] attribution
+*** DONE knowattribution
+*** DONE mkattribution
+*** DONE updattribution
+*** DONE writeattribution
+*** DONE saveattributionson
+    It doesn't make sense to have a plain "save attribution" because attribution objects do not exist.
+*** DONE loadattribution
+*** DONE loadattributionson
+*** DONE getattribution
+*** DONE getattributionson
+*** DONE delattribution
+*** DONE cullattribution
+** [7/7] permitted
+*** DONE knowpermitted
+*** DONE havepermitted
+    I suppose this would take an AttrCheck as its argument.
+*** DONE mkpermitted
+*** DONE writepermitted
+*** DONE loadpermitted
+*** DONE getpermitted
+*** DONE delpermitted
+** [9/9] img
+*** DONE knowimg
+*** DONE haveimg
+*** DONE mkimg
+*** DONE updimg
+*** DONE writeimg
+*** DONE loadimg
+*** DONE getimg
+*** DONE delimg
+*** DONE cullimgs
+    In this case there's no partial key, you just delete those images that aren't loaded.
+** [8/8] canvas
+*** DONE knowcanvas
+*** DONE havecanvas
+*** DONE mkcanvas
+*** DONE updcanvas
+*** DONE writecanvas
+*** DONE loadcanvas
+*** DONE getcanvas
+*** DONE delcanvas
+** [9/9] pawn
+*** DONE knowpawn
+*** DONE havepawn
+*** DONE mkpawn
+*** DONE updpawn
+*** DONE writepawn
+*** DONE loadpawn
+*** DONE getpawn
+*** DONE delpawn
+*** DONE cullpawns
+** [8/8] color
+*** DONE knowcolor
+*** DONE havecolor
+*** DONE mkcolor
+*** DONE updcolor
+*** DONE writecolor
+*** DONE loadcolor
+*** DONE getcolor
+*** DONE delcolor
+** [8/8] style
+*** DONE knowstyle
+*** DONE havestyle
+*** DONE mkstyle
+*** DONE updstyle
+*** DONE writestyle
+*** DONE loadstyle
+*** DONE getstyle
+*** DONE delstyle
+** [8/8] menu
+*** DONE knowmenu
+*** DONE havemenu
+*** DONE mkmenu
+*** DONE updmenu
+*** DONE writemenu
+*** DONE loadmenu
+*** DONE getmenu
+*** DONE delmenu
+** [11/11] menuitem
+*** DONE knowmenuitem
+*** DONE havemenuitem
+    I need to put the key for the menuitem on the menuitem python
+    object itself, which means i'll have to change it should i ever
+    reorder the menus... or else I could just disallow updating
+    menuitems... or store the new index as well? Bah...
+
+    Yeah you know what I'll just not have any way to move a menu item
+    around after creation, it's not that hard to make a new one.
+*** DONE mkmenuitem
+*** DONE updmenuitem
+*** DONE writemenuitem
+*** DONE loadmenuitem
+*** DONE loadmenuitemsin
+    Load all menu items that are in a given menu. This may be called as a part of loadmenu.
+*** DONE getmenuitem
+*** DONE getmenuitemsin
+*** DONE delmenuitem
+*** DONE delmenuitemsin
+** TODO change loaders so they can handle the case where you try to load something that doesn't exist
+** TODO schema changes
+*** both Spots and Pawns are contained in Canvases
+*** Spots are also contained in SpotGraphs
+*** How do I store those all in the database?
+*** Do I even need SpotGraphs? What are they for?
