@@ -34,11 +34,32 @@ item's name, and the name of the attribute.
 
 """
     tablename = "character"
-    keydecldict = {"name": "text"}
-    valdecldict = {}
-
-    def __init__(self, db, rowdict):
-        pass
+    coldecls = {
+        "character":
+        {"name": "text"},
+        "character_item_link":
+        {"character": "text",
+         "dimension": "text",
+         "item": "text"},
+        "attribute":
+        {"name": "text",
+         "type": "text"},
+        "attribution":
+        {"character": "text",
+         "attribute": "text",
+         "value": "text"}}
+    primarykeys = {
+        "character": ("name",),
+        "character_item_link": ("character", "dimension", "item"),
+        "attribute": ("name",),
+        "attribution": ("character", "attribute")}
+    foreignkeys = {
+        "character_item_link":
+        {"character": ("character", "name"),
+         "dimension, item": ("item", "dimension, name")},
+        "attribution":
+        {"character": ("character", "name"),
+         "attribute": ("attribute", "name")}}
 
 
 class CharacterThing:
