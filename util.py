@@ -657,20 +657,6 @@ class SaveableMetaclass(type):
             missings[tablename] = missing_stmt_start
             schemata.append(create_stmt)
 
-        def dictify_rows(cols, rows):
-            r = []
-            for row in rows:
-                assert len(cols) == len(row)
-                d = {}
-                i = 0
-                while i < len(row):
-                    col = cols[i]
-                    val = row[i]
-                    d[col] = val
-                    i += 1
-                r.append(d)
-            return r
-
         def insert_rowdicts_table(db, rowdicts, tabname):
             rowstr = rowstrs[tabname]
             qrystr = inserts[tabname] + ", ".join([rowstr] * len(rowdicts))

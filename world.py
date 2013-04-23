@@ -279,6 +279,17 @@ class Portal(Item):
                     "dimension, from_place": ("place", "dimension, name"),
                     "dimension, to_place": ("place", "dimension, name")}}
 
+    def pull_dimensions(self, db, dims):
+        tabdict = {}
+        qryfmt = "SELECT {0} FROM portal WHERE dimension IN ({1})"
+        dim_qm = ["?"] * len(dims)
+        dim_qm_s = ", ".join(dim_qm)
+        qrystr = qryfmt.format(self.colnamestr["portal"], dim_qm_s)
+        db.c.execute(qrystr, dims)
+        tabdict["portal"] = [
+            dictify_row(self.cols, row) for row in db.c]
+        return tabdict
+
     def setup(self):
         from_place = self.tabdict["portal"]["from_place"]
         to_place = self.tabdict["portal"]["to_place"]
@@ -343,8 +354,7 @@ class Effect:
     primarykeys = {
         "effect": ("name", "func", "arg")}
 
-    def build(self):
-        rowdict = self.tabdict["effect"]
+    def build_this(self, rowdict):
         db = self.db
         funcn = rowdict["func"]
         if funcn in db.func:
@@ -457,8 +467,7 @@ success that strains a person terribly and causes them injury.
          "conclude_tests": ("effect_deck", "name"),
          "complete_effects": ("effect_deck", "name")}}
 
-    def build(self):
-        rowdict = self.tabdict["event"]
+    def build_this(self, rowdict):
         self.name = rowdict["name"]
         self.typ = rowdict["type"]
         self.db.eventdict[self.name] = self
@@ -561,10 +570,6 @@ class EventDeck:
             for row in db.c]
         return tabdict
 
-    def build(self):
-        self.events = [self.db.eventdict[rowdict["event"]]
-                       for rowdict in self.tabdict["event_deck_link"]]
-
 
 class Schedule:
     maintab = "schedule"
@@ -633,32 +638,6 @@ class Schedule:
             for row in db.c]
         return tabdict
 
-    def setup(self):
-        td = self.tabdict
-        db = self.db
-        self.name = td["schedule"]["name"]
-        self.age = td["schedule"]["age"]
-        self.startevs = {}
-        self.endevs = {}
-        todo = []
-        sevlist = td["scheduled_event"]
-        while sevlist != []:
-            sevrow = sevlist.pop()
-            sevname = sevrow["event"]
-            start = sevrow["start"]
-            length = sevrow["length"]
-            ev = db.eventdict[sevname].scheduled_copy(start, length)
-            todo.append(ev)
-        todo.sort(reverse=True)
-        while todo != []:
-            doing = todo.pop()
-            if doing.start not in self.startevs:
-                self.startevs = set()
-            if doing.end not in self.endevs:
-                self.endevs = set()
-            self.startevs[doing.start].add(doing)
-            self.endevs[doing.end].add(doing)
-
     def __getitem__(self, n):
         return self.startevs[n]
 
@@ -691,7 +670,13 @@ class Dimension:
                 {"name": "text"}}
     primarykeys = {"dimension": ("name",)}
 
-    def setup(self):
+    def pull_many(self, db, dims):
+        tabdict = Place.pull_dimensions(db, dims)
+        tabdict.update(Thing.pull_dimensions(db, dims))
+        tabdict.update(Portal.pull_dimensions(db, dims))
+        return tabdict
+
+    def build(self):
         rowdict = self.tabdict["dimension"][0]
         db = self.db
         self.name = rowdict["name"]

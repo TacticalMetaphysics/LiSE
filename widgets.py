@@ -251,11 +251,12 @@ class Menu:
         self.visible = not self.visible
 
 
-class CalendarBrick:
+class CalendarCell:
     # Being a block of time in a calendar, with or without an event in
     # it. This isn't stored in the database because really, why would
     # I store *empty calendar cells* in the database?
-    def __init__(self, start, end, color, text=""):
+    def __init__(self, col, start, end, color, text=""):
+        self.col = col
         self.start = start
         self.end = end
         self.color = color
@@ -274,26 +275,26 @@ class CalendarBrick:
         return self.hsh
 
 
-class CalendarWall:
+class CalendarCol:
     # A board may have up to one of these. It may be toggled. It
     # may display any schedule or combination thereof, distinguishing
     # them by color or not at all. It has only one column.
-    coldecls = {"calendar_wall":
+    coldecls = {"calendar_col":
                 {"dimension": "text",
                  "visible": "boolean",
                  "interactive": "boolean",
                  "rows_on_screen": "integer",
                  "scrolled_to": "integer",
                  "gutter": "integer"},
-                "calendar_schedule":
+                "calendar_schedule_link":
                 {"calendar": "text",
                  "schedule": "text"}}
-    primarykeys = {"calendar_wall": ("dimension",),
-                   "calendar_schedule": ("calendar", "schedule")}
-    foreignkeys = {"calendar_wall":
+    primarykeys = {"calendar_col": ("dimension",),
+                   "calendar_schedule_link": ("calendar", "schedule")}
+    foreignkeys = {"calendar_col":
                    {"dimension": ("dimension", "name")},
                    "calendar_schedule":
-                   {"calendar": ("calendar", "name"),
+                   {"calendar": ("calendar_col", "name"),
                     "schedule": ("schedule", "name"),
                     "color": ("color", "name")}}
     checks = {"calendar_wall": ["rows_on_screen>0", "scrolled_to>=0"]}
@@ -320,7 +321,7 @@ class CalendarWall:
         # CalendarWall per Board irrespective of if it's got a window
         # or not.
         return (
-            isinstance(other, CalendarWall) and
+            isinstance(other, CalendarCol) and
             other.dimension == self.dimension)
 
     def __hash__(self):
