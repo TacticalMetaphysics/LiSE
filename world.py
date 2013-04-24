@@ -83,7 +83,7 @@ class Journey:
             while len(journeyptr["steps"]) < row["idx"]:
                 journeyptr["steps"].append(None)
             journeyptr["steps"][row["idx"]] = row["portal"]
-        return journeydict
+        return {"journey": journeydict}
 
     def pull_parse_dimension(self, db, dimname):
         return self.parse(self.pull_dimension(db, dimname))
@@ -395,10 +395,12 @@ class Effect:
         "effect":
         {"name": "text",
          "func": "text",
-         "arg": "text",
-         "dict_hint": "text"}}
+         "arg": "text"}}
     primarykeys = {
         "effect": ("name", "func", "arg")}
+
+    def parse(self, row):
+        return {"effect": row}
 
     def do(self):
         return self.func(self.arg)
@@ -446,16 +448,10 @@ success that strains a person terribly and causes them injury.
     coldecls = {
         "event":
         {"name": "text",
-         "type": "text",
-         "start": "integer",
-         "length": "integer",
          "ongoing": "boolean",
-         "commence_test": "text",
-         "abort_effects": "text",
-         "proceed_test": "text",
+         "commence_tests": "text",
          "interrupt_effects": "text",
-         "conclude_test": "text",
-         "end_effects": "text"}}
+         "conclude_tests": "text"}}
     primarykeys = {
         "event": ("name",)}
     foreignkeys = {
@@ -466,6 +462,9 @@ success that strains a person terribly and causes them injury.
          "interrupt_effects": ("effect_deck", "name"),
          "conclude_tests": ("effect_deck", "name"),
          "complete_effects": ("effect_deck", "name")}}
+
+    def parse(self, row):
+        return {"event": row}
 
     def cmpcheck(self, other):
         if not hasattr(self, 'start') or not hasattr(other, 'start'):
@@ -548,6 +547,17 @@ class EventDeck:
         {"event": ("event", "name"),
          "deck": ("event_deck", "name")}}
 
+    def parse(self, row):
+        evrow = {
+            "deck": row["deck"],
+            "name": row["event"],
+            "func": row["func"],
+            "arg": row["arg"],
+            "commence_tests": row["commence_tests"],
+            "proceed_tests": row["proceed_tests"],
+            "conclude_tests": row["conclude_tests"]}
+        return Event.parse(evrow)
+
 
 class Schedule:
     maintab = "schedule"
@@ -574,15 +584,25 @@ class Schedule:
 
     def pull_dimension(self, db, dimname):
         qryfmt = (
-            "SELECT {0} FROM schedule, scheduled_event WHERE "
+            "SELECT {0} FROM "
+            "schedule, scheduled_event, event, effect_deck_link, effect "
+            "WHERE "
             "schedule.dimension=scheduled_event.dimension AND "
             "schedule.item=scheduled_event.item AND "
+            "scheduled_event.event=event.name AND "
             "dimension=?")
         schedcol = ["schedule." + col for col in self.colnames["schedule"]]
-        evcol = ["scheduled_event." + col
-                 for col in self.valnames["scheduled_event"]]
-        allcol = self.colnames["schedule"] + self.valnames["scheduled_event"]
-        allcolstr = ", ".join(schedcol + evcol)
+        schevcol = [
+            "scheduled_event." + col
+            for col in self.valnames["scheduled_event"]]
+        evcol = ["event." + col for col in Event.valnames["event"]]
+        efcol = ["effect." + col for col in Effect.valnames["effect"]]
+        allcol = (
+            self.colnames["schedule"] +
+            self.valnames["scheduled_event"] +
+            Event.valnames["event"] +
+            Effect.valnames["effect"])
+        allcolstr = ", ".join(schedcol + schevcol + evcol + efcol)
         qrystr = qryfmt.format(allcolstr)
         db.c.execute(qrystr, (dimname,))
         return [
@@ -597,13 +617,9 @@ class Schedule:
                 tabdict[row["dimension"]][row["item"]] = {
                     "age": row["age"],
                     "events": []}
-            evd = {
-                "event": row["event"],
-                "start": row["start"],
-                "length": row["length"]}
-            evl = tabdict[row["dimension"]][row["item"]]["events"]
-            evl.append(evd)
-        return tabdict
+            ptr = tabdict[row["dimension"]][row["item"]]
+            ptr["events"].append(EventDeck.parse(row))
+        return {"schedule": tabdict}
 
     def pull_parse_dimension(self, db, dimname):
         return self.parse(self.pull_dimension(db, dimname))
@@ -641,10 +657,10 @@ class Dimension:
     primarykeys = {"dimension": ("name",)}
 
     def pull_named(self, db, dimname):
-        tabdict = {"dimension": {"name": dimname}}
+        tabdict = {"name": dimname}
         for clas in [Place, Thing, Portal, Journey]:
             tabdict.update(clas.pull_parse_dimension(db, dimname))
-        return tabdict
+        return {"dimension": tabdict}
 
     def build(self):
         self.name = self.tabdict["dimension"]["name"]
@@ -700,7 +716,7 @@ class Place(Item):
             dictify_row(self.cols, row) for row in db.c]
 
     def parse(self, rows):
-        return rows
+        return {"place": rows}
 
     def pull_parse_dimension(self, db, dimname):
         self.parse(self.pull_dimension(db, dimname))
@@ -728,28 +744,32 @@ class Place(Item):
 
 
 class Thing(Item):
-    coldecls = {"thing":
-                {"dimension": "text",
-                 "name": "text",
-                 "location": "text",
-                 "container": "text"},
-                "thing_kind":
-                {"name": "text"},
-                "thing_kind_link":
-                {"dimension": "text",
-                 "thing": "text",
-                 "kind": "text"}}
-    primarykeys = {"thing": ("dimension", "name"),
-                   "location": ("dimension", "thing"),
-                   "thing_kind": ("name",),
-                   "thing_kind_link": ("thing", "kind")}
-    foreignkeys = {"thing":
-                   {"dimension": ("dimension", "name"),
-                    "dimension, container": ("thing", "dimension, name")},
-                   "thing_kind_link":
-                   {"dimension": ("dimension", "name"),
-                    "thing": ("thing", "name"),
-                    "kind": ("thing_kind", "name")}}
+    maintab = "thing"
+    coldecls = {
+        "thing":
+        {"dimension": "text",
+         "name": "text",
+         "location": "text",
+         "container": "text"},
+        "thing_kind":
+        {"name": "text"},
+        "thing_kind_link":
+        {"dimension": "text",
+         "thing": "text",
+         "kind": "text"}}
+    primarykeys = {
+        "thing": ("dimension", "name"),
+        "location": ("dimension", "thing"),
+        "thing_kind": ("name",),
+        "thing_kind_link": ("thing", "kind")}
+    foreignkeys = {
+        "thing":
+        {"dimension": ("dimension", "name"),
+         "dimension, container": ("thing", "dimension, name")},
+        "thing_kind_link":
+        {"dimension": ("dimension", "name"),
+         "thing": ("thing", "name"),
+         "kind": ("thing_kind", "name")}}
 
     def pull_dimension(self, db, dimname):
         qryfmt = (
@@ -757,8 +777,33 @@ class Thing(Item):
             "thing.dimension=thing_kind_link.dimension AND "
             "thing.name=thing_kind_link.thing AND "
             "dimension=?")
-        colstr = ", ".join(self.colnames["thing"] + self.colnames["thing_kind_link"])
+        thingcols = ["thing." + col for col in self.cols]
+        tklcols = [
+            "thing_kind_link." + col
+            for col in self.valnames["thing_kind_link"]]
+        allcols = self.cols + self.valnames["thing_kind_link"]
+        colstr = ", ".join(thingcols) + ", ".join(tklcols)
         qrystr = qryfmt.format(colstr)
+        db.c.execute(qrystr, (dimname,))
+        return [
+            dictify_row(allcols, row) for row in db.c]
+
+    def parse(self, rows):
+        tabdict = {}
+        for row in rows:
+            if row["dimension"] not in tabdict:
+                tabdict[row["dimension"]] = {}
+            if row["name"] not in tabdict[row["dimension"]]:
+                tabdict[row["dimension"]][row["name"]] = {
+                    "dimension": row["dimension"],
+                    "name": row["name"],
+                    "kinds": []}
+            ptr = tabdict[row["dimension"]][row["name"]]
+            ptr["kinds"].append(row["kinds"])
+        return {"thing": tabdict}
+
+    def pull_parse_dimension(self, db, dimname):
+        return self.parse(self.pull_dimension(db, dimname))
 
     def build(self):
         Item.build(self)
