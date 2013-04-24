@@ -4,8 +4,31 @@ import os
 from widgets import Color, MenuItem, Menu, Spot, Pawn, Board, Style
 from world import Journey, Place, Portal, Thing, Dimension
 from pyglet.resource import image
-from util import Img, default, table_classes, dictify_row, compile_tabdicts
+from util import Img, default, compile_tabdicts, Item
 sys.path.append(os.curdir)
+
+
+default.tabdicts = {
+    Dimension: {"dimension": default.dimensions},
+    Item: {"item": default.items},
+    Place: {"place": default.places},
+    Portal: {"portal": default.portals},
+    Thing: {"thing": default.things,
+            "location": default.locations,
+            "containment": default.containment},
+    Menu: {"menu": default.menus},
+    MenuItem: {"menuitem": default.menuitems},
+    Color: {"color": default.colors},
+    Style: {"style": default.styles},
+    Img: {"img": default.imgs},
+    Spot: {"spot": default.spots},
+    Pawn: {"pawn": default.pawns},
+    Journey: {"journey": default.journeys,
+              "journeystep": default.steps},
+    Board: {"board": default.boards}}
+
+
+table_classes = default.tabdicts.keys()
 
 
 class Database:
