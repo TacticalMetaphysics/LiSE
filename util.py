@@ -146,13 +146,15 @@ class SaveableMetaclass(type):
         def build(self):
             pass
 
-        def pull(self, db, tabdict):
-            return tabdict
-
         def setup(self):
             if not self.built:
                 self.build()
                 self.built = True
+
+        def __init__(self, db, tabd):
+            self.db = db
+            self.tabdict = tabd
+            self.setup()
 
         dbop = {'insert': insert_rowdicts_table,
                 'delete': delete_keydicts_table,
@@ -161,6 +163,8 @@ class SaveableMetaclass(type):
         atrdic = {'coldecls': coldecls,
                   'colnames': colnames,
                   'colnamestr': colnamestr,
+                  'keynames': keynames,
+                  'valnames': valnames,
                   'cols': colnames[maintab],
                   'primarykeys': primarykeys,
                   'foreignkeys': foreignkeys,
@@ -173,7 +177,7 @@ class SaveableMetaclass(type):
                   'dbop': dbop,
                   'build': build,
                   'built': False,
-                  'pull': pull}
+                  '__init__': __init__}
         atrdic.update(attrs)
 
         return type.__new__(metaclass, clas, parents, atrdic)

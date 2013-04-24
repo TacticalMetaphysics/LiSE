@@ -50,7 +50,45 @@ class Journey:
                  "dimension, portal": ("portal", "dimension, name")}}
     checks = {"journey": ["progress>=0.0", "progress<1.0"]}
 
-    def setup(self):
+    def pull_dimension(self, db, dimname):
+        # Now just returns a lot of rowdicts. Each is sufficient to
+        # make a journey and its journeystep.
+        qryfmt = (
+            "SELECT {0} FROM journey, journey_step WHERE "
+            "journey.dimension=journey_step.dimension AND "
+            "journey.thing=journey_step.thing AND "
+            "journey.dimension=?")
+        jocols = ["journey." + col for col in self.colnames["journey"]]
+        scols = ["journey_step." + col
+                 for col in self.valnames["journey_step"]]
+        allcolstr = ", ".join(jocols + scols)
+        allcols = (
+            self.colnames["journey"] + self.valnames["journey_step"])
+        qrystr = qryfmt.format(allcolstr)
+        db.c.execute(qrystr, (dimname,))
+        return [
+            dictify_row(allcols, row) for row in db.c]
+
+    def parse(self, rows):
+        journeydict = {}
+        for row in rows:
+            if row["dimension"] not in journeydict:
+                journeydict[row["dimension"]] = {}
+            if row["thing"] not in journeydict[row["dimension"]]:
+                journeydict[row["dimension"]][row["thing"]] = {
+                    "steps": [],
+                    "curstep": row["curstep"],
+                    "progress": row["progress"]}
+            journeyptr = journeydict[row["dimension"]][row["thing"]]
+            while len(journeyptr["steps"]) < row["idx"]:
+                journeyptr["steps"].append(None)
+            journeyptr["steps"][row["idx"]] = row["portal"]
+        return journeydict
+
+    def pull_parse_dimension(self, db, dimname):
+        return self.parse(self.pull_dimension(db, dimname))
+
+    def build(self):
         db = self.db
         rowdict = self.tabdict["journey"]
         self.dimension = db.dimensiondict[rowdict["dimension"]]
@@ -279,24 +317,32 @@ class Portal(Item):
                     "dimension, from_place": ("place", "dimension, name"),
                     "dimension, to_place": ("place", "dimension, name")}}
 
-    def pull_dimensions(self, db, dims):
-        tabdict = {}
-        qryfmt = "SELECT {0} FROM portal WHERE dimension IN ({1})"
-        dim_qm = ["?"] * len(dims)
-        dim_qm_s = ", ".join(dim_qm)
-        qrystr = qryfmt.format(self.colnamestr["portal"], dim_qm_s)
-        db.c.execute(qrystr, dims)
-        tabdict["portal"] = [
+    def pull_dimension(self, db, dimname):
+        qryfmt = "SELECT {0} FROM portal WHERE dimension=?"
+        qrystr = qryfmt.format(self.colnamestr["portal"])
+        db.c.execute(qrystr, (dimname,))
+        return [
             dictify_row(self.cols, row) for row in db.c]
-        return tabdict
 
-    def setup(self):
+    def parse(self, rows):
+        return {"portal": rows}
+
+    def pull_parse_dimension(self, db, dimname):
+        return self.parse(self.pull_dimension(db, dimname))
+
+    def build(self):
+        self.name = self.tabdict["portal"]["name"]
+        dimname = self.tabdict["portal"]["dimension"]
+        self.db.portaldict[dimname][self.name] = self
+
+    def link(self):
+        dimname = self.tabdict["portal"]["dimension"]
+        self.dimension = self.db.dimensiondict[dimname]
         from_place = self.tabdict["portal"]["from_place"]
         to_place = self.tabdict["portal"]["to_place"]
         pd = self.db.placedict
         self.orig = pd[self.dimension.name][from_place]
         self.dest = pd[self.dimension.name][to_place]
-        self.db.portaldict[self.dimension.name][self.name] = self
         podd = self.db.portalorigdestdict[self.dimension.name]
         pdod = self.db.portaldestorigdict[self.dimension.name]
         podd[self.orig.name] = self.dest
@@ -354,27 +400,6 @@ class Effect:
     primarykeys = {
         "effect": ("name", "func", "arg")}
 
-    def build_this(self, rowdict):
-        db = self.db
-        funcn = rowdict["func"]
-        if funcn in db.func:
-            self.func = db.func[funcn]
-        else:
-            # I should really load all the funcs before I instantiate
-            # any Effects, but I feel I should include this here
-            # anyway in case it refers to things that've been created
-            # and not yet saved
-            dl = list(rowdict["dict_hint"].split("."))
-            dl.reverse()
-            ptr = None
-            while dl != []:
-                ptr = getattr(db, dl.pop())
-            self.func = ptr
-            db.func[funcn] = ptr
-        self.arg = rowdict["arg"]
-        self.name = rowdict["name"]
-        db.effectdict[self.name] = self
-
     def do(self):
         return self.func(self.arg)
 
@@ -394,31 +419,6 @@ class EffectDeck:
         "effect_deck_link":
         {"deck": ("effect_deck", "name"),
          "effect": ("effect", "name")}}
-
-    def pull(self, db, tabdict):
-        qryfmt = (
-            "SELECT {0} FROM effect_deck_link WHERE "
-            "deck IN ({1})")
-        cols = self.colnames["effect_deck_link"]
-        decknames = [rowdict["name"] for rowdict in tabdict["effect_deck"]]
-        qms = ["?"] * len(decknames)
-        qrystr = qryfmt.format(", ".join(cols), ", ".join(qms))
-        db.c.execute(qrystr, decknames)
-        tabdict["effect_deck_link"] = [
-            dictify_row(self.colnames["effect_deck_link"], row)
-            for row in db.c]
-
-        qryfmt = (
-            "SELECT {0} FROM effect WHERE effect.name IN ({1})")
-        cols = Effect.cols
-        effnames = [rowdict["effect"]
-                    for rowdict in tabdict["effect_deck_link"]]
-        qms = ["?"] * len(effnames)
-        qrystr = qryfmt.format(", ".join(effnames), ", ".join(qms))
-        db.c.execute(qrystr, effnames)
-        tabdict["effect"] = [
-            dictify_row(Effect.cols, row) for row in db.c]
-        return Effect.pull(db, tabdict)
 
 
 class Event:
@@ -466,17 +466,6 @@ success that strains a person terribly and causes them injury.
          "interrupt_effects": ("effect_deck", "name"),
          "conclude_tests": ("effect_deck", "name"),
          "complete_effects": ("effect_deck", "name")}}
-
-    def build_this(self, rowdict):
-        self.name = rowdict["name"]
-        self.typ = rowdict["type"]
-        self.db.eventdict[self.name] = self
-        self.start = rowdict["start"]
-        self.length = rowdict["length"]
-        self.ongoing = rowdict["ongoing"]
-        for deckatt in self.foreignkeys["event"].iterkeys():
-            deck = self.db.effectdeckdict[rowdict[deckatt]]
-            setattr(self, deckatt, deck)
 
     def cmpcheck(self, other):
         if not hasattr(self, 'start') or not hasattr(other, 'start'):
@@ -559,17 +548,6 @@ class EventDeck:
         {"event": ("event", "name"),
          "deck": ("event_deck", "name")}}
 
-    def pull(self, db, tabdict):
-        eventnames = [rowdict["name"] for rowdict in tabdict["event_deck"]]
-        qryfmt = "SELECT {0} FROM event_deck_link WHERE name IN ({1})"
-        qrystr = qryfmt.format(", ".join(self.colnames["event_deck_link"]),
-                               ", ".join(["?"] * len(eventnames)))
-        db.c.execute(qrystr, eventnames)
-        tabdict["event_deck_link"] = [
-            dictify_row(self.colnames["event_deck_link"], row)
-            for row in db.c]
-        return tabdict
-
 
 class Schedule:
     maintab = "schedule"
@@ -594,49 +572,41 @@ class Schedule:
         {"schedule": ("schedule", "name"),
          "event": ("event", "name")}}
 
-    def pull_dimensions(self, db, dims):
-        dim_qm = ["?"] * len(dims)
-        dim_qm_s = ", ".join(dim_qm)
-        tabdict = {}
-
-        qryfmt = "SELECT {0} FROM schedule WHERE dimension IN ({1})"
-        qrystr = qryfmt.format(self.colnamestr["schedule"], dim_qm_s)
-        db.c.execute(qrystr, dims)
-        tabdict["schedule"] = [
-            dictify_row(self.cols, row) for row in db.c]
-
-        qryfmt = "SELECT {0} FROM scheduled_event WHERE dimension IN ({1})"
-        qrystr = qryfmt.format(self.colnamestr["scheduled_event"], dim_qm_s)
-        db.c.execute(qrystr, dims)
-        tabdict["scheduled_event"] = [
-            dictify_row(self.colnames["scheduled_event"], row)
-            for row in db.c]
-
-        qryfmt = "SELECT {0} FROM event WHERE name IN ({1})"
-        evnames = [rowdict["event"] for rowdict in tabdict["scheduled_event"]]
-        evqm = ["?"] * len(evnames)
-        evqm_s = ", ".join(evqm)
-        qrystr = qryfmt.format(Event.colnamestr["event"], evqm_s)
-        db.c.execute(qrystr, evnames)
-        tabdict["event"] = [dictify_row(Event.cols, row) for row in db.c]
-
-        return Event.pull(db, tabdict)
-
-    def pull(self, db, tabdict):
+    def pull_dimension(self, db, dimname):
         qryfmt = (
-            "SELECT {0} FROM scheduled_event WHERE (dimension, item) IN ({1})")
-        di = []
-        qm = []
-        for rowdict in tabdict["schedule"]:
-            di.extend([rowdict["dimension"], rowdict["item"]])
-            qm.append("(?, ?)")
-        qrystr = qryfmt.format(", ".join(self.colnames["scheduled_event"]),
-                               ", ".join(qm))
-        db.c.execute(qrystr, di)
-        tabdict["scheduled_event"] = [
-            dictify_row(self.colnames["scheduled_event"], row)
-            for row in db.c]
+            "SELECT {0} FROM schedule, scheduled_event WHERE "
+            "schedule.dimension=scheduled_event.dimension AND "
+            "schedule.item=scheduled_event.item AND "
+            "dimension=?")
+        schedcol = ["schedule." + col for col in self.colnames["schedule"]]
+        evcol = ["scheduled_event." + col
+                 for col in self.valnames["scheduled_event"]]
+        allcol = self.colnames["schedule"] + self.valnames["scheduled_event"]
+        allcolstr = ", ".join(schedcol + evcol)
+        qrystr = qryfmt.format(allcolstr)
+        db.c.execute(qrystr, (dimname,))
+        return [
+            dictify_row(allcol, row) for row in db.c]
+
+    def parse(self, rowdicts):
+        tabdict = {}
+        for row in rowdicts:
+            if row["dimension"] not in tabdict:
+                tabdict[row["dimension"]] = {}
+            if row["item"] not in tabdict[row["dimension"]]:
+                tabdict[row["dimension"]][row["item"]] = {
+                    "age": row["age"],
+                    "events": []}
+            evd = {
+                "event": row["event"],
+                "start": row["start"],
+                "length": row["length"]}
+            evl = tabdict[row["dimension"]][row["item"]]["events"]
+            evl.append(evd)
         return tabdict
+
+    def pull_parse_dimension(self, db, dimname):
+        return self.parse(self.pull_dimension(db, dimname))
 
     def __getitem__(self, n):
         return self.startevs[n]
@@ -670,21 +640,27 @@ class Dimension:
                 {"name": "text"}}
     primarykeys = {"dimension": ("name",)}
 
-    def pull_many(self, db, dims):
-        tabdict = Place.pull_dimensions(db, dims)
-        tabdict.update(Thing.pull_dimensions(db, dims))
-        tabdict.update(Portal.pull_dimensions(db, dims))
+    def pull_named(self, db, dimname):
+        tabdict = {"dimension": {"name": dimname}}
+        for clas in [Place, Thing, Portal, Journey]:
+            tabdict.update(clas.pull_parse_dimension(db, dimname))
         return tabdict
 
     def build(self):
-        rowdict = self.tabdict["dimension"][0]
-        db = self.db
-        self.name = rowdict["name"]
-        self.placedict = self.db.placedict[self.name]
-        self.portaldict = self.db.portaldict[self.name]
-        self.thingdict = self.db.thingdict[self.name]
-        self.journeydict = self.db.journeydict[self.name]
-        db.dimensiondict[self.name] = self
+        self.name = self.tabdict["dimension"]["name"]
+        self.db.dimensiondict = self
+        self.genthingdict()
+        self.genplacedict()
+        self.genportaldict()
+        self.genjourneydict()
+
+    def link(self):
+        for it in [self.thingdict.itervalues(),
+                   self.placedict.itervalues(),
+                   self.portaldict.itervalues(),
+                   self.journeydict.itervalues()]:
+            for that in it:
+                that.link()
 
     def get_edge(self, portal):
         origi = self.places.index(portal.orig)
@@ -710,6 +686,7 @@ class Dimension:
 
 
 class Place(Item):
+    maintab = "place"
     coldecls = {"place":
                 {"dimension": "text",
                  "name": "text"}}
@@ -717,35 +694,30 @@ class Place(Item):
 
     def pull_dimension(self, db, dimname):
         qryfmt = "SELECT {0} FROM place WHERE dimension=?"
-        qrystr = qryfmt.format(self.colnamestr["place"], dimname)
+        qrystr = qryfmt.format(self.colnamestr["place"])
         db.c.execute(qrystr, (dimname,))
-        tabdict = {}
-        tabdict["place"] = [
-            dictify_row(self.cols, row)
-            for row in db.c]
-
-    def pull_dimensions(self, db, dims):
-        qryfmt = "SELECT {0} FROM place WHERE dimension IN ({0})"
-        dimqm = ["?"] * len(dims)
-        qrystr = qryfmt.format(self.colnamestr["place"], ", ".join(dimqm))
-        db.c.execute(qrystr, dims)
-        tabdict = {}
-        tabdict["place"] = [
+        return [
             dictify_row(self.cols, row) for row in db.c]
-        return tabdict
 
-    def setup(self):
-        Item.setup(self)
-        rowdict = self.tabdict["place"][0]
+    def parse(self, rows):
+        return rows
+
+    def pull_parse_dimension(self, db, dimname):
+        self.parse(self.pull_dimension(db, dimname))
+
+    def build(self):
+        Item.build(self)
+        rowdict = self.tabdict["place"]
         db = self.db
         dimname = rowdict["dimension"]
         self.name = rowdict["name"]
         self.dimension = db.dimensiondict[dimname]
-        pcd = self.db.placecontentsdict
-        podd = self.db.portalorigdestdict
-        self.contents = pcd[dimname][self.name]
-        self.portals = podd[dimname][self.name]
         self.db.placedict[dimname][self.name] = self
+
+    def link(self):
+        dimname = self.tabdict["place"]["dimension"]
+        self.dimension = self.db.dimensiondict[dimname]
+        self.contents = self.db.placecontentsdict[dimname][self.name]
 
     def __eq__(self, other):
         if not isinstance(other, Place):
@@ -759,10 +731,7 @@ class Thing(Item):
     coldecls = {"thing":
                 {"dimension": "text",
                  "name": "text",
-                 "location": "text"},
-                "containment":
-                {"dimension": "text",
-                 "contained": "text",
+                 "location": "text",
                  "container": "text"},
                 "thing_kind":
                 {"name": "text"},
@@ -772,122 +741,51 @@ class Thing(Item):
                  "kind": "text"}}
     primarykeys = {"thing": ("dimension", "name"),
                    "location": ("dimension", "thing"),
-                   "containment": ("dimension", "contained"),
                    "thing_kind": ("name",),
                    "thing_kind_link": ("thing", "kind")}
     foreignkeys = {"thing":
-                   {"dimension": ("dimension", "name")},
-                   "containment":
                    {"dimension": ("dimension", "name"),
-                    "dimension, contained": ("thing", "dimension, name"),
                     "dimension, container": ("thing", "dimension, name")},
                    "thing_kind_link":
                    {"dimension": ("dimension", "name"),
                     "thing": ("thing", "name"),
                     "kind": ("thing_kind", "name")}}
-    checks = {"containment": ["contained<>container"]}
-
-    def pull_dimensions(self, db, dims):
-        qryfmt = "SELECT {0} FROM thing WHERE dimension IN ({1})"
-        tabdict = {}
-        dims_qm = ["?"] * len(dims)
-        dims_qm_str = ", ".join(dims_qm)
-        qrystr = qryfmt.join(self.colnamestr["thing"], dims_qm_str)
-        db.c.execute(qrystr, dims)
-        tabdict["thing"] = [
-            dictify_row(self.cols, row) for row in db.c]
-
-        qryfmt = (
-            "SELECT {0} FROM containment WHERE dimension IN ({1})")
-        qrystr = qryfmt.format(self.colnamestr["containment"], dims_qm_str)
-        db.c.execute(qrystr, dims)
-        tabdict["containment"] = [
-            dictify_row(self.colnames["containment"], row)
-            for row in db.c]
-
-        qryfmt = (
-            "SELECT {0} FROM thing_kind_link WHERE dimension IN ({1})")
-        qrystr = qryfmt.format(self.colnamestr["thing_kind_link"], dims_qm_str)
-        db.c.execute(qrystr, dims)
-        tabdict["thing_kind_link"] = [
-            dictify_row(self.colnames["thing_kind_link"], row)
-            for row in db.c]
-
-        return tabdict
 
     def pull_dimension(self, db, dimname):
-        qryfmt = "SELECT {0} FROM thing WHERE dimension=?"
-        qrystr = qryfmt.format(self.colnamestr["thing"], dimname)
-        db.c.execute(qrystr, (dimname,))
-        tabdict = {}
-        tabdict["thing"] = [
-            dictify_row(self.cols, row)
-            for row in db.c]
-
         qryfmt = (
-            "SELECT {0} FROM containment WHERE dimension=?")
-        qrystr = qryfmt.format(self.colnamestr["containment"], dimname)
-        db.c.execute(qrystr, (dimname,))
-        tabdict["containment"] = [
-            dictify_row(self.colnames["containment"], row)
-            for row in db.c]
+            "SELECT {0} FROM thing, thing_kind_link WHERE "
+            "thing.dimension=thing_kind_link.dimension AND "
+            "thing.name=thing_kind_link.thing AND "
+            "dimension=?")
+        colstr = ", ".join(self.colnames["thing"] + self.colnames["thing_kind_link"])
+        qrystr = qryfmt.format(colstr)
 
-        qryfmt = (
-            "SELECT {0} FROM thing_kind_link WHERE dimension=?")
-        qrystr = qryfmt.format(self.colnamestr["thing_kind_link"], dimname)
-        db.c.execute(qrystr, (dimname,))
-        tabdict["thing_kind_link"] = [
-            dictify_row(self.colnames["thing_kind_link"], row)
-            for row in db.c]
-
-        return tabdict
-
-    def pull(self, db, tabdict):
-        qryfmt = (
-            "SELECT {0} FROM containment WHERE "
-            "(dimension, contained) IN ({1})")
-        dn = []
-        qm = []
-        for rowdict in tabdict["thing"]:
-            dn.extend([rowdict["dimension"], rowdict["name"]])
-            qm.append("(?, ?)")
-        qmstr = ", ".join(qm)
-        qrystr = qryfmt.format(self.rowqms["containment"], qmstr)
-        db.c.execute(qrystr, dn)
-        tabdict["containment"] = [
-            dictify_row(self.colnames["containment"], row)
-            for row in db.c]
-
-        qryfmt = (
-            "SELECT {0} FROM thing_kind_link WHERE "
-            "(dimension, thing) IN ({1})")
-        qrystr = qryfmt.format(self.rowqms["thing_kind_link"], qmstr)
-        db.c.execute(qrystr, dn)
-        tabdict["thing_kind_link"] = [
-            dictify_row(self.colnames["thing_kind_link"], row)
-            for row in db.c]
-
-        return tabdict
-
-    def setup(self):
-        Item.setup(self)
-        rowdict = self.tabdict["thing"][0]
-        locname = rowdict["location"]
-        dimname = self.dimension.name
+    def build(self):
+        Item.build(self)
+        self.name = self.tabdict["thing"]["name"]
+        dimname = self.tabdict["thing"]["dimension"]
+        locname = self.tabdict["thing"]["location"]
         db = self.db
-        self.location = db.placedict[dimname][locname]
         db.thingdict[dimname][self.name] = self
-        if self.name in db.contentsdict[dimname]:
-            self.contents = db.contentsdict[dimname][self.name]
-            for contained in self.contents:
-                db.containerdict[dimname][contained.name] = self
-        else:
-            self.contents = []
-            db.contentsdict[dimname][self.name] = self.contents
-        if self.name in db.containerdict[dimname]:
-            self.container = db.containerdict[dimname]
-        else:
-            self.container = None
+        if dimname not in db.placecontentsdict:
+            db.placecontentsdict[dimname] = {}
+        if locname not in db.placecontentsdict[dimname]:
+            db.placecontentsdict[dimname][locname] = set()
+        db.placecontentsdict[dimname][locname].add(self)
+        if dimname not in db.thingcontentsdict:
+            db.thingcontentsdict[dimname] = {}
+        if self.name not in db.thingcontentsdict[dimname]:
+            db.thingcontentsdict[dimname][self.name] = set()
+
+    def link(self):
+        dimname = self.tabdict["thing"]["name"]
+        locname = self.tabdict["thing"]["location"]
+        contname = self.tabdict["thing"]["container"]
+        db = self.db
+        self.dimension = db.dimensiondict[dimname]
+        self.location = db.placedict[dimname][locname]
+        self.container = db.thingdict[dimname][contname]
+        self.container.add(self)
 
     def __str__(self):
         return "(%s, %s)" % (self.dimension, self.name)

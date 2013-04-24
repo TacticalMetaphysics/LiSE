@@ -213,8 +213,8 @@ class Database:
     def call_func(self, fname, farg):
         return self.func[fname](farg)
 
-    def load_dimensions(self, dims):
-        tabdict = Dimension.pull_many(self, dims)
+    def load_dimension(self, dimname):
+        # TODO
 
     def load_rltile(self, name, path):
         badimg = image(path)
