@@ -214,7 +214,7 @@ class Database:
         return self.func[fname](farg)
 
     def load_dimension(self, dimname):
-        # TODO
+        return Dimension.load_named(self, dimname)
 
     def load_rltile(self, name, path):
         badimg = image(path)

@@ -143,19 +143,6 @@ class SaveableMetaclass(type):
             db.c.execute(qrystr, qrytup)
             return db.c.fetchall()
 
-        def build(self):
-            pass
-
-        def setup(self):
-            if not self.built:
-                self.build()
-                self.built = True
-
-        def __init__(self, db, tabd):
-            self.db = db
-            self.tabdict = tabd
-            self.setup()
-
         dbop = {'insert': insert_rowdicts_table,
                 'delete': delete_keydicts_table,
                 'detect': detect_keydicts_table,
@@ -174,10 +161,7 @@ class SaveableMetaclass(type):
                   'rowlen': rowlen,
                   'keyqms': keyqms,
                   'rowqms': rowqms,
-                  'dbop': dbop,
-                  'build': build,
-                  'built': False,
-                  '__init__': __init__}
+                  'dbop': dbop}
         atrdic.update(attrs)
 
         return type.__new__(metaclass, clas, parents, atrdic)

@@ -50,6 +50,23 @@ class Journey:
                  "dimension, portal": ("portal", "dimension, name")}}
     checks = {"journey": ["progress>=0.0", "progress<1.0"]}
 
+    def __init__(self, dimension, thing, curstep, progress, steps, db=None):
+        self.dimension = dimension
+        self.thing = thing
+        self.curstep = curstep
+        self.progress = progress
+        self.steps = steps
+        if db is not None:
+            if dimension not in db.journeydict:
+                db.journeydict[dimension] = {}
+            db.journeydict[dimension][thing] = self
+
+    def unravel(self, db):
+        self.dimension = db.dimensiondict[self.dimension]
+        self.thing = db.thingdict[self.dimension.name][self.thing]
+        for step in self.steps:
+            step = db.portaldict[self.dimension.name][step]
+
     def pull_dimension(self, db, dimname):
         # Now just returns a lot of rowdicts. Each is sufficient to
         # make a journey and its journeystep.
@@ -87,16 +104,6 @@ class Journey:
 
     def pull_parse_dimension(self, db, dimname):
         return self.parse(self.pull_dimension(db, dimname))
-
-    def build(self):
-        db = self.db
-        rowdict = self.tabdict["journey"]
-        self.dimension = db.dimensiondict[rowdict["dimension"]]
-        self.thing = db.thingdict[rowdict["dimension"]][rowdict["thing"]]
-        self.curstep = rowdict["curstep"]
-        self.progress = rowdict["progress"]
-        self.steplist = self.tabdict["journeystep"]
-        db.journeydict[self.dimension.name][self.thing.name] = self
 
     def steps(self):
         """Get the number of steps in the Journey.
@@ -317,6 +324,31 @@ class Portal(Item):
                     "dimension, from_place": ("place", "dimension, name"),
                     "dimension, to_place": ("place", "dimension, name")}}
 
+    def __init__(self, dimension, name, from_place, to_place, db=None):
+        self.dimension = dimension
+        self.name = name
+        self.orig = from_place
+        self.dest = to_place
+        if db is not None:
+            pd = db.portaldict
+            podd = db.portalorigdestdict
+            pdod = db.portaldestorigdict
+            for d in [pd, podd, pdod]:
+                if dimension not in d:
+                    d[dimension] = {}
+            if from_place not in podd:
+                podd[from_place] = {}
+            if to_place not in pdod:
+                pdod[to_place] = {}
+            pd[dimension][name] = self
+            podd[dimension][from_place][to_place] = self
+            pdod[dimension][to_place][from_place] = self
+
+    def unravel(self, db):
+        self.dimension = db.dimensiondict[self.dimension]
+        self.orig = db.placedict[self.dimension.name][self.orig]
+        self.dest = db.placedict[self.dimension.name][self.dest]
+
     def pull_dimension(self, db, dimname):
         qryfmt = "SELECT {0} FROM portal WHERE dimension=?"
         qrystr = qryfmt.format(self.colnamestr["portal"])
@@ -329,24 +361,6 @@ class Portal(Item):
 
     def pull_parse_dimension(self, db, dimname):
         return self.parse(self.pull_dimension(db, dimname))
-
-    def build(self):
-        self.name = self.tabdict["portal"]["name"]
-        dimname = self.tabdict["portal"]["dimension"]
-        self.db.portaldict[dimname][self.name] = self
-
-    def link(self):
-        dimname = self.tabdict["portal"]["dimension"]
-        self.dimension = self.db.dimensiondict[dimname]
-        from_place = self.tabdict["portal"]["from_place"]
-        to_place = self.tabdict["portal"]["to_place"]
-        pd = self.db.placedict
-        self.orig = pd[self.dimension.name][from_place]
-        self.dest = pd[self.dimension.name][to_place]
-        podd = self.db.portalorigdestdict[self.dimension.name]
-        pdod = self.db.portaldestorigdict[self.dimension.name]
-        podd[self.orig.name] = self.dest
-        pdod[self.dest.name] = self.orig
 
     def __hash__(self):
         return self.hsh
@@ -399,6 +413,16 @@ class Effect:
     primarykeys = {
         "effect": ("name", "func", "arg")}
 
+    def __init__(self, name, func, arg, db=None):
+        self.name = name
+        self.func = func
+        self.arg = arg
+        if db is not None:
+            db.effectdict[name] = self
+
+    def unravel(self, db):
+        self.func = db.func[self.func]
+
     def parse(self, row):
         return {"effect": row}
 
@@ -421,6 +445,16 @@ class EffectDeck:
         "effect_deck_link":
         {"deck": ("effect_deck", "name"),
          "effect": ("effect", "name")}}
+
+    def __init__(self, name, effects, db=None):
+        self.name = name
+        self.effects = effects
+        if db is not None:
+            db.effectdeckdict[name] = self
+
+    def unravel(self, db):
+        for effect in self.effects:
+            effect = db.effectdict[effect]
 
 
 class Event:
@@ -450,18 +484,31 @@ success that strains a person terribly and causes them injury.
         {"name": "text",
          "ongoing": "boolean",
          "commence_tests": "text",
-         "interrupt_effects": "text",
+         "proceed_tests": "text",
          "conclude_tests": "text"}}
     primarykeys = {
         "event": ("name",)}
     foreignkeys = {
         "event":
         {"commence_tests": ("effect_deck", "name"),
-         "abort_effects": ("effect_deck", "name"),
          "proceed_tests": ("effect_deck", "name"),
-         "interrupt_effects": ("effect_deck", "name"),
-         "conclude_tests": ("effect_deck", "name"),
-         "complete_effects": ("effect_deck", "name")}}
+         "conclude_tests": ("effect_deck", "name")}}
+
+    def __init__(self, name, ongoing, commence_tests,
+                 proceed_tests, conclude_tests, db=None):
+        self.name = name
+        self.ongoing = ongoing
+        self.commence_tests = commence_tests
+        self.proceed_tests = proceed_tests
+        self.conclude_tests = conclude_tests
+        if db is not None:
+            db.eventdict[name] = self
+
+    def unravel(self, db):
+        for deck in [self.commence_tests, self.proceed_tests,
+                     self.conclude_tests]:
+            for effect in deck:
+                effect = db.effectdict[effect]
 
     def parse(self, row):
         return {"event": row}
@@ -530,35 +577,6 @@ success that strains a person terribly and causes them injury.
         return self.status
 
 
-class EventDeck:
-    maintab = "event_deck"
-    coldecls = {
-        "event_deck":
-        {"name": "text",
-         "type": "text"},
-        "event_deck_link":
-        {"event": "text",
-         "deck": "text"}}
-    primarykeys = {
-        "event_deck": ("name",),
-        "event_deck_link": ("event", "deck")}
-    foreignkeys = {
-        "event_deck_link":
-        {"event": ("event", "name"),
-         "deck": ("event_deck", "name")}}
-
-    def parse(self, row):
-        evrow = {
-            "deck": row["deck"],
-            "name": row["event"],
-            "func": row["func"],
-            "arg": row["arg"],
-            "commence_tests": row["commence_tests"],
-            "proceed_tests": row["proceed_tests"],
-            "conclude_tests": row["conclude_tests"]}
-        return Event.parse(evrow)
-
-
 class Schedule:
     maintab = "schedule"
     coldecls = {
@@ -581,6 +599,26 @@ class Schedule:
         "scheduled_event":
         {"schedule": ("schedule", "name"),
          "event": ("event", "name")}}
+
+    def __init__(self, dimension, item, age, events, db=None):
+        self.dimension = dimension
+        self.item = item
+        self.age = age
+        self.events = events
+        if db is not None:
+            if dimension not in db.scheduledict:
+                db.scheduledict[dimension] = {}
+            db.scheduledict[dimension][item] = self
+
+    def unravel(self, db):
+        self.dimension = db.dimensiondict[self.dimension]
+        self.item = db.itemdict[self.dimension.name][self.item]
+        for event in self.events:
+            start = event["start"]
+            length = event["length"]
+            event = db.eventdict[event]
+            event.start = start
+            event.length = length
 
     def pull_dimension(self, db, dimname):
         qryfmt = (
@@ -618,7 +656,8 @@ class Schedule:
                     "age": row["age"],
                     "events": []}
             ptr = tabdict[row["dimension"]][row["item"]]
-            ptr["events"].append(EventDeck.parse(row))
+            # TODO write a real event row parser
+            ptr["events"].append(Event.parse(row))
         return {"schedule": tabdict}
 
     def pull_parse_dimension(self, db, dimname):
@@ -656,27 +695,49 @@ class Dimension:
                 {"name": "text"}}
     primarykeys = {"dimension": ("name",)}
 
-    def pull_named(self, db, dimname):
+    def __init__(self, name, places, portals, things, journeys, db=None):
+        self.name = name
+        self.places = places
+        self.portals = portals
+        self.things = things
+        self.journeys = journeys
+        if db is not None:
+            db.dimensiondict[name] = self
+
+    def unravel(self, db):
+        for place in self.places:
+            place = db.placedict[self.name][place]
+        for portal in self.portals:
+            portal = db.portaldict[self.name][portal]
+        for thing in self.things:
+            thing = db.thingdict[self.name][thing]
+        for journey in self.journeys:
+            journey = db.journeydict[self.name][journey]
+
+    def pull_parse_named(self, db, dimname):
         tabdict = {"name": dimname}
         for clas in [Place, Thing, Portal, Journey]:
             tabdict.update(clas.pull_parse_dimension(db, dimname))
         return {"dimension": tabdict}
 
-    def build(self):
-        self.name = self.tabdict["dimension"]["name"]
-        self.db.dimensiondict = self
-        self.genthingdict()
-        self.genplacedict()
-        self.genportaldict()
-        self.genjourneydict()
+    def from_tabdict(self, db, tabdict):
+        name = tabdict["dimension"]["name"]
+        db.dimensiondict[self.name] = self
+        places = [
+            Place(**row) for row in tabdict["place"]]
+        portals = [
+            Portal(**row) for row in tabdict["portal"]]
+        things = [
+            Thing(**row) for row in tabdict["thing"]]
+        journeys = [
+            Journey(**row) for row in tabdict["journey"]]
+        dim = Dimension(name, places, portals, things, journeys)
+        dim.db = db
+        dim.tabdict = tabdict
+        return dim
 
-    def link(self):
-        for it in [self.thingdict.itervalues(),
-                   self.placedict.itervalues(),
-                   self.portaldict.itervalues(),
-                   self.journeydict.itervalues()]:
-            for that in it:
-                that.link()
+    def load_named(self, db, name):
+        return self.from_tabdict(db, self.pull_parse_named(db, name))
 
     def get_edge(self, portal):
         origi = self.places.index(portal.orig)
@@ -708,6 +769,17 @@ class Place(Item):
                  "name": "text"}}
     primarykeys = {"place": ("dimension", "name")}
 
+    def __init__(self, dimension, name, db=None):
+        self.dimension = dimension
+        self.name = name
+        if db is not None:
+            if dimension not in db.placedict:
+                db.placedict[dimension] = {}
+            db.placedict[dimension][name] = self
+
+    def unravel(self, db):
+        self.dimension = db.dimensiondict[self.dimension]
+
     def pull_dimension(self, db, dimname):
         qryfmt = "SELECT {0} FROM place WHERE dimension=?"
         qrystr = qryfmt.format(self.colnamestr["place"])
@@ -720,20 +792,6 @@ class Place(Item):
 
     def pull_parse_dimension(self, db, dimname):
         self.parse(self.pull_dimension(db, dimname))
-
-    def build(self):
-        Item.build(self)
-        rowdict = self.tabdict["place"]
-        db = self.db
-        dimname = rowdict["dimension"]
-        self.name = rowdict["name"]
-        self.dimension = db.dimensiondict[dimname]
-        self.db.placedict[dimname][self.name] = self
-
-    def link(self):
-        dimname = self.tabdict["place"]["dimension"]
-        self.dimension = self.db.dimensiondict[dimname]
-        self.contents = self.db.placecontentsdict[dimname][self.name]
 
     def __eq__(self, other):
         if not isinstance(other, Place):
@@ -771,6 +829,26 @@ class Thing(Item):
          "thing": ("thing", "name"),
          "kind": ("thing_kind", "name")}}
 
+    def __init__(self, dimension, name, location, container, kinds, db=None):
+        self.dimension = dimension
+        self.name = name
+        self.location = location
+        self.container = container
+        self.kinds = kinds
+        if db is not None:
+            if dimension not in db.thingdict:
+                db.thingdict[dimension] = {}
+            db.thingdict[dimension][name] = self
+
+    def unravel(self, db):
+        self.dimension = db.dimensiondict[self.dimension]
+        self.location = db.placedict[self.dimension.name][self.location]
+        self.container = db.thingdict[self.dimension.name][self.container]
+        self.contents = set()
+        self.unravelled = True
+        if self.container.unravelled:
+            self.container.add(self)
+
     def pull_dimension(self, db, dimname):
         qryfmt = (
             "SELECT {0} FROM thing, thing_kind_link WHERE "
@@ -804,33 +882,6 @@ class Thing(Item):
 
     def pull_parse_dimension(self, db, dimname):
         return self.parse(self.pull_dimension(db, dimname))
-
-    def build(self):
-        Item.build(self)
-        self.name = self.tabdict["thing"]["name"]
-        dimname = self.tabdict["thing"]["dimension"]
-        locname = self.tabdict["thing"]["location"]
-        db = self.db
-        db.thingdict[dimname][self.name] = self
-        if dimname not in db.placecontentsdict:
-            db.placecontentsdict[dimname] = {}
-        if locname not in db.placecontentsdict[dimname]:
-            db.placecontentsdict[dimname][locname] = set()
-        db.placecontentsdict[dimname][locname].add(self)
-        if dimname not in db.thingcontentsdict:
-            db.thingcontentsdict[dimname] = {}
-        if self.name not in db.thingcontentsdict[dimname]:
-            db.thingcontentsdict[dimname][self.name] = set()
-
-    def link(self):
-        dimname = self.tabdict["thing"]["name"]
-        locname = self.tabdict["thing"]["location"]
-        contname = self.tabdict["thing"]["container"]
-        db = self.db
-        self.dimension = db.dimensiondict[dimname]
-        self.location = db.placedict[dimname][locname]
-        self.container = db.thingdict[dimname][contname]
-        self.container.add(self)
 
     def __str__(self):
         return "(%s, %s)" % (self.dimension, self.name)
