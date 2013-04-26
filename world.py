@@ -704,16 +704,6 @@ class Dimension:
         if db is not None:
             db.dimensiondict[name] = self
 
-    def unravel(self, db):
-        for place in self.places:
-            place = db.placedict[self.name][place]
-        for portal in self.portals:
-            portal = db.portaldict[self.name][portal]
-        for thing in self.things:
-            thing = db.thingdict[self.name][thing]
-        for journey in self.journeys:
-            journey = db.journeydict[self.name][journey]
-
     def pull_parse_named(self, db, dimname):
         tabdict = {"name": dimname}
         for clas in [Place, Thing, Portal, Journey]:
@@ -721,23 +711,27 @@ class Dimension:
         return {"dimension": tabdict}
 
     def from_tabdict(self, db, tabdict):
-        name = tabdict["dimension"]["name"]
+        tdd = tabdict["dimension"]
+        name = tdd["name"]
         db.dimensiondict[self.name] = self
         places = [
-            Place(**row) for row in tabdict["place"]]
+            Place(**row) for row in tdd["place"]]
         portals = [
-            Portal(**row) for row in tabdict["portal"]]
+            Portal(**row) for row in tdd["portal"]]
         things = [
-            Thing(**row) for row in tabdict["thing"]]
+            Thing(**row) for row in tdd["thing"]]
         journeys = [
-            Journey(**row) for row in tabdict["journey"]]
+            Journey(**row) for row in tdd["journey"]]
         dim = Dimension(name, places, portals, things, journeys)
-        dim.db = db
-        dim.tabdict = tabdict
         return dim
 
     def load_named(self, db, name):
-        return self.from_tabdict(db, self.pull_parse_named(db, name))
+        loaded = self.from_tabdict(db, self.pull_parse_named(db, name))
+        for l in [loaded.places, loaded.portals,
+                  loaded.things, loaded.journeys]:
+            for m in l:
+                m.unravel(db)
+        return loaded
 
     def get_edge(self, portal):
         origi = self.places.index(portal.orig)
