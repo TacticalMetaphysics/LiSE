@@ -1,27 +1,28 @@
-game_menu_items = {'New': ('start_new_map', None),
-                   'Open': ('open_map', None),
-                   'Save': ('save_map', None),
-                   'Quit': ('quit_map_editor', None)}
-editor_menu_items = {'Select': ('editor_select', None),
-                     'Copy': ('editor_copy', None),
-                     'Paste': ('editor_paste', None),
-                     'Delete': ('editor_delete', None)}
-place_menu_items = {'Custom Place': ('new_place', 'custom'),
-                    'Workplace': ('new_place', 'workplace'),
-                    'Commons': ('new_place', 'commons'),
-                    'Lair': ('new_place', 'lair')}
-thing_menu_items = {'Custom Thing': ('new_thing', 'custom'),
-                    'Decoration': ('new_thing', 'decoration'),
-                    'Clothing': ('new_thing', 'clothing'),
-                    'Tool': ('new_thing', 'tool')}
-main_menu_items = {'Game': ('toggle_menu_visibility', 'Game'),
-                   'Editor': ('toggle_menu_visibility', 'Editor'),
-                   'Place': ('toggle_menu_visibility', 'Place'),
-                   'Thing': ('toggle_menu_visibility', 'Thing')}
+dimname = 'Physical'
+
+game_menu_items = {'New': 'start_new_map()',
+                   'Open': 'open_map()',
+                   'Save': 'save_map()',
+                   'Quit': 'quit_map_editor()'}
+editor_menu_items = {'Select': 'editor_select()',
+                     'Copy': 'editor_copy()',
+                     'Paste': 'editor_paste()',
+                     'Delete': 'editor_delete()'}
+place_menu_items = {'Custom Place': 'new_place(custom)',
+                    'Workplace': 'new_place(workplace)',
+                    'Commons': 'new_place(commons)',
+                    'Lair': 'new_place(lair)'}
+thing_menu_items = {'Custom Thing': 'new_thing(custom)',
+                    'Decoration': 'new_thing(decoration)',
+                    'Clothing': 'new_thing(clothing)',
+                    'Tool': 'new_thing(tool)'}
+main_menu_items = {'Game': 'toggle_menu_visibility(Game)',
+                   'Editor': 'toggle_menu_visibility(Editor)',
+                   'Place': 'toggle_menu_visibility(Place)',
+                   'Thing': 'toggle_menu_visibility(Thing)'}
 
 menu_items = [game_menu_items, editor_menu_items, place_menu_items,
               thing_menu_items, main_menu_items]
-
 
 solarized_colors = {
     'base03': (0x00, 0x2b, 0x36),
@@ -41,7 +42,13 @@ solarized_colors = {
     'cyan': (0x2a, 0xa1, 0x98),
     'green': (0x85, 0x99, 0x00)}
 
-styles = [
+colors = dict([('solarized-' + it[0], it[1])
+               for it in solarized_colors.iteritems()])
+
+print "COLORS"
+print colors
+
+styletups = [
     ('Big',
      'DejaVu Sans', 16, 6,
      'solarized-base03',
@@ -55,29 +62,86 @@ styles = [
      'solarized-base1',
      'solarized-base01')]
 
-rpos = [('myroom', 'guestroom'),
-                ('myroom', 'mybathroom'),
-                ('myroom', 'outside'),
-                ('myroom', 'diningoffice'),
-                ('myroom', 'livingroom'),
-                ('guestroom', 'diningoffice'),
-                ('guestroom', 'livingroom'),
-                ('guestroom', 'mybathroom'),
-                ('livingroom', 'diningoffice'),
-                ('diningoffice', 'kitchen'),
-                ('livingroom', 'longhall'),
-                ('longhall', 'momsbathroom'),
-                ('longhall', 'momsroom')]
 
-ths = [('me', 'myroom'),
-       ('diningtable', 'diningoffice'),
-       ('mydesk', 'myroom'),
-       ('mybed', 'myroom'),
-       ('bustedchair', 'myroom'),
-       ('sofas', 'livingroom'),
-       ('fridge', 'kitchen'),
-       ('momsbed', 'momsroom'),
-       ('mom', 'momsroom')]
+def mkstyled(st):
+    return {
+        'name': st[0],
+        'fontface': st[1],
+        'fontsize': st[2],
+        'bg_inactive': st[3],
+        'bg_active': st[4],
+        'fg_inactive': st[5],
+        'fg_active': st[6]}
+
+
+styles = [mkstyled(st) for st in styletups]
+
+rpos = [('myroom', 'guestroom'),
+        ('myroom', 'mybathroom'),
+        ('myroom', 'outside'),
+        ('myroom', 'diningoffice'),
+        ('myroom', 'livingroom'),
+        ('guestroom', 'diningoffice'),
+        ('guestroom', 'livingroom'),
+        ('guestroom', 'mybathroom'),
+        ('livingroom', 'diningoffice'),
+        ('diningoffice', 'kitchen'),
+        ('livingroom', 'longhall'),
+        ('longhall', 'momsbathroom'),
+        ('longhall', 'momsroom')]
+
+
+nrpos = [('guestroom', 'outside'),
+         ('diningoffice', 'outside'),
+         ('momsroom', 'outside')]
+
+
+def mkportald(o, d):
+    return {
+        'dimension': dimname,
+        'name': 'portal{0}->{1}'.format(o, d),
+        'from_place': o,
+        'to_place': d}
+
+
+def tup2port(t):
+    return mkportald(*t)
+
+
+def invtup2port(t):
+    (o, d) = t
+    return mkportald(d, o)
+
+
+portals = (
+    [tup2port(t) for t in rpos] +
+    [invtup2port(t) for t in rpos] +
+    [tup2port(t) for t in nrpos])
+
+
+ths = [('me', 'myroom', None),
+       ('diningtable', 'diningoffice', None),
+       ('mydesk', 'myroom', None),
+       ('mybed', 'myroom', None),
+       ('bustedchair', 'myroom', None),
+       ('sofas', 'livingroom', None),
+       ('fridge', 'kitchen', None),
+       ('momsbed', 'momsroom', None),
+       ('mom', 'momsroom', None)]
+
+
+def mkthingd(t):
+    (name, loc, contr) = t
+    return {
+        'dimension': dimname,
+        'name': name,
+        'location': loc,
+        'container': contr}
+
+
+things = [mkthingd(th) for th in ths]
+
+
 placenames = ['myroom',
               'guestroom',
               'mybathroom',
@@ -89,18 +153,32 @@ placenames = ['myroom',
               'momsroom',
               'outside']
 
+
+places = [{'dimension': dimname, 'name': n} for n in placenames]
+
+
 mjos = ["portal[momsroom->longhall]",
         "portal[longhall->livingroom]",
         "portal[livingroom->diningoffice]",
         "portal[diningoffice->outside]"]
-steps_to_kitchen = [('Physical', 'me',  0,
-                     'portal[myroom->diningoffice]'),
-                    ('Physical', 'me', 1,
-                     'portal[diningoffice->kitchen]')]
+
+
+def mkstepd(dim, it, i, port):
+    return {
+        'dimension': dim,
+        'thing': it,
+        'idx': i,
+        'portal': port}
+
+steps_to_kitchen = [mkstepd('Physical', 'me',  0,
+                            'portal[myroom->diningoffice]'),
+                    mkstepd('Physical', 'me', 1,
+                            'portal[diningoffice->kitchen]')]
+
 steps_outside = []
 i = 0
 while i < len(mjos):
-    steps_outside.append(('Physical', 'mom', i, mjos[i]))
+    steps_outside.append(mkstepd('Physical', 'mom', i, mjos[i]))
     i += 1
 
 steps = steps_to_kitchen + steps_outside
@@ -111,7 +189,14 @@ imgtups = [("troll_m", "rltiles/player/base/troll_m.bmp", True),
            ("wall", "wallpape.jpg", False)]
 
 
-spots = [
+def mkimgd(name, path, rltile):
+    return {
+        'name': name,
+        'path': path,
+        'rltile': rltile}
+
+
+spottups = [
     ('Physical', 'myroom', "orb", 400, 100, True, True),
     ('Physical', 'mybathroom', 'orb', 450, 150, True, True),
     ('Physical', 'guestroom', 'orb', 400, 200, True, True),
@@ -124,9 +209,18 @@ spots = [
     ('Physical', 'outside', 'orb', 300, 100, True, True)]
 
 
-nrpos = [('guestroom', 'outside'),
-         ('diningoffice', 'outside'),
-         ('momsroom', 'outside')]
+def mkspotd(dim, name, sprite, x, y, visible, interactive):
+    return {
+        'dimension': dim,
+        'name': name,
+        'img': sprite,
+        'x': x,
+        'y': y,
+        'visible': visible,
+        'interactive': interactive}
+
+
+spots = [mkspotd(*stup) for stup in spottups]
 
 
 gamemenu = {'name': 'Game',
@@ -169,10 +263,4 @@ mainmenu = {'name': 'Main',
             'style': 'Big',
             'visible': True,
             'main_for_window': True}
-
-
-menus = [(gamemenu, game_menu_items),
-         (editormenu, editor_menu_items),
-         (placemenu, place_menu_items),
-         (thingmenu, thing_menu_items),
-         (mainmenu, main_menu_items)]
+menus = [gamemenu, editormenu, placemenu, thingmenu, mainmenu]

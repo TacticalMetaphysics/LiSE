@@ -2,33 +2,10 @@ import sqlite3
 import sys
 import os
 from widgets import Color, MenuItem, Menu, Spot, Pawn, Board, Style
-from world import Journey, Place, Portal, Thing, Dimension
+from world import Journey, Place, Portal, Thing, Dimension, Item
 from pyglet.resource import image
-from util import Img, default, compile_tabdicts, Item
+from util import Img, compile_tabdicts
 sys.path.append(os.curdir)
-
-
-default.tabdicts = {
-    Dimension: {"dimension": default.dimensions},
-    Item: {"item": default.items},
-    Place: {"place": default.places},
-    Portal: {"portal": default.portals},
-    Thing: {"thing": default.things,
-            "location": default.locations,
-            "containment": default.containment},
-    Menu: {"menu": default.menus},
-    MenuItem: {"menuitem": default.menuitems},
-    Color: {"color": default.colors},
-    Style: {"style": default.styles},
-    Img: {"img": default.imgs},
-    Spot: {"spot": default.spots},
-    Pawn: {"pawn": default.pawns},
-    Journey: {"journey": default.journeys,
-              "journeystep": default.steps},
-    Board: {"board": default.boards}}
-
-
-table_classes = default.tabdicts.keys()
 
 
 class Database:
@@ -37,9 +14,9 @@ class Database:
         self.c = self.conn.cursor()
         self.altered = set()
         self.removed = set()
-        self.placedict = {}
-        self.portaldict = {}
-        self.thingdict = {}
+        self.calendardict = {}
+        self.scheduledict = {}
+        self.itemdict = {}
         self.spotdict = {}
         self.imgdict = {}
         self.boarddict = {}
@@ -54,9 +31,10 @@ class Database:
         self.placecontentsdict = {}
         self.portalorigdestdict = {}
         self.portaldestorigdict = {}
-        self.dictdict = {Place: self.placedict,
-                         Portal: self.portaldict,
-                         Thing: self.thingdict,
+        self.dictdict = {Place: self.itemdict,
+                         Portal: self.itemdict,
+                         Thing: self.itemdict,
+                         Item: self.itemdict,
                          Spot: self.spotdict,
                          Img: self.imgdict,
                          Board: self.boarddict,
@@ -64,9 +42,10 @@ class Database:
                          Style: self.styledict,
                          Color: self.colordict,
                          Journey: self.journeydict}
-        self.tabdict = {"place": self.placedict,
-                        "portal": self.portaldict,
-                        "thing": self.thingdict,
+        self.tabdict = {"place": self.itemdict,
+                        "portal": self.itemdict,
+                        "thing": self.itemdict,
+                        "item": self.itemdict,
                         "spot": self.spotdict,
                         "img": self.imgdict,
                         "board": self.boarddict,
@@ -84,15 +63,6 @@ class Database:
         self.c.close()
         self.conn.commit()
         self.conn.close()
-
-    def insert_defaults(self):
-        for clas in table_classes:
-            tabdict = default.tabdicts[clas]
-            for item in tabdict.iteritems():
-                (tabname, rowdicts) = item
-                self.insert_rowdict_table(rowdicts, clas, tabname)
-        for func in default.funcs:
-            self.xfunc(func)
 
     def insert_rowdict_table(self, rowdict, clas, tablename):
         if rowdict != []:
@@ -192,7 +162,7 @@ class Database:
                 mastertab[tabname], clas, tabname))
         return r
 
-    def mkschema(self):
+    def mkschema(self, table_classes):
         for clas in table_classes:
             for tab in clas.schemata:
                 self.c.execute(tab)
@@ -411,7 +381,7 @@ disk.
         if dim not in pcd or pname not in pcd[dim]:
             return []
         thingnames = self.placecontentsdict[dim][pname]
-        return [self.thingdict[dim][name] for name in thingnames]
+        return [self.itemdict[dim][name] for name in thingnames]
 
     def pawns_on_spot(self, spot):
         return [thing.pawn for thing in

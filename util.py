@@ -1,24 +1,42 @@
-from parms import (
-    menu_items, solarized_colors, menus, styles, ths, placenames,
-    nrpos, rpos, steps, imgtups, spots)
+class LocationException(Exception):
+    pass
+
+
+class ContainmentException(Exception):
+    pass
+
+
+class SenselessEventException(Exception):
+    pass
+
+
+class ImpossibleEventException(Exception):
+    pass
+
+
+class IrrelevantEventException(Exception):
+    pass
+
+
+class ImpracticalEventException(Exception):
+    pass
 
 
 class SaveableMetaclass(type):
     def __new__(metaclass, clas, parents, attrs):
-        if('coldecls' not in attrs or
-           'primarykeys' not in attrs or
-           'maintab' not in attrs):
-            return type(clas, parents, attrs)
-        maintab = attrs['maintab']
+        if 'coldecls' not in attrs:
+            raise Exception("No coldecls in {0}".format(clas))
+        if 'primarykeys' not in attrs:
+            raise Exception("no primarykeys in {0}".format(clas))
         coldecls = attrs['coldecls']
-        keynames = [key for key in coldecls]
         primarykeys = attrs['primarykeys']
-        tablenames = [key for key in coldecls]
+        tablenames = attrs['tablenames']
 
         if 'foreignkeys' in attrs:
             foreignkeys = attrs['foreignkeys']
         else:
             foreignkeys = {}
+
         if 'checks' in attrs:
             checks = attrs['checks']
         else:
@@ -143,16 +161,21 @@ class SaveableMetaclass(type):
             db.c.execute(qrystr, qrytup)
             return db.c.fetchall()
 
-        dbop = {'insert': insert_rowdicts_table,
-                'delete': delete_keydicts_table,
-                'detect': detect_keydicts_table,
-                'missing': missing_keydicts_table}
+        def insert_tabdict(db, tabdict):
+            for item in tabdict.iteritems():
+                (tabn, rd) = item
+                insert_rowdicts_table(db, rd, tabn)
+
+        def unravel(self, db):
+            pass
+
+        dbop = {'insert': insert_tabdict}
         atrdic = {'coldecls': coldecls,
                   'colnames': colnames,
                   'colnamestr': colnamestr,
                   'keynames': keynames,
                   'valnames': valnames,
-                  'cols': colnames[maintab],
+                  'cols': colnames[tablenames[0]],
                   'primarykeys': primarykeys,
                   'foreignkeys': foreignkeys,
                   'checks': checks,
@@ -161,7 +184,9 @@ class SaveableMetaclass(type):
                   'rowlen': rowlen,
                   'keyqms': keyqms,
                   'rowqms': rowqms,
-                  'dbop': dbop}
+                  'dbop': dbop,
+                  'unravel': unravel,
+                  'maintab': tablenames[0]}
         atrdic.update(attrs)
 
         return type.__new__(metaclass, clas, parents, atrdic)
@@ -320,103 +345,18 @@ def mkstyled(name, fontface, fontsize, spacing,
             'fg_active': fg_active}
 
 
-class DefaultParameters:
-    commit = True
-
-    def __init__(self, menus, mitems, funcs, colors,
-                 styles, things, places, portals, reciprocal_portals,
-                 steps, imgtups, spots):
-        self.dimensions = ["Physical"]
-        self.funcs = funcs
-        # I'm going to have the menu bar on the left of the
-        # screen. For convenience.
-        self.menus = []
-        self.menuitems = []
-        self.menunames = []
-        for m in menus:
-            (menud, menuitemd) = m
-            self.menus.append(menud)
-            self.menunames.append(menud["name"])
-            i = 0
-            for item in menuitemd:
-                self.menuitems.append(
-                    {'menu': menud["name"],
-                     'idx': i,
-                     'text': item[0],
-                     'onclick': item[1][0],
-                     'onclick_arg': item[1][1],
-                     'closer': menud["main_for_window"],
-                     'visible': True,
-                     'interactive': True})
-                i += 1
-
-        self.colors = [translate_color(*item) for item in colors.iteritems()]
-
-        self.styles = styles
-
-        self.places = [mkitemd('Physical', p) for p in places]
-
-        self.portals = [mkportald('Physical', po[0], po[1]) for po in portals]
-        self.portals += [mkportald('Physical', po[0], po[1]) for po in
-                         reciprocal_pairs(reciprocal_portals)]
-        self.things = [mkitemd(*th) for th in ths]
-
-        self.locations = [mklocd('Physical', th[0], th[1]) for th in ths]
-
-        self.steps = [mkstepd(*step)
-                      for step in steps]
-
-        self.journeys = [mkjourneyd(thing) for thing in self.things]
-
-        self.containment = []
-
-        self.boards = [mkboardd('Physical', 800, 600, 'wall')]
-
-        self.boardmenu = [
-            mkboardmenud('Physical', menuname)
-            for menuname in self.menunames]
-
-        self.imgs = [mkimgd(*tup) for tup in imgtups]
-
-        self.spots = [mkspotd(*tup) for tup in spots]
-
-        pawntups = [('Physical', 'me', "troll_m", True, True),
-                    ('Physical', 'mom', 'zruty', True, True)]
-        self.pawns = [mkpawnd(*tup) for tup in pawntups]
-
-        portitem = []
-        for port in self.portals:
-            rd = {}
-            rd["name"] = port["name"]
-            rd["dimension"] = port["dimension"]
-            portitem.append(rd)
-
-        self.items = self.places + self.things + portitem
-
 ### These classes are just here to give a nice place to look up column
 ### names. Don't use them
 
 
-class Item:
-    coldecls = {"item":
-                {"dimension": "text",
-                 "name": "text"}}
-    primarykeys = {"item": ("dimension", "name")}
-    __metaclass__ = SaveableMetaclass
-
-
 class Img:
+    tablenames = ["img"]
     coldecls = {"img":
                 {"name": "text",
                  "path": "text",
                  "rltile": "boolean"}}
     primarykeys = {"img": ("name",)}
     __metaclass__ = SaveableMetaclass
-
-
-default = DefaultParameters(
-    menus, menu_items, funcs, solarized_colors, styles, ths,
-    placenames, nrpos, rpos, steps, imgtups, spots)
 
 
 def untuple(list_o_tups):
@@ -486,7 +426,6 @@ def compile_tabdicts(objs):
             mastertab[tabname].append(rowdict)
     return mastertab
 
-
 def deep_lookup(dic, keylst):
     key = keylst.pop()
     ptr = dic
@@ -494,5 +433,3 @@ def deep_lookup(dic, keylst):
         ptr = ptr[key]
         key = keylst.pop()
     return ptr[key]
-
-

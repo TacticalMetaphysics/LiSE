@@ -1,7 +1,7 @@
 # This file is for the controllers for the things that show up on the
 # screen when you play.
 import pyglet
-from saveload import SaveableMetaclass
+from util import SaveableMetaclass
 
 
 __metaclass__ = SaveableMetaclass
@@ -14,7 +14,7 @@ class Color:
 tuples that Pyglet uses to identify colors.
 
     """
-    maintab = "color"
+    tablenames = ["color"]
     coldecls = {"color":
                 {'name': 'text',
                  'red': 'integer not null ',
@@ -28,15 +28,16 @@ tuples that Pyglet uses to identify colors.
               "blue between 0 and 255",
               "alpha between 0 and 255"]}
 
-    def setup(self):
-        rowdict = self.tabdict["color"][0]
-        self.name = rowdict["name"]
-        self.red = rowdict["red"]
-        self.green = rowdict["green"]
-        self.blue = rowdict["blue"]
-        self.alpha = rowdict["alpha"]
+    def __init__(self, name, red, green, blue, alpha, db=None):
+        self.name = name
+        self.red = red
+        self.green = green
+        self.blue = blue
+        self.alpha = alpha
         self.tup = (self.red, self.green, self.blue, self.alpha)
         self.pattern = pyglet.image.SolidColorImagePattern(self.tup)
+        if db is not None:
+            db.colordict[self.name] = self
 
     def __eq__(self, other):
         return (
@@ -54,30 +55,40 @@ tuples that Pyglet uses to identify colors.
 
 
 class MenuItem:
-    coldecls = {'menuitem':
+    tablenames = ["menu_item"]
+    coldecls = {'menu_item':
                 {'menu': 'text',
                  'idx': 'integer',
                  'text': 'text',
                  'onclick': 'text',
-                 'onclick_arg': 'text',
                  'closer': 'boolean',
                  'visible': 'boolean',
                  'interactive': 'boolean'}}
-    primarykeys = {'menuitem': ('menu', 'idx')}
-    foreignkeys = {'menuitem': {"menu": ("menu", "name")}}
+    primarykeys = {'menu_item': ('menu', 'idx')}
+    foreignkeys = {'menu_item':
+                   {"menu": ("menu", "name"),
+                    "onclick": ("effect", "name")}}
 
-    def setup(self):
-        db = self.db
-        rowdict = self.tabdict["menu"][0]
-        self.menuname = rowdict["menu"]
-        self.idx = rowdict["idx"]
-        self.text = rowdict["text"]
-        self.onclick_core = db.func[rowdict["onclick"]]
-        self.onclick_arg = rowdict["onclick_arg"]
-        self.closer = rowdict["closer"]
-        self.visible = rowdict["visible"]
-        self.interactive = rowdict["interactive"]
-        self.hsh = hash(self.menuname + str(self.idx))
+    def __init__(self, menu, idx, text, onclick, closer,
+                 visible, interactive):
+        self.menu = menu
+        self.idx = idx
+        self.text = text
+        self.onclick = onclick
+        self.closer = closer
+        self.visible = visible
+        self.interactive = interactive
+        if isinstance(self.menu, str):
+            self.hsh = hash(self.menu + str(self.idx))
+        else:
+            self.hsh = hash(self.menu.name + str(self.idx))
+
+    def unravel(self, db):
+        self.menu = db.menudict[self.menu]
+        self.onclick = db.effectdict[self.onclick]
+        while len(self.menu.items) < self.idx:
+            self.menu.items.append(None)
+        self.menu.items[self.idx] = self
 
     def __eq__(self, other):
         return (
@@ -161,7 +172,7 @@ class MenuItem:
 
 
 class Menu:
-    maintab = "menu"
+    tablenames = ["menu"]
     coldecls = {'menu':
                 {'name': 'text',
                  'left': 'float not null',
@@ -174,22 +185,22 @@ class Menu:
     primarykeys = {'menu': ('name',)}
     interactive = True
 
-    def setup(self):
-        rowdict = self.tabdict["menu"][0]
-        db = self.db
-        self.name = rowdict["name"]
-        self.left = rowdict["left"]
-        self.bottom = rowdict["bottom"]
-        self.top = rowdict["top"]
-        self.right = rowdict["right"]
-        self.style = db.styledict[rowdict["style"]]
-        self.visible = rowdict["visible"]
-        self.main_for_window = rowdict["main_for_window"]
+    def __init__(self, name, left, bottom, top, right,
+                 style, main_for_window, visible, db=None):
+        self.name = name
+        self.left = left
+        self.bottom = bottom
+        self.top = top
+        self.right = right
+        self.style = style
+        self.main_for_window = main_for_window
+        self.visible = visible
         self.items = []
-        # In order to actually draw these things you need to give them
-        # an attribute called window, and it should be a window of the
-        # pyglet kind. It isn't in the constructor because that would
-        # make loading inconvenient.
+        if db is not None:
+            db.menudict[self.name] = self
+
+    def unravel(self, db):
+        self.style = db.styledict[self.style]
 
     def __eq__(self, other):
         if hasattr(self, 'gw'):
@@ -255,6 +266,8 @@ class CalendarCell:
     # Being a block of time in a calendar, with or without an event in
     # it. This isn't stored in the database because really, why would
     # I store *empty calendar cells* in the database?
+    __metaclass__ = type
+
     def __init__(self, col, start, end, color, text=""):
         self.col = col
         self.start = start
@@ -263,8 +276,12 @@ class CalendarCell:
         self.text = text
         self.hsh = hash(str(start) + str(end) + text)
 
+    def unravel(self, db):
+        self.col = db.calendarcoldict[self.col]
+        self.color = db.colordict[self.color]
+
     def __eq__(self, other):
-        if not isinstance(other, CalendarBrick):
+        if not isinstance(other, CalendarCell):
             return False
         return (
             self.start == other.start and
@@ -279,13 +296,18 @@ class CalendarCol:
     # A board may have up to one of these. It may be toggled. It
     # may display any schedule or combination thereof, distinguishing
     # them by color or not at all. It has only one column.
+    tablenames = ["calendar_col", "calendar_schedule_link"]
     coldecls = {"calendar_col":
                 {"dimension": "text",
+                 "item": "text",
                  "visible": "boolean",
                  "interactive": "boolean",
                  "rows_on_screen": "integer",
                  "scrolled_to": "integer",
-                 "gutter": "integer"},
+                 "left": "float",
+                 "top": "float",
+                 "bot": "float",
+                 "right": "float"},
                 "calendar_schedule_link":
                 {"calendar": "text",
                  "schedule": "text"}}
@@ -295,26 +317,41 @@ class CalendarCol:
                    {"dimension": ("dimension", "name")},
                    "calendar_schedule":
                    {"calendar": ("calendar_col", "name"),
-                    "schedule": ("schedule", "name"),
-                    "color": ("color", "name")}}
-    checks = {"calendar_wall": ["rows_on_screen>0", "scrolled_to>=0"]}
+                    "schedule": ("schedule", "name")}}
+    checks = {"calendar_col": ["rows_on_screen>0", "scrolled_to>=0"]}
 
-    def __init__(self, db, rowdict):
-        # TODO pull in schedules.
-        #
-        # I also need the window, but I'm not adding that yet because
-        # it's not instantiated at load time.
-        self.visible = rowdict["visible"]
-        self.interactive = rowdict["interactive"]
-        self.screenful = rowdict["rows_on_screen"]
-        self.scrolled = rowdict["scrolled_to"]
-        self.gutter = rowdict["gutter"]
-        self.hsh = hash(self.dimension)
-        self.left = rowdict["left"]
-        self.right = rowdict["right"]
-        self.top = rowdict["top"]
-        self.bottom = rowdict["bottom"]
-        self.dimension = rowdict["dimension"]
+    def __init__(self, dimension, item, visible, interactive,
+                 rows_on_screen, scrolled_to,
+                 left, top, bot, right, db=None):
+        self.dimension = dimension
+        self.item = item
+        self.visible = visible
+        self.interactive = interactive
+        self.rows_on_screen = rows_on_screen
+        self.scrolled_to = scrolled_to
+        self.left = left
+        self.top = top
+        self.bot = bot
+        self.right = right
+        if db is not None:
+            dimname = None
+            itname = None
+            if isinstance(self.dimension, str):
+                dimname = self.dimension
+            else:
+                dimname = self.dimension.name
+            if isinstance(self.item, str):
+                itname = self.item
+            else:
+                itname = self.item.name
+            if dimname not in db.calendardict:
+                db.calendardict[dimname] = {}
+            db.calendardict[dimname][itname] = self
+
+    def unravel(self, db):
+        self.dimension = db.dimensiondict[self.dimension]
+        self.item = db.itemdict[self.dimension.name][self.item]
+        self.schedule = db.scheduledict[self.dimension.name][self.item.name]
 
     def __eq__(self, other):
         # not checking for gw this time, because there can only be one
@@ -365,6 +402,7 @@ class Spot:
     place; at the given x and y coordinates on the screen; in the
     given graph of Spots. The Spot will be magically connected to the other
     Spots in the same way that the underlying Places are connected."""
+    tablenames = ["spot"]
     coldecls = {"spot":
                 {"dimension": "text",
                  "place": "text",
@@ -378,17 +416,29 @@ class Spot:
                    {"dimension, place": ("place", "dimension, name"),
                     "img": ("img", "name")}}
 
-    def __init__(self, db, rowdict):
-        self.dimension = rowdict["dimension"]
-        self.place = db.placedict[self.dimension][rowdict["place"]]
-        self.x = rowdict["x"]
-        self.y = rowdict["y"]
-        self.img = db.imgdict[rowdict["img"]]
-        self.visible = rowdict["visible"]
-        self.interactive = rowdict["interactive"]
-        self.r = self.img.width / 2
-        self.grabpoint = None
-        self.hsh = hash(self.dimension + self.place.name)
+    def __init__(self, dimension, place, img, x, y,
+                 visible, interactive, db=None):
+        self.dimension = dimension
+        self.place = place
+        self.img = img
+        self.x = x
+        self.y = y
+        self.visible = visible
+        self.interactive = interactive
+        if db is not None:
+            dimname = None
+            placename = None
+            if isinstance(self.dimension, str):
+                dimname = self.dimension
+            else:
+                dimname = self.dimension.name
+            if isinstance(self.place, str):
+                placename = self.place
+            else:
+                placename = self.place.name
+            if dimname not in db.spotdict:
+                db.spotdict[dimname] = {}
+            db.spotdict[dimname][placename] = self
 
     def __repr__(self):
         return "spot(%i,%i)->%s" % (self.x, self.y, str(self.place))
@@ -455,6 +505,7 @@ class Pawn:
     nebulous dimension between Places.
 
     """
+    tablenames = ["pawn"]
     coldecls = {"pawn":
                 {"dimension": "text",
                  "thing": "text",
@@ -466,15 +517,26 @@ class Pawn:
                 {"img": ("img", "name"),
                  "dimension, thing": ("thing", "dimension, name")}}
 
-    def __init__(self, db, rowdict):
-        self.dimension = rowdict["dimension"]
-        self.thingname = rowdict["thing"]
-        self.thing = db.thingdict[self.dimension][self.thingname]
-        self.img = db.imgdict[rowdict["img"]]
-        self.visible = rowdict["visible"]
-        self.interactive = rowdict["interactive"]
-        self.r = self.img.width / 2
-        self.hsh = hash(self.dimension + self.thing.name)
+    def __init__(self, dimension, thing, img, visible, interactive, db=None):
+        self.dimension = dimension
+        self.thing = thing
+        self.img = img
+        self.visible = visible
+        self.interactive = interactive
+        if db is not None:
+            dimname = None
+            thingname = None
+            if isinstance(self.dimension, str):
+                dimname = self.dimension
+            else:
+                dimname = self.dimension.name
+            if isinstance(self.thing, str):
+                thingname = self.thing
+            else:
+                thingname = self.thing.name
+            if dimname not in db.pawndict:
+                db.pawndict[dimname] = {}
+            db.pawndict[dimname][thingname] = self
 
     def __eq__(self, other):
         return (
@@ -545,6 +607,7 @@ class Pawn:
 
 
 class Board:
+    tablenames = ["board", "boardmenu"]
     coldecls = {"board":
                 {"dimension": "text",
                  "width": "integer",
@@ -562,15 +625,16 @@ class Board:
                    {"board": ("board", "name"),
                     "menu": ("menu", "name")}}
 
-    def __init__(self, db, rowdict):
-        self.dimension = rowdict["dimension"]
-        self.width = rowdict["width"]
-        self.height = rowdict["height"]
-        self.img = db.imgdict[rowdict["wallpaper"]]
-        self.spots = db.spotdict[self.dimension].viewvalues()
-        self.pawns = db.pawndict[self.dimension].viewvalues()
-        self.menus = db.boardmenudict[self.dimension].viewvalues()
-        self.hsh = hash(self.dimension)
+    def __init__(self, dimension, width, height, wallpaper, db=None):
+        self.dimension = dimension
+        self.width = width
+        self.height = height
+        self.wallpaper = wallpaper
+        if db is not None:
+            if isinstance(self.dimension, str):
+                db.boarddict[self.dimension] = self
+            else:
+                db.boarddict[self.dimension.name] = self
 
     def __eq__(self, other):
         return (
@@ -594,6 +658,7 @@ class Board:
 
 
 class Style:
+    tablenames = ["style"]
     coldecls = {"style":
                 {"name": "text",
                  "fontface": "text not null",
@@ -610,16 +675,19 @@ class Style:
                     "fg_inactive": ("color", "name"),
                     "fg_active": ("color", "name")}}
 
-    def __init__(self, db, rowdict):
-        self.name = rowdict["name"]
-        self.hsh = hash(self.name)
-        self.fontface = rowdict["fontface"]
-        self.fontsize = rowdict["fontsize"]
-        self.spacing = rowdict["spacing"]
-        self.bg_inactive = db.colordict[rowdict["bg_inactive"]]
-        self.bg_active = db.colordict[rowdict["bg_active"]]
-        self.fg_inactive = db.colordict[rowdict["fg_inactive"]]
-        self.fg_active = db.colordict[rowdict["fg_active"]]
+    def __init__(self, name, fontface, fontsize, spacing,
+                 bg_inactive, bg_active, fg_inactive, fg_active,
+                 db=None):
+        self.name = name
+        self.fontface = fontface
+        self.fontsize = fontsize
+        self.spacing = spacing
+        self.bg_inactive = bg_inactive
+        self.bg_active = bg_active
+        self.fg_inactive = fg_inactive
+        self.fg_active = fg_active
+        if db is not None:
+            db.styledict[self.name] = self
 
     def __eq__(self, other):
         return (

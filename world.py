@@ -1,9 +1,19 @@
 import igraph
 from util import (SaveableMetaclass, LocationException,
-                  ContainmentException, Item, dictify_row)
+                  ContainmentException, dictify_row)
 
 
 __metaclass__ = SaveableMetaclass
+
+
+class Item:
+    tablenames = ["item"]
+    coldecls = {
+        "item":
+        {"dimension": "text",
+         "name": "text"}}
+    primarykeys = {
+        "item": ("dimension", "name")}
 
 
 class Journey:
@@ -30,7 +40,7 @@ class Journey:
     a Portal at a time, but Journey handles that case anyhow.
 
     """
-    maintab = "journey"
+    tablenames = ["journey", "journey_step"]
     coldecls = {"journey":
                 {"dimension": "text",
                  "thing": "text",
@@ -63,9 +73,9 @@ class Journey:
 
     def unravel(self, db):
         self.dimension = db.dimensiondict[self.dimension]
-        self.thing = db.thingdict[self.dimension.name][self.thing]
+        self.thing = db.itemdict[self.dimension.name][self.thing]
         for step in self.steps:
-            step = db.portaldict[self.dimension.name][step]
+            step = db.itemdict[self.dimension.name][step]
 
     def pull_dimension(self, db, dimname):
         # Now just returns a lot of rowdicts. Each is sufficient to
@@ -312,7 +322,7 @@ class Portal(Item):
     # will quite often be constant values, because it's not much
     # more work and I expect that it'd cause headaches to be
     # unable to tell whether I'm dealing with a number or not.
-    maintab = "portal"
+    tablenames = ["portal"]
     coldecls = {"portal":
                 {"dimension": "text",
                  "name": "text",
@@ -330,7 +340,7 @@ class Portal(Item):
         self.orig = from_place
         self.dest = to_place
         if db is not None:
-            pd = db.portaldict
+            pd = db.itemdict
             podd = db.portalorigdestdict
             pdod = db.portaldestorigdict
             for d in [pd, podd, pdod]:
@@ -346,8 +356,8 @@ class Portal(Item):
 
     def unravel(self, db):
         self.dimension = db.dimensiondict[self.dimension]
-        self.orig = db.placedict[self.dimension.name][self.orig]
-        self.dest = db.placedict[self.dimension.name][self.dest]
+        self.orig = db.itemdict[self.dimension.name][self.orig]
+        self.dest = db.itemdict[self.dimension.name][self.dest]
 
     def pull_dimension(self, db, dimname):
         qryfmt = "SELECT {0} FROM portal WHERE dimension=?"
@@ -404,8 +414,8 @@ class Effect:
     table, which does in fact use these to describe effects.
 
     """
-    maintab = "effect"
-    coldict = {
+    tablenames = ["effect"]
+    coldecls = {
         "effect":
         {"name": "text",
          "func": "text",
@@ -431,8 +441,8 @@ class Effect:
 
 
 class EffectDeck:
-    maintab = "effect_deck"
-    coldict = {
+    tablenames = ["effect_deck", "effect_deck_link"]
+    coldecls = {
         "effect_deck":
         {"name": "text"},
         "effect_deck_link":
@@ -478,7 +488,7 @@ outcome occurs. This may be used, for instance, to model that kind of
 success that strains a person terribly and causes them injury.
 
     """
-    maintab = "event"
+    tablenames = ["event"]
     coldecls = {
         "event":
         {"name": "text",
@@ -578,7 +588,7 @@ success that strains a person terribly and causes them injury.
 
 
 class Schedule:
-    maintab = "schedule"
+    tablenames = ["schedule", "scheduled_event"]
     coldecls = {
         "schedule":
         {"dimension": "text",
@@ -597,7 +607,7 @@ class Schedule:
         "schedule":
         {"dimension, item": ("item", "dimension, name")},
         "scheduled_event":
-        {"schedule": ("schedule", "name"),
+        {"dimension, item": ("item", "dimension, name"),
          "event": ("event", "name")}}
 
     def __init__(self, dimension, item, age, events, db=None):
@@ -679,18 +689,8 @@ class Schedule:
         self.age = new_age
 
 
-class Item:
-    maintab = "item"
-    coldecls = {
-        "item":
-        {"dimension": "text",
-         "name": "text"}}
-    primarykeys = {
-        "item": ("dimension", "name")}
-
-
 class Dimension:
-    maintab = "dimension"
+    tablenames = ["dimension"]
     coldecls = {"dimension":
                 {"name": "text"}}
     primarykeys = {"dimension": ("name",)}
@@ -757,7 +757,7 @@ class Dimension:
 
 
 class Place(Item):
-    maintab = "place"
+    tablenames = ["place"]
     coldecls = {"place":
                 {"dimension": "text",
                  "name": "text"}}
@@ -767,9 +767,9 @@ class Place(Item):
         self.dimension = dimension
         self.name = name
         if db is not None:
-            if dimension not in db.placedict:
-                db.placedict[dimension] = {}
-            db.placedict[dimension][name] = self
+            if dimension not in db.itemdict:
+                db.itemdict[dimension] = {}
+            db.itemdict[dimension][name] = self
 
     def unravel(self, db):
         self.dimension = db.dimensiondict[self.dimension]
@@ -796,7 +796,7 @@ class Place(Item):
 
 
 class Thing(Item):
-    maintab = "thing"
+    tablenames = ["thing", "thing_kind", "thing_kind_link"]
     coldecls = {
         "thing":
         {"dimension": "text",
@@ -829,16 +829,23 @@ class Thing(Item):
         self.location = location
         self.container = container
         self.kinds = kinds
+        self.contents = set()
+        self.unravelled = (
+            isinstance(self.dimension, Dimension) and
+            isinstance(self.location, Place) and
+            isinstance(self.container, Thing))
         if db is not None:
-            if dimension not in db.thingdict:
-                db.thingdict[dimension] = {}
-            db.thingdict[dimension][name] = self
+            dimname = None
+            if isinstance(dimension, str):
+                dimname = dimension
+            else:
+                dimname = dimension.name
+            db.itemdict[dimname][self.name] = self
 
     def unravel(self, db):
         self.dimension = db.dimensiondict[self.dimension]
-        self.location = db.placedict[self.dimension.name][self.location]
-        self.container = db.thingdict[self.dimension.name][self.container]
-        self.contents = set()
+        self.location = db.itemdict[self.dimension.name][self.location]
+        self.container = db.itemdict[self.dimension.name][self.container]
         self.unravelled = True
         if self.container.unravelled:
             self.container.add(self)
