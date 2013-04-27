@@ -128,7 +128,8 @@ class SaveableMetaclass(type):
             qrystr = inserts[tabname] + ", ".join([rowstr] * len(rowdicts))
             qrylst = []
             for rowdict in rowdicts:
-                qrylst.extend([rowdict[col] for col in colnames[tabname]])
+                extender = [rowdict[col] for col in colnames[tabname]]
+                qrylst.extend(extender)
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
 
@@ -166,10 +167,28 @@ class SaveableMetaclass(type):
                 (tabn, rd) = item
                 insert_rowdicts_table(db, rd, tabn)
 
+        def delete_tabdict(db, tabdict):
+            for item in tabdict.iteritems():
+                (tabn, rd) = item
+                delete_keydicts_table(db, rd, tabn)
+
+        def detect_tabdict(db, tabdict):
+            for item in tabdict.iteritems():
+                (tabn, rd) = item
+                return detect_keydicts_table(db, rd, tabn)
+
+        def missing_tabdict(db, tabdict):
+            for item in tabdict.iteritems():
+                (tabn, rd) = item
+                return missing_keydicts_table(db, rd, tabn)
+
         def unravel(self, db):
             pass
 
-        dbop = {'insert': insert_tabdict}
+        dbop = {'insert': insert_tabdict,
+                'delete': delete_tabdict,
+                'detect': detect_tabdict,
+                'missing': missing_tabdict}
         atrdic = {'coldecls': coldecls,
                   'colnames': colnames,
                   'colnamestr': colnamestr,
@@ -343,20 +362,6 @@ def mkstyled(name, fontface, fontsize, spacing,
             'bg_active': bg_active,
             'fg_inactive': fg_inactive,
             'fg_active': fg_active}
-
-
-### These classes are just here to give a nice place to look up column
-### names. Don't use them
-
-
-class Img:
-    tablenames = ["img"]
-    coldecls = {"img":
-                {"name": "text",
-                 "path": "text",
-                 "rltile": "boolean"}}
-    primarykeys = {"img": ("name",)}
-    __metaclass__ = SaveableMetaclass
 
 
 def untuple(list_o_tups):

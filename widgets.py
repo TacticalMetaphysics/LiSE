@@ -605,6 +605,15 @@ class Pawn:
     def onclick(self, button, modifiers):
         pass
 
+class Img:
+    tablenames = ["img"]
+    coldecls = {"img":
+                {"name": "text",
+                 "path": "text",
+                 "rltile": "boolean"}}
+    primarykeys = {"img": ("name",)}
+    __metaclass__ = SaveableMetaclass
+
 
 class Board:
     tablenames = ["board", "boardmenu"]

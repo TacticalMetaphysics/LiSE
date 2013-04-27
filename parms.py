@@ -21,8 +21,31 @@ main_menu_items = {'Game': 'toggle_menu_visibility(Game)',
                    'Place': 'toggle_menu_visibility(Place)',
                    'Thing': 'toggle_menu_visibility(Thing)'}
 
-menu_items = [game_menu_items, editor_menu_items, place_menu_items,
-              thing_menu_items, main_menu_items]
+
+miproto = [('Game', game_menu_items), ('Editor', editor_menu_items),
+           ('Place', place_menu_items),
+           ('Thing', thing_menu_items), ('Main', main_menu_items)]
+
+
+def mkmids(proto):
+    r = []
+    for mip in proto:
+        i = 0
+        (menu, items) = mip
+        for item in items.iteritems():
+            (txt, onclick) = item
+            r.append({
+                'menu': menu,
+                'idx': i,
+                'text': txt,
+                'onclick': onclick,
+                'closer': menu != 'Main',
+                'interactive': menu == 'Main',
+                'visible': menu == 'Main'})
+            i += 1
+    return r
+
+menu_items = mkmids(miproto)
 
 solarized_colors = {
     'base03': (0x00, 0x2b, 0x36),
@@ -42,11 +65,17 @@ solarized_colors = {
     'cyan': (0x2a, 0xa1, 0x98),
     'green': (0x85, 0x99, 0x00)}
 
-colors = dict([('solarized-' + it[0], it[1])
-               for it in solarized_colors.iteritems()])
 
-print "COLORS"
-print colors
+def mkcolord(c):
+    d = c[1]
+    return {
+        'name': 'solarized-' + c[0],
+        'red': d[0],
+        'green': d[1],
+        'blue': d[2],
+        'alpha': 255}
+
+colors = [mkcolord(c) for c in solarized_colors.iteritems()]
 
 styletups = [
     ('Big',
@@ -68,10 +97,11 @@ def mkstyled(st):
         'name': st[0],
         'fontface': st[1],
         'fontsize': st[2],
-        'bg_inactive': st[3],
-        'bg_active': st[4],
-        'fg_inactive': st[5],
-        'fg_active': st[6]}
+        'spacing': st[3],
+        'bg_inactive': st[4],
+        'bg_active': st[5],
+        'fg_inactive': st[6],
+        'fg_active': st[7]}
 
 
 styles = [mkstyled(st) for st in styletups]
@@ -99,7 +129,7 @@ nrpos = [('guestroom', 'outside'),
 def mkportald(o, d):
     return {
         'dimension': dimname,
-        'name': 'portal{0}->{1}'.format(o, d),
+        'name': 'portal[{0}->{1}]'.format(o, d),
         'from_place': o,
         'to_place': d}
 
@@ -195,6 +225,7 @@ def mkimgd(name, path, rltile):
         'path': path,
         'rltile': rltile}
 
+imgs = [mkimgd(*tup) for tup in imgtups]
 
 spottups = [
     ('Physical', 'myroom', "orb", 400, 100, True, True),
@@ -212,7 +243,7 @@ spottups = [
 def mkspotd(dim, name, sprite, x, y, visible, interactive):
     return {
         'dimension': dim,
-        'name': name,
+        'place': name,
         'img': sprite,
         'x': x,
         'y': y,
@@ -221,6 +252,23 @@ def mkspotd(dim, name, sprite, x, y, visible, interactive):
 
 
 spots = [mkspotd(*stup) for stup in spottups]
+
+
+def mkpawnd(dim, thing, img, vis=True, intr=True):
+    return {
+        'dimension': dim,
+        'thing': thing,
+        'img': img,
+        'visible': vis,
+        'interactive': intr}
+
+
+pawntups = [
+    (dimname, 'me', 'troll_m'),
+    (dimname, 'mom', 'zruty')]
+
+
+pawns = [mkpawnd(*tup) for tup in pawntups]
 
 
 gamemenu = {'name': 'Game',

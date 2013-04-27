@@ -1,10 +1,10 @@
 import sqlite3
 import sys
 import os
-from widgets import Color, MenuItem, Menu, Spot, Pawn, Board, Style
+from widgets import Color, MenuItem, Menu, Spot, Pawn, Board, Style, Img
 from world import Journey, Place, Portal, Thing, Dimension, Item
 from pyglet.resource import image
-from util import Img, compile_tabdicts
+from util import compile_tabdicts
 sys.path.append(os.curdir)
 
 

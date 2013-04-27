@@ -1,5 +1,4 @@
 import database
-import parms
 import world
 import widgets
 
@@ -14,6 +13,7 @@ tabclasses = [
     world.Effect,
     world.EffectDeck,
     world.Event,
+    widgets.Img,
     widgets.Color,
     widgets.Style,
     widgets.Menu,
@@ -23,7 +23,7 @@ tabclasses = [
     widgets.Pawn,
     widgets.Board]
 
-db = database.Database('default.sqlite')
+db = database.Database('empty.sqlite')
 
 for clas in tabclasses:
     for tab in clas.schemata:
