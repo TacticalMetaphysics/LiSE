@@ -1,7 +1,7 @@
 # This file is for the controllers for the things that show up on the
 # screen when you play.
 import pyglet
-from util import SaveableMetaclass
+from util import SaveableMetaclass, dictify_row
 
 
 __metaclass__ = SaveableMetaclass
@@ -27,6 +27,24 @@ tuples that Pyglet uses to identify colors.
               "green between 0 and 255",
               "blue between 0 and 255",
               "alpha between 0 and 255"]}
+
+    def pull(self, db, keydicts):
+        colornames = [keydict["name"] for keydict in keydicts]
+        qryfmt = "SELECT {0} FROM color WHERE name IN ({1})"
+        qms = ["?"] * len(colornames)
+        qrystr = qryfmt.format(
+            ", ".join(self.colnames["color"]),
+            ", ".join(qms))
+        db.c.execute(qrystr, colornames)
+        return [
+            dictify_row(self.colnames["color"], row)
+            for row in db.c]
+
+    def parse(self, rows):
+        r = {}
+        for row in rows:
+            r[row["name"]] = row
+        return r
 
     def __init__(self, name, red, green, blue, alpha, db=None):
         self.name = name
@@ -68,6 +86,27 @@ class MenuItem:
     foreignkeys = {'menu_item':
                    {"menu": ("menu", "name"),
                     "onclick": ("effect", "name")}}
+
+    def pull(self, db, keydicts):
+        pass
+
+    def pull_in_menus(self, db, menunames):
+        qryfmt = "SELECT {0} FROM menu_item WHERE menu IN ({1})"
+        qms = ["?"] * len(menunames)
+        qrystr = qryfmt.format(
+            self.colnamestr["menu_item"],
+            ", ".join(qms))
+        db.c.execute(qrystr, menunames)
+        return [
+            dictify_row(self.colnames["menu_item"], row)
+            for row in db.c]
+
+    def parse(self, rows):
+        r = {}
+        for row in rows:
+            if row["menu"] not in r:
+                r[row["menu"]] = {}
+        r[row["menu"]][row["idx"]] = row
 
     def __init__(self, menu, idx, text, onclick, closer,
                  visible, interactive):
@@ -184,6 +223,36 @@ class Menu:
                  "visible": "boolean default 0"}}
     primarykeys = {'menu': ('name',)}
     interactive = True
+
+    def pull(self, db, keydicts):
+        menunames = [keydict["name"] for keydict in keydicts]
+        return self.pull_named(db, menunames)
+
+    def pull_named(self, db, menunames):
+        qryfmt = "SELECT {0} FROM menu WHERE name IN ({1})"
+        qrystr = qryfmt.format(
+            self.colnamestr["menu"],
+            ", ".join(["?"] * len(menunames)))
+        db.c.execute(qrystr, menunames)
+        return [
+            dictify_row(self.colnames["menu"], row)
+            for row in db.c]
+
+    def parse(self, rows):
+        r = {}
+        for row in rows:
+            r[row["name"]] = row
+        return r
+
+    def combine(self, menudict, menuitemdict):
+        for menu in menudict.itervalues():
+            if "items" not in menu:
+                menu["items"] = []
+            mitems = menuitemdict[menu["name"]]
+            i = 0
+            while i < len(mitems):
+                menu["items"].append(mitems[i])
+                i += 1
 
     def __init__(self, name, left, bottom, top, right,
                  style, main_for_window, visible, db=None):
@@ -605,6 +674,7 @@ class Pawn:
     def onclick(self, button, modifiers):
         pass
 
+
 class Img:
     tablenames = ["img"]
     coldecls = {"img":
@@ -633,6 +703,29 @@ class Board:
                    "boardmenu":
                    {"board": ("board", "name"),
                     "menu": ("menu", "name")}}
+
+    def pull_named(self, db, name):
+        qryfmt = "SELECT {0} FROM board, boardmenu WHERE "
+        colnames = self.colnames["board"] + ["menu"]
+        boardcols = ["board." + col for col in self.colnames["board"]]
+        qrycols = boardcols + ["boardmenu.menu"]
+        qrystr = qryfmt.format(", ".join(qrycols))
+        db.c.execute(qrystr, (name,))
+        return [
+            dictify_row(colnames, row) for row in db.c]
+
+    def parse(self, rows):
+        boarddict = {}
+        for row in rows:
+            if row["dimension"] in boarddict:
+                row["dimension"]["menu"].append(row["menu"])
+            else:
+                boarddict["dimension"] = {
+                    "dimension": row["dimension"],
+                    "width": row["width"],
+                    "height": row["height"],
+                    "menu": [row["menu"]]}
+        return boarddict
 
     def __init__(self, dimension, width, height, wallpaper, db=None):
         self.dimension = dimension

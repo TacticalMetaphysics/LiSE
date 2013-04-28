@@ -101,19 +101,20 @@ class Journey:
         for row in rows:
             if row["dimension"] not in journeydict:
                 journeydict[row["dimension"]] = {}
-            if row["thing"] not in journeydict[row["dimension"]]:
-                journeydict[row["dimension"]][row["thing"]] = {
-                    "steps": [],
-                    "curstep": row["curstep"],
-                    "progress": row["progress"]}
-            journeyptr = journeydict[row["dimension"]][row["thing"]]
-            while len(journeyptr["steps"]) < row["idx"]:
-                journeyptr["steps"].append(None)
-            journeyptr["steps"][row["idx"]] = row["portal"]
-        return {"journey": journeydict}
+            journeydict[row["dimension"]][row["thing"]] = {
+                "curstep": row["curstep"],
+                "progress": row["progress"]}
+        return journeydict
 
-    def pull_parse_dimension(self, db, dimname):
-        return self.parse(self.pull_dimension(db, dimname))
+    def combine(self, journeydict, stepdict):
+        for journey in journeydict.itervalues():
+            if "steps" not in journey:
+                journey["steps"] = []
+            steps = stepdict[journey["dimension"]][journey["thing"]]
+            i = 0
+            while i < len(steps):
+                journey["steps"].append(steps[i])
+                i += 1
 
     def steps(self):
         """Get the number of steps in the Journey.
@@ -197,42 +198,27 @@ method of the thing that operates on the portal.
             self.steplist.append(None)
         self.steplist[idx] = port
 
-    def gen_event(self, step):
+    def gen_event(self, step, db):
         """Make an Event representing every tick of travel through the given
 portal.
 
-        The Event will have a length, but no start. Make sure to give
-        it one.
+The Event will not have a start or a length.
 
         """
         # Work out how many ticks this is going to take.  Of course,
         # just because a thing is scheduled to travel doesn't mean it
         # always will--which makes it convenient to have
         # events to resolve all the steps, ne?
-        db = self.db
-        speed = self.thing.speed_thru(step)
-        ticks = 1.0 / speed
-        start_test_arg = step.name
-        start_test_s = "%s.%s.can_enter(%s)" % (
-            self.dimension.name, self.thing.name, start_test_arg)
-        effd = {
-            "name": start_test_s,
-            "func": "%s.%s.can_enter" % (self.dimension.name, self.thing.name),
-            "arg": start_test_arg,
-            "dict_hint": "dimension.thing"}
-        tabd = {"effect": effd}
-        # db.effectdict is going to contain all these Effects
-        Effect(db, tabd)
         commence_arg = step.name
-        commence_s = "%s.%s.enter(%s)" % (
+        commence_s = "{0}.{1}.enter({2})".format(
             self.dimension.name, self.thing.name, commence_arg)
         effd = {
             "name": commence_s,
             "func": "%s.%s.enter" % (self.dimension.name, self.thing.name),
             "arg": commence_arg,
-            "dict_hint": "dimension.thing"}
-        tabd = {"effect": effd}
-        Effect(db, tabd)
+            "dict_hint": "dimension.thing",
+            "db": db}
+        commence = Effect(**effd)
         proceed_arg = step.name
         proceed_s = "%s.%s.remain(%s)" % (
             self.dimension.name, self.thing.name, proceed_arg)
@@ -240,9 +226,9 @@ portal.
             "name": proceed_s,
             "func": "%s.%s.remain" % (self.dimension.name, self.thing.name),
             "arg": proceed_arg,
-            "dict_hint": "dimension.thing"}
-        tabd = {"effect": effd}
-        Effect(db, tabd)
+            "dict_hint": "dimension.thing",
+            "db": db}
+        proceed = Effect(**effd)
         conclude_arg = step.dest.name
         conclude_s = "%s.%s.enter(%s)" % (
             self.dimension.name, self.thing.name, conclude_arg)
@@ -250,37 +236,19 @@ portal.
             "name": conclude_s,
             "func": "%s.%s.enter" % (self.dimension.name, self.thing.name),
             "arg": conclude_arg,
-            "dict_hint": "dimension.thing"}
-        tabd = {"effect": effd}
-        Effect(db, tabd)
+            "dict_hint": "dimension.thing",
+            "db": db}
+        conclude = Effect(**effd)
         event_name = "%s:%s-thru-%s" % (
             self.dimension.name, self.thing.name, step.name),
         event_d = {
             "name": event_name,
-            "type": "travel",
-            "start": None,
-            "length": ticks,
-            "ongoing": False}
-        start_test_d = {
-            "event": event_name,
-            "effect": start_test_s}
-        commence_d = {
-            "event": event_name,
-            "effect": commence_s}
-        proceed_d = {
-            "event": event_name,
-            "effect": proceed_s}
-        conclude_d = {
-            "event": event_name,
-            "effect": conclude_s}
-        tabd = {
-            "event": event_d,
-            "event_start_test_effect_link": [start_test_d],
-            "event_commence_effect_link": [commence_d],
-            "event_proceed_effect_link": [proceed_d],
-            "event_conclude_effect_link": [conclude_d]}
-        event = Event(db, tabd)
-        self.db.eventdict[event_name] = event
+            "ongoing": False,
+            "commence_effect": commence,
+            "proceed_effect": proceed,
+            "conclude_effect": conclude,
+            "db": db}
+        event = Event(**event_d)
         return event
 
     def schedule(self, start=0):
@@ -367,10 +335,12 @@ class Portal(Item):
             dictify_row(self.cols, row) for row in db.c]
 
     def parse(self, rows):
-        return {"portal": rows}
-
-    def pull_parse_dimension(self, db, dimname):
-        return self.parse(self.pull_dimension(db, dimname))
+        r = {}
+        for row in rows:
+            if row["dimension"] not in r:
+                r[row["dimension"]] = {}
+            r[row["dimension"]][row["name"]] = row
+        return r
 
     def __hash__(self):
         return self.hsh
@@ -423,6 +393,26 @@ class Effect:
     primarykeys = {
         "effect": ("name", "func", "arg")}
 
+    def pull(self, db, keydicts):
+        efnames = [keydict["name"] for keydict in keydicts]
+        return self.pull_named(db, efnames)
+
+    def pull_named(self, db, efnames):
+        qryfmt = "SELECT {0} FROM effect WHERE name IN ({1})"
+        qrystr = qryfmt.format(
+            self.colnamestr["effect"],
+            ", ".join(["?"] * len(efnames)))
+        db.c.execute(qrystr, efnames)
+        return [
+            dictify_row(self.colnames["effect"], row)
+            for row in db.c]
+
+    def parse(self, rows):
+        r = {}
+        for row in rows:
+            r[row["name"]] = row
+        return r
+
     def __init__(self, name, func, arg, db=None):
         self.name = name
         self.func = func
@@ -432,9 +422,6 @@ class Effect:
 
     def unravel(self, db):
         self.func = db.func[self.func]
-
-    def parse(self, row):
-        return {"effect": row}
 
     def do(self):
         return self.func(self.arg)
@@ -447,14 +434,53 @@ class EffectDeck:
         {"name": "text"},
         "effect_deck_link":
         {"deck": "text",
+         "idx": "integer",
          "effect": "text"}}
     primarykeys = {
         "effect_deck": ("name",),
-        "effect_deck_link": ("deck", "effect")}
+        "effect_deck_link": ("deck", "idx")}
     foreignkeys = {
         "effect_deck_link":
         {"deck": ("effect_deck", "name"),
          "effect": ("effect", "name")}}
+
+    def pull(self, db, keydicts):
+        names = [keydict["name"] for keydict in keydicts]
+        return self.pull_named(db, names)
+
+    def pull_named(self, db, names):
+        qryfmt = (
+            "SELECT {0} FROM effect_deck, effect_deck_link WHERE "
+            "effect_deck.name=effect_deck_link.deck AND "
+            "effect_deck.name IN ({1})")
+        cols = self.colnames["effect_deck_link"]
+        colns = ["effect_deck_link." + coln for coln in cols]
+        qrystr = qryfmt.format(
+            ", ".join(colns), ", ".join(["?"] * len(names)))
+        db.c.execute(qrystr, names)
+        return [
+            dictify_row(cols, row) for row in db.c]
+
+    def parse(self, rows):
+        r = {}
+        for row in rows:
+            if row["deck"] not in r:
+                r[row["deck"]] = {}
+            r[row["deck"]][row["idx"]] = row
+        return r
+
+    def combine(self, effect_deck_dict, effect_dict):
+        r = {}
+        for item in effect_deck_dict.iteritems():
+            (deck, cards) = item
+            r[deck] = []
+            i = 0
+            while i < len(cards):
+                card = cards[i]
+                effect_name = card["effect"]
+                effect = effect_dict[effect_name]
+                r[deck].append(effect)
+        return r
 
     def __init__(self, name, effects, db=None):
         self.name = name
@@ -465,6 +491,52 @@ class EffectDeck:
     def unravel(self, db):
         for effect in self.effects:
             effect = db.effectdict[effect]
+
+
+effect_join_colns = [
+    "effect_deck_link." + coln for coln in
+    EffectDeck.colnames["effect_deck_link"]]
+effect_join_colns += [
+    "effect." + coln for coln in
+    Effect.valnames["effect"]]
+effect_join_cols = (
+    EffectDeck.colnames["effect_deck_link"] +
+    Effect.valnames["effect"])
+
+efjoincolstr = ", ".join(effect_join_colns)
+
+
+def pull_effect_deck(db, name):
+    qryfmt = (
+        "SELECT {0} FROM effect, effect_deck_link WHERE "
+        "effect.name=effect_deck_link.effect AND "
+        "effect_deck_link.deck=?")
+    qrystr = qryfmt.format(efjoincolstr)
+    db.c.execute(qrystr, (name,))
+    return [
+        dictify_row(effect_join_cols, row)
+        for row in db.c]
+
+
+def pull_effect_decks(db, names):
+    qryfmt = (
+        "SELECT {0} FROM effect, effect_deck_link WHERE "
+        "effect.name=effect_deck_link.effect AND "
+        "effect_deck_link.deck IN ({1})")
+    qrystr = qryfmt.format(efjoincolstr, ", ".join(["?"] * len(names)))
+    db.c.execute(qrystr, names)
+    return [
+        dictify_row(effect_join_cols, row)
+        for row in db.c]
+
+
+def parse_effect_decks(rows):
+    r = {}
+    for row in rows:
+        if row["deck"] not in r:
+            r[row["deck"]] = {}
+        r[row["deck"]][row["effect"]] = row
+    return r
 
 
 class Event:
@@ -493,24 +565,51 @@ success that strains a person terribly and causes them injury.
         "event":
         {"name": "text",
          "ongoing": "boolean",
-         "commence_tests": "text",
-         "proceed_tests": "text",
-         "conclude_tests": "text"}}
+         "commence_effects": "text",
+         "proceed_effects": "text",
+         "conclude_effects": "text"}}
     primarykeys = {
         "event": ("name",)}
     foreignkeys = {
         "event":
-        {"commence_tests": ("effect_deck", "name"),
-         "proceed_tests": ("effect_deck", "name"),
-         "conclude_tests": ("effect_deck", "name")}}
+        {"commence_effects": ("effect_deck", "name"),
+         "proceed_effects": ("effect_deck", "name"),
+         "conclude_effects": ("effect_deck", "name")}}
 
-    def __init__(self, name, ongoing, commence_tests,
-                 proceed_tests, conclude_tests, db=None):
+    def pull(self, db, keydicts):
+        names = [keydict["name"] for keydict in keydicts]
+        return self.pull_named(db, names)
+
+    def pull_named(self, db, names):
+        qryfmt = "SELECT {0} FROM event WHERE name IN ({0})"
+        qrystr = qryfmt.format(
+            self.colnames["event"],
+            ", ".join(["?"] * len(names)))
+        db.c.execute(qrystr, names)
+        return [
+            dictify_row(self.colnames["event"], row)
+            for row in db.c]
+
+    def parse(self, rows):
+        r = {}
+        for row in rows:
+            r[row["name"]] = row
+        return r
+
+    def combine(self, evdict, efdict):
+        for ev in evdict.itervalues():
+            ev["commence_effect"] = efdict[ev["commence_effect"]]
+            ev["proceed_effect"] = efdict[ev["proceed_effect"]]
+            ev["conclude_effect"] = efdict[ev["conclude_effect"]]
+        return evdict
+
+    def __init__(self, name, ongoing, commence_effect,
+                 proceed_effect, conclude_effect, db=None):
         self.name = name
         self.ongoing = ongoing
-        self.commence_tests = commence_tests
-        self.proceed_tests = proceed_tests
-        self.conclude_tests = conclude_tests
+        self.commence_effect = commence_effect
+        self.proceed_effect = proceed_effect
+        self.conclude_effect = conclude_effect
         if db is not None:
             db.eventdict[name] = self
 
@@ -519,9 +618,6 @@ success that strains a person terribly and causes them injury.
                      self.conclude_tests]:
             for effect in deck:
                 effect = db.effectdict[effect]
-
-    def parse(self, row):
-        return {"event": row}
 
     def cmpcheck(self, other):
         if not hasattr(self, 'start') or not hasattr(other, 'start'):
@@ -630,45 +726,13 @@ class Schedule:
             event.start = start
             event.length = length
 
-    def pull_dimension(self, db, dimname):
-        qryfmt = (
-            "SELECT {0} FROM "
-            "schedule, scheduled_event, event, effect_deck_link, effect "
-            "WHERE "
-            "schedule.dimension=scheduled_event.dimension AND "
-            "schedule.item=scheduled_event.item AND "
-            "scheduled_event.event=event.name AND "
-            "dimension=?")
-        schedcol = ["schedule." + col for col in self.colnames["schedule"]]
-        schevcol = [
-            "scheduled_event." + col
-            for col in self.valnames["scheduled_event"]]
-        evcol = ["event." + col for col in Event.valnames["event"]]
-        efcol = ["effect." + col for col in Effect.valnames["effect"]]
-        allcol = (
-            self.colnames["schedule"] +
-            self.valnames["scheduled_event"] +
-            Event.valnames["event"] +
-            Effect.valnames["effect"])
-        allcolstr = ", ".join(schedcol + schevcol + evcol + efcol)
-        qrystr = qryfmt.format(allcolstr)
-        db.c.execute(qrystr, (dimname,))
-        return [
-            dictify_row(allcol, row) for row in db.c]
-
     def parse(self, rowdicts):
-        tabdict = {}
+        r = {}
         for row in rowdicts:
-            if row["dimension"] not in tabdict:
-                tabdict[row["dimension"]] = {}
-            if row["item"] not in tabdict[row["dimension"]]:
-                tabdict[row["dimension"]][row["item"]] = {
-                    "age": row["age"],
-                    "events": []}
-            ptr = tabdict[row["dimension"]][row["item"]]
-            # TODO write a real event row parser
-            ptr["events"].append(Event.parse(row))
-        return {"schedule": tabdict}
+            if row["dimension"] not in r:
+                r[row["dimension"]] = {}
+            r[row["dimension"]][row["item"]] = row
+        return r
 
     def pull_parse_dimension(self, db, dimname):
         return self.parse(self.pull_dimension(db, dimname))
@@ -687,6 +751,38 @@ class Schedule:
         for end in ends:
             end.end()
         self.age = new_age
+
+
+def pull_schedules_in_dimension(db, dimname):
+    qryfmt = (
+        "SELECT {0} FROM schedule, scheduled_event, event, "
+        "effect_deck_link, effect "
+        "WHERE schedule.name=scheduled_event.schedule "
+        "AND event.name=scheduled_event.event "
+        "AND (event.commence_effects=effect_deck_link.deck "
+        "OR event.proceed_effects=effect_deck_link.deck "
+        "OR event.conclude_effects=effect_deck_link.deck) "
+        "AND effect_deck_link.effect=effect.name "
+        "AND schedule.dimension=?")
+    allcols = (
+        Schedule.colnames["schedule"] +
+        Schedule.valnames["scheduled_event"] +
+        Event.valnames["event"] +
+        Effect.valnames["effect"])
+    colstrs = (
+        ["schedule." + col
+         for col in Schedule.colnames["schedule"]] +
+        ["scheduled_event." + col
+         for col in Schedule.valnames["scheduled_event"]] +
+        ["event." + col
+         for col in Event.valnames["event"]] +
+        ["effect." + col
+         for col in Effect.valnames["effect"]])
+    colstr = ", ".join(colstrs)
+    qrystr = qryfmt.format(colstr)
+    db.c.execute(qrystr, (dimname,))
+    return [
+        dictify_row(allcols, row) for row in db.c]
 
 
 class Dimension:

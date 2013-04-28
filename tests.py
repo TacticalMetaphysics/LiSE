@@ -1,9 +1,10 @@
 from database import Database
-from unittest import TestCase
-from world import Place, Portal, Thing
-from widgets import Color, Style
-from util import default
+from gui import GameWindow
+from state import GameState
+import pyglet
 
-db = Database(":memory:")
-db.mkschema(default)
-db.insert_defaults(default)
+db = Database("default.sqlite")
+db.load_board("Physical")
+stat = GameState(db.boarddict)
+bat = pyglet.graphics.Batch()
+gw = GameWindow(db, stat, "Physical", bat)

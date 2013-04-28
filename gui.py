@@ -19,7 +19,7 @@ class GameWindow:
         self.db = db
         self.db.xfunc(self.toggle_menu_visibility_by_name)
         self.gamestate = gamestate
-        self.board = self.db.load_board(boardname)
+        self.board = gamestate.boarddict[boardname]
         if self.board is None:
             raise Exception("No board by the name %s" % (boardname,))
 
@@ -363,17 +363,3 @@ class GameWindow:
     def pawns_on(self, spot):
         return [thing.pawn
                 for thing in self.db.things_in_place(spot.place)]
-
-
-db = Database(":memory:")
-db.mkschema()
-db.insert_defaults()
-gamestate = GameState(db)
-gw = GameWindow(db, gamestate, 'Physical')
-
-
-gamespeed = 1/60.0
-
-# pyglet.clock.schedule_interval(gamestate.update, gamespeed, gamespeed)
-
-pyglet.app.run()

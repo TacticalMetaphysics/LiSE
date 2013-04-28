@@ -31,32 +31,6 @@ class Database:
         self.placecontentsdict = {}
         self.portalorigdestdict = {}
         self.portaldestorigdict = {}
-        self.dictdict = {Place: self.itemdict,
-                         Portal: self.itemdict,
-                         Thing: self.itemdict,
-                         Item: self.itemdict,
-                         Spot: self.spotdict,
-                         Img: self.imgdict,
-                         Board: self.boarddict,
-                         Pawn: self.pawndict,
-                         Style: self.styledict,
-                         Color: self.colordict,
-                         Journey: self.journeydict}
-        self.tabdict = {"place": self.itemdict,
-                        "portal": self.itemdict,
-                        "thing": self.itemdict,
-                        "item": self.itemdict,
-                        "spot": self.spotdict,
-                        "img": self.imgdict,
-                        "board": self.boarddict,
-                        # fuck i can't do menus this way i need to
-                        # bring back the menudict but i won't be --
-                        # you know what? I'm not going to sync menus
-                        # at all. fuck 'em
-                        "pawn": self.pawndict,
-                        "style": self.styledict,
-                        "color": self.colordict,
-                        "journey": self.journeydict}
         self.func = {'toggle_menu_visibility': self.toggle_menu_visibility}
 
     def __del__(self):
@@ -185,6 +159,9 @@ class Database:
 
     def load_dimension(self, dimname):
         return Dimension.load_named(self, dimname)
+
+    def load_board(self, dimname):
+        
 
     def load_rltile(self, name, path):
         badimg = image(path)
