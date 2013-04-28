@@ -93,17 +93,14 @@ class Journey:
             self.colnames["journey"] + self.valnames["journey_step"])
         qrystr = qryfmt.format(allcolstr)
         db.c.execute(qrystr, (dimname,))
-        return [
-            dictify_row(allcols, row) for row in db.c]
-
-    def parse(self, rows):
         journeydict = {}
-        for row in rows:
-            if row["dimension"] not in journeydict:
-                journeydict[row["dimension"]] = {}
-            journeydict[row["dimension"]][row["thing"]] = {
-                "curstep": row["curstep"],
-                "progress": row["progress"]}
+        for row in db.c:
+            rowdict = dictify_row(allcols, row)
+            if rowdict["dimension"] not in journeydict:
+                journeydict[rowdict["dimension"]] = {}
+            journeydict[rowdict["dimension"]][rowdict["thing"]] = {
+                "curstep": rowdict["curstep"],
+                "progress": rowdict["progress"]}
         return journeydict
 
     def combine(self, journeydict, stepdict):
@@ -331,15 +328,10 @@ class Portal(Item):
         qryfmt = "SELECT {0} FROM portal WHERE dimension=?"
         qrystr = qryfmt.format(self.colnamestr["portal"])
         db.c.execute(qrystr, (dimname,))
-        return [
-            dictify_row(self.cols, row) for row in db.c]
-
-    def parse(self, rows):
-        r = {}
-        for row in rows:
-            if row["dimension"] not in r:
-                r[row["dimension"]] = {}
-            r[row["dimension"]][row["name"]] = row
+        r = {dimname: {}}
+        for row in db.c:
+            rowdict = dictify_row(self.colnames["portal"], row)
+            r[dimname][rowdict["name"]] = rowdict
         return r
 
     def __hash__(self):
@@ -403,9 +395,9 @@ class Effect:
             self.colnamestr["effect"],
             ", ".join(["?"] * len(efnames)))
         db.c.execute(qrystr, efnames)
-        return [
+        return self.parse([
             dictify_row(self.colnames["effect"], row)
-            for row in db.c]
+            for row in db.c])
 
     def parse(self, rows):
         r = {}
@@ -458,8 +450,8 @@ class EffectDeck:
         qrystr = qryfmt.format(
             ", ".join(colns), ", ".join(["?"] * len(names)))
         db.c.execute(qrystr, names)
-        return [
-            dictify_row(cols, row) for row in db.c]
+        return self.parse([
+            dictify_row(cols, row) for row in db.c])
 
     def parse(self, rows):
         r = {}
@@ -513,9 +505,9 @@ def pull_effect_deck(db, name):
         "effect_deck_link.deck=?")
     qrystr = qryfmt.format(efjoincolstr)
     db.c.execute(qrystr, (name,))
-    return [
+    return parse_effect_decks([
         dictify_row(effect_join_cols, row)
-        for row in db.c]
+        for row in db.c])
 
 
 def pull_effect_decks(db, names):
@@ -525,9 +517,9 @@ def pull_effect_decks(db, names):
         "effect_deck_link.deck IN ({1})")
     qrystr = qryfmt.format(efjoincolstr, ", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
-    return [
+    return parse_effect_decks([
         dictify_row(effect_join_cols, row)
-        for row in db.c]
+        for row in db.c])
 
 
 def parse_effect_decks(rows):
@@ -586,9 +578,9 @@ success that strains a person terribly and causes them injury.
             self.colnames["event"],
             ", ".join(["?"] * len(names)))
         db.c.execute(qrystr, names)
-        return [
+        return self.parse([
             dictify_row(self.colnames["event"], row)
-            for row in db.c]
+            for row in db.c])
 
     def parse(self, rows):
         r = {}
@@ -734,9 +726,6 @@ class Schedule:
             r[row["dimension"]][row["item"]] = row
         return r
 
-    def pull_parse_dimension(self, db, dimname):
-        return self.parse(self.pull_dimension(db, dimname))
-
     def __getitem__(self, n):
         return self.startevs[n]
 
@@ -768,6 +757,7 @@ def pull_schedules_in_dimension(db, dimname):
         Schedule.colnames["schedule"] +
         Schedule.valnames["scheduled_event"] +
         Event.valnames["event"] +
+        ["idx"] +
         Effect.valnames["effect"])
     colstrs = (
         ["schedule." + col
@@ -776,13 +766,24 @@ def pull_schedules_in_dimension(db, dimname):
          for col in Schedule.valnames["scheduled_event"]] +
         ["event." + col
          for col in Event.valnames["event"]] +
+        ["event_deck_link.idx"] +
         ["effect." + col
          for col in Effect.valnames["effect"]])
     colstr = ", ".join(colstrs)
     qrystr = qryfmt.format(colstr)
     db.c.execute(qrystr, (dimname,))
-    return [
-        dictify_row(allcols, row) for row in db.c]
+    r = {}
+    for row in db.c:
+        rd = dictify_row(allcols, row)
+        if rd["name"] not in r:
+            r[rd["name"]] = {}
+        if rd["event"] not in r[rd["name"]]:
+            r[rd["name"]][rd["event"]] = []
+        ptr = r[rd["name"]][rd["event"]]
+        while len(ptr) < rd["idx"]:
+            ptr.append(None)
+        ptr[rd["idx"]] = rd
+    return r
 
 
 class Dimension:
@@ -799,35 +800,6 @@ class Dimension:
         self.journeys = journeys
         if db is not None:
             db.dimensiondict[name] = self
-
-    def pull_parse_named(self, db, dimname):
-        tabdict = {"name": dimname}
-        for clas in [Place, Thing, Portal, Journey]:
-            tabdict.update(clas.pull_parse_dimension(db, dimname))
-        return {"dimension": tabdict}
-
-    def from_tabdict(self, db, tabdict):
-        tdd = tabdict["dimension"]
-        name = tdd["name"]
-        db.dimensiondict[self.name] = self
-        places = [
-            Place(**row) for row in tdd["place"]]
-        portals = [
-            Portal(**row) for row in tdd["portal"]]
-        things = [
-            Thing(**row) for row in tdd["thing"]]
-        journeys = [
-            Journey(**row) for row in tdd["journey"]]
-        dim = Dimension(name, places, portals, things, journeys)
-        return dim
-
-    def load_named(self, db, name):
-        loaded = self.from_tabdict(db, self.pull_parse_named(db, name))
-        for l in [loaded.places, loaded.portals,
-                  loaded.things, loaded.journeys]:
-            for m in l:
-                m.unravel(db)
-        return loaded
 
     def get_edge(self, portal):
         origi = self.places.index(portal.orig)
@@ -874,14 +846,16 @@ class Place(Item):
         qryfmt = "SELECT {0} FROM place WHERE dimension=?"
         qrystr = qryfmt.format(self.colnamestr["place"])
         db.c.execute(qrystr, (dimname,))
-        return [
-            dictify_row(self.cols, row) for row in db.c]
+        return self.parse([
+            dictify_row(self.cols, row) for row in db.c])
 
     def parse(self, rows):
-        return {"place": rows}
-
-    def pull_parse_dimension(self, db, dimname):
-        self.parse(self.pull_dimension(db, dimname))
+        r = {}
+        for row in rows:
+            if row["dimension"] not in r:
+                r[row["dimension"]] = {}
+            r[row["dimension"]][row["name"]] = row
+        return r
 
     def __eq__(self, other):
         if not isinstance(other, Place):
@@ -953,15 +927,12 @@ class Thing(Item):
             "thing.name=thing_kind_link.thing AND "
             "dimension=?")
         thingcols = ["thing." + col for col in self.cols]
-        tklcols = [
-            "thing_kind_link." + col
-            for col in self.valnames["thing_kind_link"]]
-        allcols = self.cols + self.valnames["thing_kind_link"]
-        colstr = ", ".join(thingcols) + ", ".join(tklcols)
+        allcols = self.cols + ["kind"]
+        colstr = ", ".join(thingcols) + ", thing_kind_link.kind"
         qrystr = qryfmt.format(colstr)
         db.c.execute(qrystr, (dimname,))
-        return [
-            dictify_row(allcols, row) for row in db.c]
+        return self.parse([
+            dictify_row(allcols, row) for row in db.c])
 
     def parse(self, rows):
         tabdict = {}
@@ -975,10 +946,7 @@ class Thing(Item):
                     "kinds": []}
             ptr = tabdict[row["dimension"]][row["name"]]
             ptr["kinds"].append(row["kinds"])
-        return {"thing": tabdict}
-
-    def pull_parse_dimension(self, db, dimname):
-        return self.parse(self.pull_dimension(db, dimname))
+        return tabdict
 
     def __str__(self):
         return "(%s, %s)" % (self.dimension, self.name)
