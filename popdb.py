@@ -1,7 +1,12 @@
-from database import (
-    Database, Menu, MenuItem, Color, Style, Dimension,
-    Item, Thing, Place, Portal, Img, Pawn, Spot)
-
+from menu import Menu, MenuItem
+from style import Color, Style
+from dimension import Dimension
+from item import Item, Thing, Place, Portal
+from img import Img
+from pawn import Pawn
+from spot import Spot
+from board import Board
+from database import Database
 import parms
 
 EMPTY_DB_FILE = 'empty.sqlite'
@@ -55,13 +60,15 @@ def populate_items(db, things, places, portals):
     Portal.dbop['insert'](db, portal_td)
 
 
-def populate_gfx(db, imgs, pawns, spots):
+def populate_gfx(db, imgs, pawns, spots, boards):
     img_td = {'img': imgs}
     pawn_td = {'pawn': pawns}
     spot_td = {'spot': spots}
+    board_td = {'board': boards}
     Img.dbop['insert'](db, img_td)
     Pawn.dbop['insert'](db, pawn_td)
     Spot.dbop['insert'](db, spot_td)
+    Board.dbop['insert'](db, board_td)
 
 
 db = Database(TARGET_DB_FILE)
@@ -70,7 +77,7 @@ db = Database(TARGET_DB_FILE)
 populate_menus(db, parms.menus, parms.menu_items)
 populate_styles(db, parms.colors, parms.styles)
 populate_items(db, parms.things, parms.places, parms.portals)
-populate_gfx(db, parms.imgs, parms.pawns, parms.spots)
+populate_gfx(db, parms.imgs, parms.pawns, parms.spots, parms.boards)
 
 db.__del__()
 del db

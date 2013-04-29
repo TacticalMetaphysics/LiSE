@@ -278,33 +278,57 @@ class Portal(Item):
 
 def pull_things_in_dimension(db, dimname):
     qryfmt = (
-        "SELECT {0} FROM thing, thing_kind_link WHERE "
-        "thing.dimension=thing_kind_link.dimension AND "
-        "thing.name=thing_kind_link.thing AND "
+        "SELECT {0} FROM thing WHERE "
         "dimension=?")
-    thingcols = ["thing." + col for col in Thing.colnames["thing"]]
-    allcols = Thing.colnames["thing"] + ["kind"]
-    colstr = ", ".join(thingcols) + ", thing_kind_link.kind"
+    colstr = ", ".join(Thing.colnames["thing"])
     qrystr = qryfmt.format(colstr)
     db.c.execute(qrystr, (dimname,))
-    return Thing.parse([
-        dictify_row(allcols, row) for row in db.c])
+    r = {}
+    rows = [
+        dictify_row(row, Thing.colnames["thing"])
+        for row in db.c]
+    for row in rows:
+        r[row["name"]] = row
+    return r
 
 
 def pull_places_in_dimension(db, dimname):
     qryfmt = "SELECT {0} FROM place WHERE dimension=?"
     qrystr = qryfmt.format(Place.colnamestr["place"])
     db.c.execute(qrystr, (dimname,))
-    return Place.parse([
-        dictify_row(Place.colnames["place"], row) for row in db.c])
+    rows = [
+        dictify_row(row, Place.colnames["place"])
+        for row in db.c]
+    r = {}
+    for row in rows:
+        r[row["name"]] = row
+    return r
 
 
 def pull_portals_in_dimension(db, dimname):
     qryfmt = "SELECT {0} FROM portal WHERE dimension=?"
     qrystr = qryfmt.format(Portal.colnamestr["portal"])
     db.c.execute(qrystr, (dimname,))
-    r = {dimname: {}}
+    r = {}
     for row in db.c:
-        rowdict = dictify_row(Portal.colnames["portal"], row)
-        r[dimname][rowdict["name"]] = rowdict
+        rowdict = dictify_row(row, Portal.colnames["portal"])
+        r[rowdict["name"]] = rowdict
     return r
+
+
+def combine_things(things, journeys, schedules):
+    for item in journeys.iteritems():
+        (dimension, journey2) = item
+        if dimension in things:
+            for item2 in journey2.iteritems():
+                (thing, journey3) = item2
+                if thing in things[dimension]:
+                    things[dimension][thing]["journey"] = journey3
+    for item in schedules.iteritems():
+        (dimension, schedule2) = item
+        if dimension in things:
+            for item2 in schedule2.iteritems():
+                (thing, schedule3) = item2
+                if thing in things[dimension]:
+                    things[dimension][thing]["schedule"] = schedule3
+    return things

@@ -1,5 +1,6 @@
 from util import SaveableMetaclass, dictify_row
 from event import Event
+from effect import Effect
 
 
 __metaclass__ = SaveableMetaclass
@@ -72,11 +73,12 @@ class Schedule:
         self.age = new_age
 
 
-def pull_schedules_in_dimension(db, dimname):
+def pull_in_dimension(db, dimname):
     qryfmt = (
         "SELECT {0} FROM schedule, scheduled_event, event, "
         "effect_deck_link, effect "
-        "WHERE schedule.name=scheduled_event.schedule "
+        "WHERE schedule.dimension=scheduled_event.dimension "
+        "AND schedule.item=scheduled_event.item "
         "AND event.name=scheduled_event.event "
         "AND (event.commence_effects=effect_deck_link.deck "
         "OR event.proceed_effects=effect_deck_link.deck "
@@ -96,7 +98,7 @@ def pull_schedules_in_dimension(db, dimname):
          for col in Schedule.valnames["scheduled_event"]] +
         ["event." + col
          for col in Event.valnames["event"]] +
-        ["event_deck_link.idx"] +
+        ["effect_deck_link.idx"] +
         ["effect." + col
          for col in Effect.valnames["effect"]])
     colstr = ", ".join(colstrs)

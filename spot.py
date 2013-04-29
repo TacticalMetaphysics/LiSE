@@ -1,3 +1,9 @@
+from util import SaveableMetaclass
+
+
+__metaclass__ = SaveableMetaclass
+
+
 class Spot:
     """Controller for the icon that represents a Place.
 

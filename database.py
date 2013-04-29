@@ -1,5 +1,6 @@
 import sqlite3
 import board
+import dimension
 from pyglet.resource import image
 from util import compile_tabdicts
 
@@ -10,6 +11,7 @@ class Database:
         self.c = self.conn.cursor()
         self.altered = set()
         self.removed = set()
+        self.dimensiondict = {}
         self.calendardict = {}
         self.scheduledict = {}
         self.itemdict = {}
@@ -154,7 +156,7 @@ class Database:
         return self.func[fname](farg)
 
     def load_dimension(self, dimname):
-        return Dimension.load_named(self, dimname)
+        return dimension.load_named(self, dimname)
 
     def load_board(self, dimname):
         return board.load_named(self, dimname)

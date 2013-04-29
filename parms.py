@@ -312,3 +312,9 @@ mainmenu = {'name': 'Main',
             'visible': True,
             'main_for_window': True}
 menus = [gamemenu, editormenu, placemenu, thingmenu, mainmenu]
+
+boards = {
+    'dimension': dimname,
+    'width': 800,
+    'height': 600,
+    'wallpaper': 'wallpape'}

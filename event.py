@@ -146,3 +146,27 @@ success that strains a person terribly and causes them injury.
         for effect in self.complete_effects:
             effect[0](effect[1])
         return self.status
+
+
+class EventDeck:
+    tablenames = ["event_deck", "event_deck_link"]
+    coldecls = {
+        "event_deck": {
+            "name": "text"},
+        "event_deck_link": {
+            "deck": "text",
+            "idx": "integer",
+            "event": "text"}}
+    primarykeys = {
+        "event_deck": ("name",),
+        "event_deck_link": ("deck", "idx")}
+    foreignkeys = {
+        "event_deck_link": {
+            "deck": ("event_deck", "name"),
+            "event": ("event", "name")}}
+
+    def __init__(self, name, event_list, db=None):
+        self.name = name
+        self.events = event_list
+        if db is not None:
+            db.eventdeckdict[self.name] = self

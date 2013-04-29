@@ -68,42 +68,6 @@ class Journey:
         for step in self.steps:
             step = db.itemdict[self.dimension.name][step]
 
-    def pull_in_dimension(self, db, dimname):
-        # Now just returns a lot of rowdicts. Each is sufficient to
-        # make a journey and its journeystep.
-        qryfmt = (
-            "SELECT {0} FROM journey, journey_step WHERE "
-            "journey.dimension=journey_step.dimension AND "
-            "journey.thing=journey_step.thing AND "
-            "journey.dimension=?")
-        jocols = ["journey." + col for col in self.colnames["journey"]]
-        scols = ["journey_step." + col
-                 for col in self.valnames["journey_step"]]
-        allcolstr = ", ".join(jocols + scols)
-        allcols = (
-            self.colnames["journey"] + self.valnames["journey_step"])
-        qrystr = qryfmt.format(allcolstr)
-        db.c.execute(qrystr, (dimname,))
-        journeydict = {}
-        for row in db.c:
-            rowdict = dictify_row(allcols, row)
-            if rowdict["dimension"] not in journeydict:
-                journeydict[rowdict["dimension"]] = {}
-            journeydict[rowdict["dimension"]][rowdict["thing"]] = {
-                "curstep": rowdict["curstep"],
-                "progress": rowdict["progress"]}
-        return journeydict
-
-    def combine(self, journeydict, stepdict):
-        for journey in journeydict.itervalues():
-            if "steps" not in journey:
-                journey["steps"] = []
-            steps = stepdict[journey["dimension"]][journey["thing"]]
-            i = 0
-            while i < len(steps):
-                journey["steps"].append(steps[i])
-                i += 1
-
     def steps(self):
         """Get the number of steps in the Journey.
 
@@ -258,3 +222,45 @@ Journey.
             "scheduled_event": stepevents}
         s = Schedule(tabdict)
         return s
+
+
+def pull_in_dimension(db, dimname):
+    qryfmt = (
+        "SELECT {0} FROM journey, journey_step WHERE "
+        "journey.dimension=journey_step.dimension AND "
+        "journey.thing=journey_step.thing AND "
+        "journey.dimension=?")
+    jocols = ["journey." + col for col in Journey.colnames["journey"]]
+    scols = ["journey_step." + col
+             for col in Journey.valnames["journey_step"]]
+    allcolstr = ", ".join(jocols + scols)
+    allcols = (
+        Journey.colnames["journey"] + Journey.valnames["journey_step"])
+    qrystr = qryfmt.format(allcolstr)
+    db.c.execute(qrystr, (dimname,))
+    journeydict = {}
+    for row in db.c:
+        rowdict = dictify_row(allcols, row)
+        if rowdict["thing"] not in journeydict:
+            journeydict[rowdict["thing"]] = {
+                "dimension": rowdict["dimension"],
+                "thing": rowdict["thing"],
+                "steps": []}
+        ptr = journeydict[rowdict["thing"]]["steps"]
+        while len(ptr) < rowdict["idx"]:
+            ptr.append(None)
+        journeydict[rowdict["thing"]][rowdict["idx"]] = {
+            "curstep": rowdict["curstep"],
+            "progress": rowdict["progress"]}
+    return journeydict
+
+
+def combine(journeydict, stepdict):
+    for journey in journeydict.itervalues():
+        if "steps" not in journey:
+            journey["steps"] = []
+        steps = stepdict[journey["dimension"]][journey["thing"]]
+        i = 0
+        while i < len(steps):
+            journey["steps"].append(steps[i])
+            i += 1

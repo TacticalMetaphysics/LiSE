@@ -1,28 +1,28 @@
 from util import SaveableMetaclass, dictify_row
 from style import Color, Style
 from menu import Menu, MenuItem
-import world
+import dimension
 
 
 __metaclass__ = SaveableMetaclass
 
 
 class Board:
-    tablenames = ["board", "boardmenu"]
+    tablenames = ["board", "board_menu"]
     coldecls = {"board":
                 {"dimension": "text",
                  "width": "integer",
                  "height": "integer",
                  "wallpaper": "text"},
-                "boardmenu":
+                "board_menu":
                 {"board": "text",
                  "menu": "text"}}
     primarykeys = {"board": ("dimension",),
-                   "boardmenu": ("board", "menu")}
+                   "board_menu": ("board", "menu")}
     foreignkeys = {"board":
                    {"dimension": ("dimension", "name"),
                     "wallpaper": ("image", "name")},
-                   "boardmenu":
+                   "board_menu":
                    {"board": ("board", "name"),
                     "menu": ("menu", "name")}}
 
@@ -110,23 +110,29 @@ pull_board_qrystr = (
     "WHERE board.dimension=board_menu.board "
     "AND board_menu.menu=menu.name "
     "AND menu_item.menu=menu.name "
-    "AND menu_item.style=style.name "
+    "AND menu.style=style.name "
     "AND ("
     "style.bg_inactive=color.name OR "
     "style.bg_active=color.name OR "
     "style.fg_inactive=color.name OR "
-    "style.fg_active=color.name "
+    "style.fg_active=color.name) "
     "AND board.dimension=?".format(pull_board_colstr))
 
 
 def pull_named(db, name):
-    dimension = world.pull_dimension(db, name)
+    dim = dimension.pull_named(db, name)
     db.c.execute(pull_board_qrystr, (name,))
+    rows = db.c.fetchall()
+    sample = dictify_row(pull_board_qualified_cols, rows.pop())
     boarddict = {
-        "dimension": dimension,
-        "db": db}
+        "dimension": dim,
+        "db": db,
+        "width": sample["width"],
+        "height": sample["height"],
+        "wallpaper": sample["wallpaper"]}
+    rows.push(sample)
     menudict = {}
-    for row in db.c:
+    for row in rows:
         rowdict = dictify_row(pull_board_qualified_cols, row)
         if "width" not in boarddict:
             boarddict["width"] = rowdict["width"]

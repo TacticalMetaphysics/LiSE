@@ -1,3 +1,9 @@
+from util import SaveableMetaclass
+
+
+__metaclass__ = SaveableMetaclass
+
+
 class Pawn:
     """A token to represent something that moves about between Places.
 

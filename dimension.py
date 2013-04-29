@@ -45,7 +45,7 @@ class Dimension:
         return self.get_igraph_graph().layout(layout=layout_type)
 
 
-def pull_dimension(db, name):
+def pull_named(db, name):
     things = item.pull_things_in_dimension(db, name)
     places = item.pull_places_in_dimension(db, name)
     portals = item.pull_portals_in_dimension(db, name)
