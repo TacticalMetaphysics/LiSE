@@ -165,4 +165,3 @@ def parse_decks(rows):
             r[row["deck"]] = {}
         r[row["deck"]][row["effect"]] = row
     return r
-

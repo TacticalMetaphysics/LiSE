@@ -1,3 +1,9 @@
+from util import SaveableMetaclass
+
+
+__metaclass__ = SaveableMetaclass
+
+
 class Character:
     """An incorporeal object connecting corporeal ones together across
 dimensions, indicating that they represent one thing and have that

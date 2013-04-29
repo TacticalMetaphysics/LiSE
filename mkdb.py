@@ -1,27 +1,33 @@
 import database
-import world
-import widgets
+from dimension import Dimension
+from schedule import Schedule
+from item import Item, Thing, Place, Portal
+from journey import Journey
+from effect import Effect, EffectDeck
+from event import Event
+from style import Color, Style
+from menu import Menu, MenuItem
 
 tabclasses = [
-    world.Dimension,
-    world.Schedule,
-    world.Item,
-    world.Thing,
-    world.Place,
-    world.Portal,
-    world.Journey,
-    world.Effect,
-    world.EffectDeck,
-    world.Event,
-    widgets.Img,
-    widgets.Color,
-    widgets.Style,
-    widgets.Menu,
-    widgets.MenuItem,
-    widgets.CalendarCol,
-    widgets.Spot,
-    widgets.Pawn,
-    widgets.Board]
+    Dimension,
+    Schedule,
+    Item,
+    Thing,
+    Place,
+    Portal,
+    Journey,
+    Effect,
+    EffectDeck,
+    Event,
+    Img,
+    Color,
+    Style,
+    Menu,
+    MenuItem,
+    CalendarCol,
+    Spot,
+    Pawn,
+    Board]
 
 db = database.Database('empty.sqlite')
 

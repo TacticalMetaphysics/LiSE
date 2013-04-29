@@ -1,6 +1,11 @@
 import igraph
-from util import (SaveableMetaclass, LocationException,
-                  ContainmentException, dictify_row)
+import item
+import journey
+import schedule
+from util import SaveableMetaclass
+
+
+__metaclass__ = SaveableMetaclass
 
 
 class Dimension:
@@ -41,11 +46,11 @@ class Dimension:
 
 
 def pull_dimension(db, name):
-    things = Thing.pull_in_dimension(db, name)
-    places = Place.pull_in_dimension(db, name)
-    portals = Portal.pull_in_dimension(db, name)
+    things = item.pull_things_in_dimension(db, name)
+    places = item.pull_places_in_dimension(db, name)
+    portals = item.pull_portals_in_dimension(db, name)
     journeys = journey.pull_in_dimension(db, name)
     schedules = schedule.pull_in_dimension(db, name)
-    things = Thing.combine(things, journeys, schedules)
+    things = item.combine_things(things, journeys, schedules)
     dimension = Dimension(name, places, portals, things, db)
     return dimension

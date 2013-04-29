@@ -1,6 +1,4 @@
 import pyglet
-from database import Database
-from state import GameState
 from widgets import Spot, Pawn
 from menu import Menu, MenuItem
 

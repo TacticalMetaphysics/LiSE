@@ -1,4 +1,6 @@
-from util import SaveableMetaclass, dictify_row
+from util import (
+    SaveableMetaclass, dictify_row,
+    LocationException, ContainmentException)
 
 
 __metaclass__ = SaveableMetaclass
@@ -12,6 +14,7 @@ class Item:
          "name": "text"}}
     primarykeys = {
         "item": ("dimension", "name")}
+
 
 class Place(Item):
     tablenames = ["place"]
@@ -30,13 +33,6 @@ class Place(Item):
 
     def unravel(self, db):
         self.dimension = db.dimensiondict[self.dimension]
-
-    def pull_in_dimension(self, db, dimname):
-        qryfmt = "SELECT {0} FROM place WHERE dimension=?"
-        qrystr = qryfmt.format(self.colnamestr["place"])
-        db.c.execute(qrystr, (dimname,))
-        return self.parse([
-            dictify_row(self.cols, row) for row in db.c])
 
     def parse(self, rows):
         r = {}
@@ -89,10 +85,6 @@ class Thing(Item):
         self.container = container
         self.kinds = kinds
         self.contents = set()
-        self.unravelled = (
-            isinstance(self.dimension, Dimension) and
-            isinstance(self.location, Place) and
-            isinstance(self.container, Thing))
         if db is not None:
             dimname = None
             if isinstance(dimension, str):
@@ -106,22 +98,8 @@ class Thing(Item):
         self.location = db.itemdict[self.dimension.name][self.location]
         self.container = db.itemdict[self.dimension.name][self.container]
         self.unravelled = True
-        if self.container.unravelled:
+        if hasattr(self.container, 'unravelled'):
             self.container.add(self)
-
-    def pull_in_dimension(self, db, dimname):
-        qryfmt = (
-            "SELECT {0} FROM thing, thing_kind_link WHERE "
-            "thing.dimension=thing_kind_link.dimension AND "
-            "thing.name=thing_kind_link.thing AND "
-            "dimension=?")
-        thingcols = ["thing." + col for col in self.cols]
-        allcols = self.cols + ["kind"]
-        colstr = ", ".join(thingcols) + ", thing_kind_link.kind"
-        qrystr = qryfmt.format(colstr)
-        db.c.execute(qrystr, (dimname,))
-        return self.parse([
-            dictify_row(allcols, row) for row in db.c])
 
     def parse(self, rows):
         tabdict = {}
@@ -227,23 +205,6 @@ game-clock it takes to pass through the portal.
 
 
 class Portal(Item):
-    # Portals would be called 'exits' if that didn't make it
-    # perilously easy to exit the program by mistake. They link
-    # one place to another. They are one-way; if you want two-way
-    # travel, make another one in the other direction. Each portal
-    # has a 'weight' that probably represents how far you have to
-    # go to get to the other side; this can be zero. Portals are
-    # likely to impose restrictions on what can go through them
-    # and when. They might require some ritual to be performed
-    # prior to becoming passable, e.g. opening a door before
-    # walking through it. They might be diegetic, in which case
-    # they point to a Thing that the player can interact with, but
-    # the portal itself is not a Thing and does not require one.
-    #
-    # These are implemented as methods, although they
-    # will quite often be constant values, because it's not much
-    # more work and I expect that it'd cause headaches to be
-    # unable to tell whether I'm dealing with a number or not.
     tablenames = ["portal"]
     coldecls = {"portal":
                 {"dimension": "text",
@@ -281,16 +242,6 @@ class Portal(Item):
         self.orig = db.itemdict[self.dimension.name][self.orig]
         self.dest = db.itemdict[self.dimension.name][self.dest]
 
-    def pull_in_dimension(self, db, dimname):
-        qryfmt = "SELECT {0} FROM portal WHERE dimension=?"
-        qrystr = qryfmt.format(self.colnamestr["portal"])
-        db.c.execute(qrystr, (dimname,))
-        r = {dimname: {}}
-        for row in db.c:
-            rowdict = dictify_row(self.colnames["portal"], row)
-            r[dimname][rowdict["name"]] = rowdict
-        return r
-
     def __hash__(self):
         return self.hsh
 
@@ -323,3 +274,37 @@ class Portal(Item):
 
     def find_neighboring_portals(self):
         return self.orig.portals + self.dest.portals
+
+
+def pull_things_in_dimension(db, dimname):
+    qryfmt = (
+        "SELECT {0} FROM thing, thing_kind_link WHERE "
+        "thing.dimension=thing_kind_link.dimension AND "
+        "thing.name=thing_kind_link.thing AND "
+        "dimension=?")
+    thingcols = ["thing." + col for col in Thing.colnames["thing"]]
+    allcols = Thing.colnames["thing"] + ["kind"]
+    colstr = ", ".join(thingcols) + ", thing_kind_link.kind"
+    qrystr = qryfmt.format(colstr)
+    db.c.execute(qrystr, (dimname,))
+    return Thing.parse([
+        dictify_row(allcols, row) for row in db.c])
+
+
+def pull_places_in_dimension(db, dimname):
+    qryfmt = "SELECT {0} FROM place WHERE dimension=?"
+    qrystr = qryfmt.format(Place.colnamestr["place"])
+    db.c.execute(qrystr, (dimname,))
+    return Place.parse([
+        dictify_row(Place.colnames["place"], row) for row in db.c])
+
+
+def pull_portals_in_dimension(db, dimname):
+    qryfmt = "SELECT {0} FROM portal WHERE dimension=?"
+    qrystr = qryfmt.format(Portal.colnamestr["portal"])
+    db.c.execute(qrystr, (dimname,))
+    r = {dimname: {}}
+    for row in db.c:
+        rowdict = dictify_row(Portal.colnames["portal"], row)
+        r[dimname][rowdict["name"]] = rowdict
+    return r
