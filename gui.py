@@ -1,7 +1,8 @@
 import pyglet
 from database import Database
 from state import GameState
-from widgets import Menu, MenuItem, Spot, Pawn
+from widgets import Spot, Pawn
+from menu import Menu, MenuItem
 
 
 def point_is_in(x, y, listener):

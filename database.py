@@ -1,7 +1,10 @@
 import sqlite3
 import sys
 import os
-from widgets import Color, MenuItem, Menu, Spot, Pawn, Board, Style, Img
+from widgets import Spot, Pawn, Img
+import board
+from menu import Menu, MenuItem
+from style import Color, Style
 from world import Journey, Place, Portal, Thing, Dimension, Item
 from pyglet.resource import image
 from util import compile_tabdicts
@@ -161,7 +164,7 @@ class Database:
         return Dimension.load_named(self, dimname)
 
     def load_board(self, dimname):
-        
+        return board.load_named(self, dimname)
 
     def load_rltile(self, name, path):
         badimg = image(path)

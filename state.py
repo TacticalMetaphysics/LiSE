@@ -4,7 +4,7 @@ state of the interface.
 
     """
     def __init__(self, boards):
-        self.boards = boards
+        self.boarddict = boards
 
     def update(self, ts, st):
         pass
