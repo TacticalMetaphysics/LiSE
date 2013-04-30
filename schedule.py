@@ -107,9 +107,10 @@ def pull_in_dimension(db, dimname):
     r = {}
     for row in db.c:
         rd = dictify_row(allcols, row)
-        if rd["name"] not in r:
-            r[rd["name"]] = {}
-        if rd["event"] not in r[rd["name"]]:
+        if rd["item"] not in r:
+            r[rd["item"]] = {
+                "age": rd["age"]}
+        if rd["event"] not in r[rd["item"]]:
             r[rd["name"]][rd["event"]] = []
         ptr = r[rd["name"]][rd["event"]]
         while len(ptr) < rd["idx"]:

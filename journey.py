@@ -224,23 +224,25 @@ Journey.
         return s
 
 
-def pull_in_dimension(db, dimname):
-    qryfmt = (
-        "SELECT {0} FROM journey, journey_step WHERE "
-        "journey.dimension=journey_step.dimension AND "
-        "journey.thing=journey_step.thing AND "
-        "journey.dimension=?")
-    jocols = ["journey." + col for col in Journey.colnames["journey"]]
-    scols = ["journey_step." + col
-             for col in Journey.valnames["journey_step"]]
-    allcolstr = ", ".join(jocols + scols)
+jocoln = ["journey." + col for col in Journey.colnames["journey"]]
+stepvaln = ["journey_step." + val for val in Journey.valnames["journey_step"]]
+journey_dimension_qryfmt = (
+    "SELECT {0} FROM journey, journey_step WHERE "
+    "journey.dimension=journey_step.dimension AND "
+    "journey.thing=journey_step.thing AND "
+    "journey.dimension IN ({1})".format(
+        ", ".join(jocoln + stepvaln), "{0}"))
+
+
+def pull_in_dimensions(db, dimnames):
+    qryfmt = journey_dimension_qryfmt
+    qrystr = qryfmt.format(["?"] * len(dimnames))
     allcols = (
         Journey.colnames["journey"] + Journey.valnames["journey_step"])
-    qrystr = qryfmt.format(allcolstr)
-    db.c.execute(qrystr, (dimname,))
+    db.c.execute(qrystr, dimnames)
     journeydict = {}
     for row in db.c:
-        rowdict = dictify_row(allcols, row)
+        rowdict = dictify_row(row, allcols)
         if rowdict["thing"] not in journeydict:
             journeydict[rowdict["thing"]] = {
                 "dimension": rowdict["dimension"],

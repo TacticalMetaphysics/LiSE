@@ -262,13 +262,16 @@ class Portal(Item):
         return self.orig.portals + self.dest.portals
 
 
-def pull_things_in_dimension(db, dimname):
-    qryfmt = (
-        "SELECT {0} FROM thing WHERE "
-        "dimension=?")
-    colstr = ", ".join(Thing.colnames["thing"])
-    qrystr = qryfmt.format(colstr)
-    db.c.execute(qrystr, (dimname,))
+thing_dimension_qryfmt = (
+    "SELECT {0} FROM thing WHERE "
+    "dimension IN ({1})".format(
+        ", ".join(Thing.colnames["thing"], "{0}")))
+
+
+def pull_things_in_dimensions(db, dimnames):
+    qryfmt = thing_dimension_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
+    db.c.execute(qrystr, dimnames)
     r = {}
     rows = [
         dictify_row(row, Thing.colnames["thing"])
@@ -278,10 +281,16 @@ def pull_things_in_dimension(db, dimname):
     return r
 
 
-def pull_places_in_dimension(db, dimname):
-    qryfmt = "SELECT {0} FROM place WHERE dimension=?"
-    qrystr = qryfmt.format(Place.colnamestr["place"])
-    db.c.execute(qrystr, (dimname,))
+place_dimension_qryfmt = (
+    "SELECT {0} FROM place WHERE dimension IN "
+    "({1})".format(
+        ", ".join(Place.colnames["place"], "{0}")))
+
+
+def pull_places_in_dimensions(db, dimnames):
+    qryfmt = place_dimension_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
+    db.c.execute(qrystr, dimnames)
     rows = [
         dictify_row(row, Place.colnames["place"])
         for row in db.c]
@@ -291,9 +300,15 @@ def pull_places_in_dimension(db, dimname):
     return r
 
 
-def pull_portals_in_dimension(db, dimname):
-    qryfmt = "SELECT {0} FROM portal WHERE dimension=?"
-    qrystr = qryfmt.format(Portal.colnamestr["portal"])
+portal_dimension_qryfmt = (
+    "SELECT {0} FROM portal WHERE dimension IN "
+    "({1})".format(
+        ", ".join(Portal.colnames["portal"], "{0}")))
+
+
+def pull_portals_in_dimensions(db, dimnames):
+    qryfmt = portal_dimension_qryfmt
+    qrystr = qryfmt.format(["?"] * len(dimnames))
     db.c.execute(qrystr, (dimname,))
     r = {}
     for row in db.c:
@@ -303,18 +318,8 @@ def pull_portals_in_dimension(db, dimname):
 
 
 def combine_things(things, journeys, schedules):
-    for item in journeys.iteritems():
-        (dimension, journey2) = item
-        if dimension in things:
-            for item2 in journey2.iteritems():
-                (thing, journey3) = item2
-                if thing in things[dimension]:
-                    things[dimension][thing]["journey"] = journey3
-    for item in schedules.iteritems():
-        (dimension, schedule2) = item
-        if dimension in things:
-            for item2 in schedule2.iteritems():
-                (thing, schedule3) = item2
-                if thing in things[dimension]:
-                    things[dimension][thing]["schedule"] = schedule3
-    return things
+    # Assuming that things is a dict, but journeys and schedules are lists.
+    
+
+def load_things(things):
+    

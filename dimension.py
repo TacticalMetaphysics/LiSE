@@ -45,12 +45,13 @@ class Dimension:
         return self.get_igraph_graph().layout(layout=layout_type)
 
 
-def pull_named(db, name):
+def load_named(db, name):
     things = item.pull_things_in_dimension(db, name)
-    places = item.pull_places_in_dimension(db, name)
-    portals = item.pull_portals_in_dimension(db, name)
+    places = item.load_places_in_dimension(db, name)
+    portals = item.load_portals_in_dimension(db, name)
     journeys = journey.pull_in_dimension(db, name)
     schedules = schedule.pull_in_dimension(db, name)
-    things = item.combine_things(things, journeys, schedules)
+    
+    things = item.combine_things(things, journeyl, schedull)
     dimension = Dimension(name, places, portals, things, db)
     return dimension
