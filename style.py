@@ -105,12 +105,15 @@ pull_colors_named_fmt = (
     "SELECT {0} FROM color WHERE name IN ({1})".format(colorcols, "{1}"))
 
 
-def pull_colors_named(db, names):
+def load_colors_named(db, names):
     qryfmt = pull_colors_named_fmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
     r = {}
+    q = []
     for row in db.c:
-        rowdict = dictify_row(row, Color.colnames["color"])
-        r[rowdict["name"]] = rowdict
+        q.append(dictify_row(row, Color.colnames["color"]))
+    for rowdict in q:
+        rowdict["db"] = db
+        r[q["name"]] = Color(**rowdict)
     return r

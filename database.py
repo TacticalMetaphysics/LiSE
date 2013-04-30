@@ -140,44 +140,17 @@ class Database:
                 self.c.execute(tab)
         self.conn.commit()
 
-    def initialized(self):
-        try:
-            for tab in ["thing", "place", "attribute", "img"]:
-                self.c.execute("select count(*) from %s limit 1"
-                               % (tab,))
-            return True
-        except sqlite3.OperationalError:
-            return False
-
     def xfunc(self, func):
         self.func[func.__name__] = func
 
     def call_func(self, fname, farg):
         return self.func[fname](farg)
 
-    def load_dimension(self, dimname):
+    def load_dimensions(self, dimname):
         return dimension.load_named(self, dimname)
 
-    def load_board(self, dimname):
+    def load_boards(self, dimname):
         return board.load_named(self, dimname)
-
-    def load_rltile(self, name, path):
-        badimg = image(path)
-        badimgd = badimg.get_image_data()
-        bad_rgba = badimgd.get_data('RGBA', badimgd.pitch)
-        good_data = bad_rgba.replace('\xffGll', '\x00Gll')
-        good_data = good_data.replace('\xff.', '\x00.')
-        badimgd.set_data('RGBA', badimgd.pitch, good_data)
-        rtex = badimgd.get_texture()
-        rtex.name = name
-        self.imgdict[name] = rtex
-        return rtex
-
-    def load_regular_img(self, name, path):
-        tex = image(path).get_image_data().get_texture()
-        tex.name = name
-        self.imgdict[name] = tex
-        return tex
 
     def toggle_menu_visibility(self, stringly):
         """Given a string arg of the form boardname.menuname, toggle the
