@@ -105,3 +105,38 @@ class Spot:
         (grabx, graby) = self.grabpoint
         self.x = x - grabx + dx
         self.y = y - graby + dy
+
+
+spot_dimension_qryfmt = (
+    "SELECT {0} FROM spot WHERE dimension IN ({1})".format(
+        ", ".join(Spot.colnames["spot"]), "{0}"))
+
+
+def read_spots_in_dimensions(db, names):
+    qryfmt = spot_dimension_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
+    db.c.execute(qrystr, names)
+    r = {}
+    for name in names:
+        r[name] = {}
+    for row in db.c:
+        rowdict = dictify_row(row, Spot.colnames["spot"])
+        rowdict["db"] = db
+        r[rowdict["dimension"]][rowdict["place"]] = Spot(**rowdict)
+    return r
+
+
+def unravel_spots(db, spd):
+    for spot in spd.itervalues():
+        spot.unravel(db)
+    return spd
+
+
+def unravel_spots_in_dimensions(db, spdd):
+    for spots in spdd.itervalues():
+        unravel_spots(db, spots)
+    return spdd
+
+
+def load_spots_in_dimensions(db, names):
+    return unravel_spots_in_dimensions(db, read_spots_in_dimensions(db, names))

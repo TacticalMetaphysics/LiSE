@@ -1,7 +1,8 @@
 import igraph
-import item
-import journey
-import schedule
+from item import (
+    load_things_in_dimensions,
+    load_places_in_dimensions,
+    load_portals_in_dimensions)
 from util import SaveableMetaclass
 
 
@@ -21,6 +22,14 @@ class Dimension:
         self.things = things
         if db is not None:
             db.dimensiondict[name] = self
+
+    def unravel(self, db):
+        for place in self.places:
+            place.unravel(db)
+        for portal in self.portals:
+            portal.unravel(db)
+        for thing in self.things:
+            thing.unravel(db)
 
     def get_edge(self, portal):
         origi = self.places.index(portal.orig)
@@ -45,13 +54,26 @@ class Dimension:
         return self.get_igraph_graph().layout(layout=layout_type)
 
 
-def load_named(db, name):
-    things = item.pull_things_in_dimension(db, name)
-    places = item.load_places_in_dimension(db, name)
-    portals = item.load_portals_in_dimension(db, name)
-    journeys = journey.pull_in_dimension(db, name)
-    schedules = schedule.pull_in_dimension(db, name)
-    
-    things = item.combine_things(things, journeyl, schedull)
-    dimension = Dimension(name, places, portals, things, db)
-    return dimension
+def read_dimensions(db, names):
+    things = load_things_in_dimensions(db, names)
+    places = load_places_in_dimensions(db, names)
+    portals = load_portals_in_dimensions(db, names)
+    r = {}
+    for name in names:
+        r[name] = Dimension(
+            name,
+            places[name],
+            portals[name],
+            things[name],
+            db)
+    return r
+
+
+def unravel_dimensions(db, dd):
+    for dim in dd.itervalues():
+        dim.unravel(db)
+    return dd
+
+
+def load_dimensions(db, names):
+    return unravel_dimensions(db, read_dimensions(db, names))

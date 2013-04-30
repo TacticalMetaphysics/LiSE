@@ -1,5 +1,5 @@
 from util import SaveableMetaclass, dictify_row
-from effect import Effect
+from effect import read_effect_decks
 
 
 __metaclass__ = SaveableMetaclass
@@ -18,7 +18,7 @@ class MenuItem:
     primarykeys = {'menu_item': ('menu', 'idx')}
     foreignkeys = {'menu_item':
                    {"menu": ("menu", "name"),
-                    "onclick": ("effect", "name")}}
+                    "onclick": ("effect_deck", "name")}}
 
     def __init__(self, menu, idx, text, onclick, closer,
                  visible, interactive, db=None):
@@ -42,8 +42,10 @@ class MenuItem:
             db.menuitemdict[menun][self.idx] = self
 
     def unravel(self, db):
-        self.menu = db.menudict[self.menu]
-        self.onclick = db.effectdict[self.onclick]
+        if isinstance(self.menu, str):
+            self.menu = db.menudict[self.menu]
+        if isinstance(self.onclick, str):
+            self.onclick = db.effectdeckdict[self.onclick]
         while len(self.menu.items) < self.idx:
             self.menu.items.append(None)
         self.menu.items[self.idx] = self
@@ -243,91 +245,96 @@ class Menu:
         self.visible = not self.visible
 
 
-def pull_menus(self, db, keydicts):
-    menunames = [keydict["name"] for keydict in keydicts]
-    return self.pull_named(db, menunames)
+item_qualified_cols = ["menu_item." + col
+                       for col in MenuItem.colnames["menu_item"]]
+
+item_menu_qryfmt = (
+    "SELECT {0}, effect_deck.idx, effect.func, effect.arg "
+    "FROM menu_item, effect_deck, effect "
+    "WHERE menu_item.onclick=effect_deck.name "
+    "AND effect.deck.effect=effect.name "
+    "AND menu_item.menu IN ({1})".format(
+        ", ".join(item_qualified_cols), "{0}"))
 
 
-def pull_named_menus(self, db, menunames):
-    qryfmt = "SELECT {0} FROM menu WHERE name IN ({1})"
-    qrystr = qryfmt.format(
-        self.colnamestr["menu"],
-        ", ".join(["?"] * len(menunames)))
-    db.c.execute(qrystr, menunames)
-    return parse_menus([
-        dictify_row(self.colnames["menu"], row)
-        for row in db.c])
-
-
-def parse_menus(self, rows):
+def read_items_in_menus(db, menus):
+    # Assumes menus are already in db.menudict
+    qryfmt = item_menu_qryfmt
+    qrystr = qryfmt.format(["?"] * len(menus))
+    db.c.execute(qrystr, menus)
     r = {}
-    for row in rows:
-        r[row["name"]] = row
+    decknames = set()
+    for menu in menus:
+        r[menu] = []
+    for row in db.c:
+        rowdict = dictify_row(row, MenuItem.colnames["menu_item"])
+        while len(r[rowdict["menu"]]) < rowdict["idx"]:
+            r[rowdict["menu"]].append(None)
+        rowdict["db"] = db
+        numi = MenuItem(**rowdict)
+        r[rowdict["menu"]][rowdict["idx"]] = numi
+        decknames.add(numi.onclick)
+    read_effect_decks(db, iter(decknames))
     return r
 
 
-def combine(self, menudict, menuitemdict):
-    for menu in menudict.itervalues():
-        if "items" not in menu:
-            menu["items"] = []
-        mitems = menuitemdict[menu["name"]]
-        i = 0
-        while i < len(mitems):
-            menu["items"].append(mitems[i])
-            i += 1
+def unravel_items(db, itd):
+    for it in itd.itervalues():
+        it.unravel(db)
+    return itd
 
 
-def parse_menus_with_items_and_effects(rows):
+def unravel_items_in_menus(db, mitd):
+    for its in mitd.itervalues():
+        unravel_items(db, its)
+    return mitd
+
+
+def load_items_in_menus(db, menus):
+    return unravel_items_in_menus(db, read_items_in_menus(db, menus))
+
+
+menu_qualified_cols = ["menu." + col for col in Menu.colnames["menu"]]
+menu_board_qryfmt = (
+    "SELECT board_menu.board, {0} FROM menu, board_menu WHERE "
+    "menu.name=board_menu.menu AND "
+    "board_menu.board IN ({1})".format(
+        menu_qualified_cols, "{0}"))
+
+
+def read_menus_in_boards(db, boards):
+    qryfmt = menu_board_qryfmt
+    qrystr = qryfmt.format(["?"] * len(boards))
+    db.c.execute(qrystr, boards)
     r = {}
-    for row in rows:
-        if row["name"] not in r:
-            r[row["name"]] = []
-        while len(r[row["name"]]) < row["idx"]:
-            r[row["name"]].append(None)
-        midict = {
-            "menu": row["name"],
-            "idx": row["idx"],
-            "text": row["text"],
-            "onclick": {
-                "name": row["onclick"],
-                "func": row["func"],
-                "arg": row["arg"]},
-            "visible": row["visible"],
-            "interactive": row["interactive"],
-            "closer": row["closer"]}
-        r[row["name"]][row["idx"]] = midict
+    menunames = set()
+    menus = []
+    for board in boards:
+        r[board] = {}
+    for row in db.c:
+        rowdict = dictify_row(row, ["board"] + Menu.colnames["menu"])
+        rowdict["db"] = db
+        numenu = Menu(**rowdict)
+        r[rowdict["board"]][rowdict["name"]] = numenu
+        menunames.add(rowdict["name"])
+        menus.append(numenu)
+    items = read_items_in_menus(db, menunames)
+    for menu in menus:
+        menu["items"] = items[menu.name]
     return r
 
 
-def pull_menus_by_name_with_items(db, menunames):
-    qryfmt = (
-        "SELECT {0} FROM menu, menu_item, effect "
-        "WHERE menu.name=menu_item.menu "
-        "AND menu_item.onclick=effect.name "
-        "AND menu.name IN ({1})")
-    colqual = (
-        ["menu." + col for col in Menu.colnames["menu"]] +
-        ["menu_item.idx"] +
-        ["menu_item." + col for col in MenuItem.valnames["menu_item"]] +
-        ["effect." + col for col in Effect.colnames["effect"]])
-    qrystr = qryfmt.format(
-        ", ".join(colqual),
-        ", ".join(["?"] * len(menunames)))
-    db.c.execute(qrystr, menunames)
-    return parse_menus_with_items([
-        dictify_row(colqual, row) for row in db.c])
+def unravel_menus(db, md):
+    for menu in md.itervalues():
+        menu.unravel()
+    return md
 
 
-def parse_menus_with_items(rows):
-    r = {}
-    for row in rows:
-        if row["menu.name"] not in r:
-            r[row["menu.name"]] = []
-        ptr = r[row["menu.name"]]
-        while len(ptr) < row["menu_item.idx"]:
-            ptr.append(None)
-        ptr[row["menu_item.idx"]] = {
-            "name": row["effect.name"],
-            "func": row["effect.func"],
-            "arg": row["effect.arg"]}
-    return r
+def unravel_menus_in_boards(db, bmd):
+    for menus in bmd.itervalues():
+        unravel_menus(db, menus)
+    return bmd
+
+
+def load_menus_in_boards(db, boards):
+    return unravel_menus_in_boards(db, read_menus_in_boards(db, boards))

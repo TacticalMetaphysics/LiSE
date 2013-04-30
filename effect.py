@@ -21,8 +21,6 @@ class Effect:
     primarykeys = {
         "effect": ("name", "func", "arg")}
 
-
-
     def __init__(self, name, func, arg, db=None):
         self.name = name
         self.func = func
@@ -53,6 +51,17 @@ class EffectDeck:
         "effect_deck_link":
         {"deck": ("effect_deck", "name"),
          "effect": ("effect", "name")}}
+
+    def __init__(self, name, effects, db=None):
+        self.name = name
+        self.effects = effects
+        if db is not None:
+            db.effectdeckdict[self.name] = self
+
+    def unravel(self, db):
+        for effn in self.effects:
+            if isinstance(effn, str):
+                effn = db.effectdict[effn]
 
     def pull(self, db, keydicts):
         names = [keydict["name"] for keydict in keydicts]
@@ -92,15 +101,34 @@ class EffectDeck:
                 r[deck].append(effect)
         return r
 
-    def __init__(self, name, effects, db=None):
-        self.name = name
-        self.effects = effects
-        if db is not None:
-            db.effectdeckdict[name] = self
 
-    def unravel(self, db):
-        for effect in self.effects:
-            effect = db.effectdict[effect]
+load_effect_qryfmt = (
+    "SELECT {0} FROM effect WHERE name IN ({1})".format(
+        ", ".join(Effect.colnames["effect"]), "{0}"))
+
+
+def read_effects(db, names):
+    qryfmt = load_effect_qryfmt
+    qrystr = qryfmt.format(["?"] * len(names))
+    db.c.execute(qrystr, names)
+    r = {}
+    for row in db.c:
+        rowdict = dictify_row(row, Effect.colnames["effect"])
+        rowdict["db"] = db
+        eff = Effect(**rowdict)
+        eff.unravel(db)
+        r[rowdict["name"]] = eff
+    return r
+
+
+def unravel_effects(db, effd):
+    for eff in effd.itervalues():
+        eff.unravel(db)
+    return effd
+
+
+def load_effects(db, names):
+    return unravel_effects(db, read_effects(db, names))
 
 
 effect_join_colns = [
@@ -115,49 +143,38 @@ effect_join_cols = (
 
 efjoincolstr = ", ".join(effect_join_colns)
 
+load_deck_qryfmt = (
+    "SELECT {0} FROM effect, effect_deck_link WHERE "
+    "effect.name=effect_deck_link.effect AND "
+    "effect_deck_link.deck IN ({1})".format(efjoincolstr, "{0}"))
 
-def pull_deck(db, name):
-    return pull_decks(db, [name])
 
-
-def pull_decks(db, names):
-    qryfmt = (
-        "SELECT {0} FROM effect, effect_deck_link WHERE "
-        "effect.name=effect_deck_link.effect AND "
-        "effect_deck_link.deck IN ({1})")
-    qrystr = qryfmt.format(efjoincolstr, ", ".join(["?"] * len(names)))
+def read_effect_decks(db, names):
+    qryfmt = load_deck_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
     r = {}
+    effectnames = set()
     for row in db.c:
         rowdict = dictify_row(row, effect_join_cols)
         if rowdict["deck"] not in r:
-            r[rowdict["deck"]] = {}
-        r[rowdict["deck"]][rowdict["idx"]] = rowdict
+            r[rowdict["deck"]] = []
+        while len(r[rowdict["deck"]]) < rowdict["idx"]:
+            r[rowdict["deck"]].append(None)
+        r[rowdict["deck"]][rowdict["idx"]] = rowdict["effect"]
+        effectnames.add(rowdict["effect"])
+    load_effects(db, iter(effectnames))
+    for deck in r.iteritems():
+        (name, cards) = deck
+        deck = EffectDeck(name, cards, db)
     return r
 
 
-def parse_decks(rows):
-    r = {}
-    for row in rows:
-        if row["deck"] not in r:
-            r[row["deck"]] = {}
-        r[row["deck"]][row["effect"]] = row
-    return r
+def unravel_effect_decks(db, efd):
+    for deck in efd.itervalues():
+        deck.unravel()
+    return efd
 
 
-def pull(self, db, keydicts):
-    efnames = [keydict["name"] for keydict in keydicts]
-    return pull_named(db, efnames)
-
-
-def pull_named(db, efnames):
-    qryfmt = "SELECT {0} FROM effect WHERE name IN ({1})"
-    qrystr = qryfmt.format(
-        Effect.colnamestr["effect"],
-        ", ".join(["?"] * len(efnames)))
-    db.c.execute(qrystr, efnames)
-    r = {}
-    for row in db.c:
-        rowdict = dictify_row(row, Effect.colnames["effect"])
-        r[rowdict["name"]] = rowdict
-    return r
+def load_effect_decks(db, names):
+    return unravel_effect_decks(db, read_effect_decks(db, names))

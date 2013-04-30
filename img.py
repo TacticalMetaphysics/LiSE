@@ -1,7 +1,7 @@
 # This file is for the controllers for the things that show up on the
 # screen when you play.
 from pyglet.resource import image
-from util import SaveableMetaclass
+from util import SaveableMetaclass, dictify_row
 
 
 __metaclass__ = SaveableMetaclass
@@ -45,3 +45,30 @@ def load_rltile(db, name, path):
 def load_regular_img(db, name, path):
     tex = image(path).get_image_data().get_texture()
     return tex
+
+
+read_imgs_qryfmt = (
+    "SELECT {0} FROM img WHERE name IN ({1})".format(
+        ", ".join(Img.colnames["img"]), "{0}"))
+
+
+def read_imgs(db, names):
+    qryfmt = read_imgs_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
+    db.c.execute(qrystr, names)
+    r = {}
+    for row in db.c:
+        rowdict = dictify_row(row, Img.colnames["img"])
+        rowdict["db"] = db
+        r[rowdict["name"]] = Img(**rowdict)
+    return r
+
+
+def unravel_imgs(db, imgd):
+    for img in imgd.itervalues():
+        img.unravel(db)
+    return imgd
+
+
+def load_imgs(db, names):
+    return unravel_imgs(db, read_imgs(db, names))

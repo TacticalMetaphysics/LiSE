@@ -130,15 +130,35 @@ class Pawn:
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])
 
-pull_in_dimension_qrystr = (
-    "SELECT {0} FROM spot WHERE dimension=?".format(pawncolstr))
+pawn_dimension_qryfmt = (
+    "SELECT {0} FROM pawn WHERE dimension IN ({1})".format(pawncolstr, "{0}"))
 
 
-def pull_in_dimension(db, dimname):
-    qrystr = pull_in_dimension_qrystr
-    db.c.execute(qrystr, (dimname,))
+def read_pawns_in_dimensions(db, names):
+    qryfmt = pawn_dimension_qryfmt
+    qrystr = qryfmt.format(["?"] * len(names))
+    db.c.execute(qrystr, names)
     r = {}
+    for name in names:
+        r[name] = {}
     for row in db.c:
         rowdict = dictify_row(row, Pawn.colnames["pawn"])
-        r[rowdict["thing"]] = rowdict
+        rowdict["db"] = db
+        r[rowdict["dimension"]][rowdict["thing"]] = Pawn(**rowdict)
     return r
+
+
+def unravel_pawns(db, pawnd):
+    for pawn in pawnd.itervalues():
+        pawn.unravel(db)
+    return pawnd
+
+
+def unravel_pawns_in_dimensions(db, pawnd):
+    for pawns in pawnd.itervalues():
+        unravel_pawns(db, pawns)
+    return pawnd
+
+
+def load_pawns_in_dimensions(db, names):
+    return unravel_pawns_in_dimensions(db, read_pawns_in_dimensions(db, names))
