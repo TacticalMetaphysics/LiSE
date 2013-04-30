@@ -71,13 +71,25 @@ def populate_gfx(db, imgs, pawns, spots, boards):
     Board.dbop['insert'](db, board_td)
 
 
+def boardmenu(db, board_menu_pairs):
+    qryfmt = "INSERT INTO board_menu VALUES {0}"
+    qms = ["(?, ?)"] * len(board_menu_pairs)
+    qrystr = qryfmt.format(", ".join(qms))
+    qrylst = []
+    for pair in board_menu_pairs:
+        qrylst.extend(pair)
+    db.c.execute(qrystr, qrylst)
+
+
+def populate_database(db, data):
+    populate_menus(db, data.menus, data.menu_items)
+    populate_styles(db, data.colors, data.styles)
+    populate_items(db, data.things, data.places, data.portals)
+    populate_gfx(db, data.imgs, data.pawns, data.spots, data.boards)
+    boardmenu(db, data.board_menu)
+
+
 db = Database(TARGET_DB_FILE)
-
-
-populate_menus(db, parms.menus, parms.menu_items)
-populate_styles(db, parms.colors, parms.styles)
-populate_items(db, parms.things, parms.places, parms.portals)
-populate_gfx(db, parms.imgs, parms.pawns, parms.spots, parms.boards)
-
+populate_database(db, parms)
 db.__del__()
 del db

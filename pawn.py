@@ -1,4 +1,4 @@
-from util import SaveableMetaclass
+from util import SaveableMetaclass, dictify_row
 
 
 __metaclass__ = SaveableMetaclass
@@ -61,6 +61,14 @@ class Pawn:
     def __hash__(self):
         return self.hsh
 
+    def unravel(self, db):
+        if isinstance(self.dimension, str):
+            self.dimension = db.dimensiondict[self.dimension]
+        if isinstance(self.thing, str):
+            self.thing = db.thingdict[self.dimension.name][self.thing]
+        if isinstance(self.img, str):
+            self.img = db.imgdict[self.img]
+
     def getcoords(self):
         # Assume I've been provided a spotdict. Use it to get the
         # spot's x and y, as well as that of the spot for the next
@@ -118,3 +126,19 @@ class Pawn:
 
     def onclick(self, button, modifiers):
         pass
+
+
+pawncolstr = ", ".join(Pawn.colnames["pawn"])
+
+pull_in_dimension_qrystr = (
+    "SELECT {0} FROM spot WHERE dimension=?".format(pawncolstr))
+
+
+def pull_in_dimension(db, dimname):
+    qrystr = pull_in_dimension_qrystr
+    db.c.execute(qrystr, (dimname,))
+    r = {}
+    for row in db.c:
+        rowdict = dictify_row(row, Pawn.colnames["pawn"])
+        r[rowdict["thing"]] = rowdict
+    return r

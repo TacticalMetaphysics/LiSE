@@ -32,15 +32,8 @@ class Place(Item):
             db.itemdict[dimension][name] = self
 
     def unravel(self, db):
-        self.dimension = db.dimensiondict[self.dimension]
-
-    def parse(self, rows):
-        r = {}
-        for row in rows:
-            if row["dimension"] not in r:
-                r[row["dimension"]] = {}
-            r[row["dimension"]][row["name"]] = row
-        return r
+        if isinstance(self.dimension, str):
+            self.dimension = db.dimensiondict[self.dimension]
 
     def __eq__(self, other):
         if not isinstance(other, Place):
@@ -94,26 +87,16 @@ class Thing(Item):
             db.itemdict[dimname][self.name] = self
 
     def unravel(self, db):
-        self.dimension = db.dimensiondict[self.dimension]
-        self.location = db.itemdict[self.dimension.name][self.location]
-        self.container = db.itemdict[self.dimension.name][self.container]
+        if isinstance(self.dimension, str):
+            self.dimension = db.dimensiondict[self.dimension]
+        if isinstance(self.location, str):
+            self.location = db.itemdict[self.dimension.name][self.location]
+            assert(isinstance(self.location, Place))
+        if isinstance(self.container, str):
+            self.container = db.itemdict[self.dimension.name][self.container]
+            assert(isinstance(self.container, Thing))
         self.unravelled = True
-        if hasattr(self.container, 'unravelled'):
-            self.container.add(self)
-
-    def parse(self, rows):
-        tabdict = {}
-        for row in rows:
-            if row["dimension"] not in tabdict:
-                tabdict[row["dimension"]] = {}
-            if row["name"] not in tabdict[row["dimension"]]:
-                tabdict[row["dimension"]][row["name"]] = {
-                    "dimension": row["dimension"],
-                    "name": row["name"],
-                    "kinds": []}
-            ptr = tabdict[row["dimension"]][row["name"]]
-            ptr["kinds"].append(row["kinds"])
-        return tabdict
+        self.container.add(self)
 
     def __str__(self):
         return "(%s, %s)" % (self.dimension, self.name)
@@ -238,9 +221,12 @@ class Portal(Item):
             pdod[dimension][to_place][from_place] = self
 
     def unravel(self, db):
-        self.dimension = db.dimensiondict[self.dimension]
-        self.orig = db.itemdict[self.dimension.name][self.orig]
-        self.dest = db.itemdict[self.dimension.name][self.dest]
+        if isinstance(self.dimension, str):
+            self.dimension = db.dimensiondict[self.dimension]
+        if isinstance(self.orig, str):
+            self.orig = db.itemdict[self.dimension.name][self.orig]
+        if isinstance(self.dest, str):
+            self.dest = db.itemdict[self.dimension.name][self.dest]
 
     def __hash__(self):
         return self.hsh

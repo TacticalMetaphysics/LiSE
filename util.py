@@ -102,7 +102,9 @@ class SaveableMetaclass(type):
                         for item in fkeys.iteritems()]
             fkeystr = ", ".join(fkeystrs)
             chkstr = ", ".join(cks)
-            table_decl_data = [coldecstr, pkeystr]
+            table_decl_data = [coldecstr]
+            if len(pkey) > 0:
+                table_decl_data.append(pkeystr)
             if len(fkeystrs) > 0:
                 table_decl_data.append(fkeystr)
             if len(cks) > 0:
@@ -165,7 +167,10 @@ class SaveableMetaclass(type):
         def insert_tabdict(db, tabdict):
             for item in tabdict.iteritems():
                 (tabn, rd) = item
-                insert_rowdicts_table(db, rd, tabn)
+                if isinstance(rd, list):
+                    insert_rowdicts_table(db, rd, tabn)
+                else:
+                    insert_rowdicts_table(db, [rd], tabn)
 
         def delete_tabdict(db, tabdict):
             for item in tabdict.iteritems():

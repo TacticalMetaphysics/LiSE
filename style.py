@@ -1,4 +1,5 @@
 from util import SaveableMetaclass, dictify_row
+import pyglet
 
 
 __metaclass__ = SaveableMetaclass
@@ -91,22 +92,25 @@ class Style:
     def __hash__(self):
         return self.hsh
 
-
-def pull(self, db, keydicts):
-    colornames = [keydict["name"] for keydict in keydicts]
-    qryfmt = "SELECT {0} FROM color WHERE name IN ({1})"
-    qms = ["?"] * len(colornames)
-    qrystr = qryfmt.format(
-        ", ".join(self.colnames["color"]),
-        ", ".join(qms))
-    db.c.execute(qrystr, colornames)
-    return parse([
-        dictify_row(self.colnames["color"], row)
-        for row in db.c])
+    def unravel(self, db):
+        for colr in [self.bg_inactive, self.bg_active,
+                     self.fg_inactive, self.fg_active]:
+            if isinstance(colr, str):
+                colr = db.colordict[colr]
 
 
-def parse(self, rows):
+colorcols = ", ".join(Color.colnames["color"])
+
+pull_colors_named_fmt = (
+    "SELECT {0} FROM color WHERE name IN ({1})".format(colorcols, "{1}"))
+
+
+def pull_colors_named(db, names):
+    qryfmt = pull_colors_named_fmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
+    db.c.execute(qrystr, names)
     r = {}
-    for row in rows:
-        r[row["name"]] = row
+    for row in db.c:
+        rowdict = dictify_row(row, Color.colnames["color"])
+        r[rowdict["name"]] = rowdict
     return r

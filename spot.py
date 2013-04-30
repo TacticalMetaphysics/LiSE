@@ -1,4 +1,4 @@
-from util import SaveableMetaclass
+from util import SaveableMetaclass, dictify_row
 
 
 __metaclass__ = SaveableMetaclass
@@ -60,6 +60,14 @@ class Spot:
 
     def __hash__(self):
         return self.hsh
+
+    def unravel(self, db):
+        if isinstance(self.dimension, str):
+            self.dimension = db.dimensiondict[self.dimension]
+        if isinstance(self.place, str):
+            self.place = db.placedict[self.dimension.name][self.place]
+        if isinstance(self.img, str):
+            self.img = db.imgdict[self.img]
 
     def getleft(self):
         return self.x - self.r

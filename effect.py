@@ -21,25 +21,7 @@ class Effect:
     primarykeys = {
         "effect": ("name", "func", "arg")}
 
-    def pull(self, db, keydicts):
-        efnames = [keydict["name"] for keydict in keydicts]
-        return self.pull_named(db, efnames)
 
-    def pull_named(self, db, efnames):
-        qryfmt = "SELECT {0} FROM effect WHERE name IN ({1})"
-        qrystr = qryfmt.format(
-            self.colnamestr["effect"],
-            ", ".join(["?"] * len(efnames)))
-        db.c.execute(qrystr, efnames)
-        return self.parse([
-            dictify_row(self.colnames["effect"], row)
-            for row in db.c])
-
-    def parse(self, rows):
-        r = {}
-        for row in rows:
-            r[row["name"]] = row
-        return r
 
     def __init__(self, name, func, arg, db=None):
         self.name = name
@@ -135,15 +117,7 @@ efjoincolstr = ", ".join(effect_join_colns)
 
 
 def pull_deck(db, name):
-    qryfmt = (
-        "SELECT {0} FROM effect, effect_deck_link WHERE "
-        "effect.name=effect_deck_link.effect AND "
-        "effect_deck_link.deck=?")
-    qrystr = qryfmt.format(efjoincolstr)
-    db.c.execute(qrystr, (name,))
-    return parse_decks([
-        dictify_row(effect_join_cols, row)
-        for row in db.c])
+    return pull_decks(db, [name])
 
 
 def pull_decks(db, names):
@@ -153,9 +127,13 @@ def pull_decks(db, names):
         "effect_deck_link.deck IN ({1})")
     qrystr = qryfmt.format(efjoincolstr, ", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
-    return parse_decks([
-        dictify_row(effect_join_cols, row)
-        for row in db.c])
+    r = {}
+    for row in db.c:
+        rowdict = dictify_row(row, effect_join_cols)
+        if rowdict["deck"] not in r:
+            r[rowdict["deck"]] = {}
+        r[rowdict["deck"]][rowdict["idx"]] = rowdict
+    return r
 
 
 def parse_decks(rows):
@@ -164,4 +142,22 @@ def parse_decks(rows):
         if row["deck"] not in r:
             r[row["deck"]] = {}
         r[row["deck"]][row["effect"]] = row
+    return r
+
+
+def pull(self, db, keydicts):
+    efnames = [keydict["name"] for keydict in keydicts]
+    return pull_named(db, efnames)
+
+
+def pull_named(db, efnames):
+    qryfmt = "SELECT {0} FROM effect WHERE name IN ({1})"
+    qrystr = qryfmt.format(
+        Effect.colnamestr["effect"],
+        ", ".join(["?"] * len(efnames)))
+    db.c.execute(qrystr, efnames)
+    r = {}
+    for row in db.c:
+        rowdict = dictify_row(row, Effect.colnames["effect"])
+        r[rowdict["name"]] = rowdict
     return r

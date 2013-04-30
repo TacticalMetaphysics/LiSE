@@ -318,3 +318,10 @@ boards = {
     'width': 800,
     'height': 600,
     'wallpaper': 'wallpape'}
+
+board_menu = [
+    (dimname, 'Main'),
+    (dimname, 'Thing'),
+    (dimname, 'Place'),
+    (dimname, 'Editor'),
+    (dimname, 'Thing')]

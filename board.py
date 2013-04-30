@@ -18,7 +18,7 @@ class Board:
                 {"board": "text",
                  "menu": "text"}}
     primarykeys = {"board": ("dimension",),
-                   "board_menu": ("board", "menu")}
+                   "board_menu": tuple()}
     foreignkeys = {"board":
                    {"dimension": ("dimension", "name"),
                     "wallpaper": ("image", "name")},
@@ -103,7 +103,7 @@ pull_board_qualified_cols = (
     ["style." + col for col in Style.valnames["style"]] +
     ["color." + col for col in Color.valnames["color"]])
 
-pull_board_colstr = ", ".join(pull_board_qualified_cols)
+pull_board_qualified_cols.sort()
 
 pull_board_qrystr = (
     "SELECT {0} FROM board, board_menu, menu, menu_item, style, color "
@@ -116,48 +116,51 @@ pull_board_qrystr = (
     "style.bg_active=color.name OR "
     "style.fg_inactive=color.name OR "
     "style.fg_active=color.name) "
-    "AND board.dimension=?".format(pull_board_colstr))
+    "AND board.dimension=?".format(", ".join(pull_board_qualified_cols)))
 
 
 def pull_named(db, name):
     dim = dimension.pull_named(db, name)
     db.c.execute(pull_board_qrystr, (name,))
     rows = db.c.fetchall()
-    sample = dictify_row(pull_board_qualified_cols, rows.pop())
+    samplerow = rows.pop()
+    sample = dictify_row(samplerow, pull_board_qualified_cols)
     boarddict = {
         "dimension": dim,
         "db": db,
-        "width": sample["width"],
-        "height": sample["height"],
-        "wallpaper": sample["wallpaper"]}
-    rows.push(sample)
+        "width": sample["board.width"],
+        "height": sample["board.height"],
+        "wallpaper": sample["board.wallpaper"]}
+    rows.insert(0, samplerow)
     menudict = {}
     for row in rows:
-        rowdict = dictify_row(pull_board_qualified_cols, row)
+        rowdict = dictify_row(row, pull_board_qualified_cols)
         if "width" not in boarddict:
-            boarddict["width"] = rowdict["width"]
-            boarddict["height"] = rowdict["height"]
-            boarddict["wallpaper"] = rowdict["wallpaper"]
+            boarddict["width"] = rowdict["board.width"]
+            boarddict["height"] = rowdict["board.height"]
+            boarddict["wallpaper"] = rowdict["board.wallpaper"]
         for colorfield in ["style.bg_inactive", "style.bg_active",
                            "style.fg_inactive", "style.fg_active"]:
             if rowdict[colorfield] not in db.colordict:
-                db.colordict[rowdict[colorfield]] = Color(
-                    rowdict[colorfield], rowdict["red"], rowdict["green"],
-                    rowdict["blue"], rowdict["alpha"])
+                Color(
+                    rowdict[colorfield], rowdict["color.red"],
+                    rowdict["color.green"],
+                    rowdict["color.blue"], rowdict["color.alpha"],
+                    db)
         if rowdict["menu.style"] not in db.styledict:
-            db.styledict[rowdict["menu.style"]] = Style(
+            Style(
                 rowdict["menu.style"], rowdict["style.fontface"],
                 rowdict["style.fontsize"],
                 rowdict["style.bg_inactive"], rowdict["style.bg_active"],
-                rowdict["style.fg_inactive"], rowdict["style.fg_active"])
+                rowdict["style.fg_inactive"], rowdict["style.fg_active"],
+                db)
         if rowdict["board_menu.menu"] not in menudict:
             menudict[rowdict["board_menu.menu"]] = Menu(
-                rowdict["menu.name"], rowdict["menu.left"],
+                rowdict["board_menu.menu"], rowdict["menu.left"],
                 rowdict["menu.bottom"], rowdict["menu.top"],
                 rowdict["menu.right"], rowdict["menu.style"],
                 rowdict["menu.main_for_window"],
-                rowdict["menu.visible"], rowdict["menu.interactive"],
-                db)
+                rowdict["menu.visible"], db)
     boarddict["menus"] = menudict
     return boarddict
 
