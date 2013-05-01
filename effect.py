@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, dictify_row
+from util import SaveableMetaclass, dictify_row, stringlike
 
 
 __metaclass__ = SaveableMetaclass
@@ -60,7 +60,7 @@ class EffectDeck:
 
     def unravel(self, db):
         for effn in self.effects:
-            if isinstance(effn, str):
+            if stringlike(effn):
                 effn = db.effectdict[effn]
 
     def pull(self, db, keydicts):
@@ -155,15 +155,16 @@ def read_effect_decks(db, names):
     db.c.execute(qrystr, names)
     r = {}
     effectnames = set()
-    for row in db.c:
-        rowdict = dictify_row(row, effect_join_cols)
-        if rowdict["deck"] not in r:
-            r[rowdict["deck"]] = []
-        while len(r[rowdict["deck"]]) < rowdict["idx"]:
-            r[rowdict["deck"]].append(None)
-        r[rowdict["deck"]][rowdict["idx"]] = rowdict["effect"]
-        effectnames.add(rowdict["effect"])
-    load_effects(db, iter(effectnames))
+    if db.c.rowcount > 0:
+        for row in db.c:
+            rowdict = dictify_row(row, effect_join_cols)
+            if rowdict["deck"] not in r:
+                r[rowdict["deck"]] = []
+            while len(r[rowdict["deck"]]) < rowdict["idx"]:
+                r[rowdict["deck"]].append(None)
+            r[rowdict["deck"]][rowdict["idx"]] = rowdict["effect"]
+            effectnames.add(rowdict["effect"])
+        load_effects(db, list(effectnames))
     for deck in r.iteritems():
         (name, cards) = deck
         deck = EffectDeck(name, cards, db)

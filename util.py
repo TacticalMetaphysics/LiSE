@@ -436,10 +436,6 @@ def compile_tabdicts(objs):
             mastertab[tabname].append(rowdict)
     return mastertab
 
-def deep_lookup(dic, keylst):
-    key = keylst.pop()
-    ptr = dic
-    while keylst != []:
-        ptr = ptr[key]
-        key = keylst.pop()
-    return ptr[key]
+
+def stringlike(o):
+    return isinstance(o, str) or isinstance(o, unicode)

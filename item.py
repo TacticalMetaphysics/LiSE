@@ -213,9 +213,9 @@ class Portal(Item):
                 if dimension not in d:
                     d[dimension] = {}
             if from_place not in podd:
-                podd[from_place] = {}
+                podd[dimension][from_place] = {}
             if to_place not in pdod:
-                pdod[to_place] = {}
+                pdod[dimension][to_place] = {}
             pd[dimension][name] = self
             podd[dimension][from_place][to_place] = self
             pdod[dimension][to_place][from_place] = self
@@ -265,7 +265,7 @@ class Portal(Item):
 thing_dimension_qryfmt = (
     "SELECT {0} FROM thing WHERE "
     "dimension IN ({1})".format(
-        ", ".join(Thing.colnames["thing"], "{0}")))
+        ", ".join(Thing.colnames["thing"]), "{0}"))
 
 
 def read_things_in_dimensions(db, dimnames):
@@ -301,7 +301,7 @@ def load_things_in_dimensions(db, names):
 place_dimension_qryfmt = (
     "SELECT {0} FROM place WHERE dimension IN "
     "({1})".format(
-        ", ".join(Place.colnames["place"], "{0}")))
+        ", ".join(Place.colnames["place"]), "{0}"))
 
 
 def read_places_in_dimensions(db, dimnames):
@@ -312,24 +312,44 @@ def read_places_in_dimensions(db, dimnames):
     for name in dimnames:
         r[name] = {}
     for row in db.c:
-        rowdict = dictify_row(row, Place.colnames["dimension"])
+        rowdict = dictify_row(row, Place.colnames["place"])
         rowdict["db"] = db
         r[rowdict["dimension"]][rowdict["name"]] = Place(**rowdict)
     return r
 
+
+def unravel_places(db, pls):
+    for pl in pls.itervalues():
+        pl.unravel(db)
+    return pls
+
+
+def unravel_places_in_dimensions(db, pls):
+    for pl in pls.itervalues():
+        unravel_places(db, pl)
+    return pls
+
+
+def load_places_in_dimensions(db, dimnames):
+    return unravel_places_in_dimensions(
+        db, load_places_in_dimensions(db, dimnames))
+
+
 portal_dimension_qryfmt = (
     "SELECT {0} FROM portal WHERE dimension IN "
     "({1})".format(
-        ", ".join(Portal.colnames["portal"], "{0}")))
+        ", ".join(Portal.colnames["portal"]), "{0}"))
 
 
 def read_portals_in_dimensions(db, dimnames):
     qryfmt = portal_dimension_qryfmt
-    qrystr = qryfmt.format(["?"] * len(dimnames))
+    qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
     db.c.execute(qrystr, dimnames)
     r = {}
+    for dimname in dimnames:
+        r[dimname] = {}
     for row in db.c:
         rowdict = dictify_row(row, Portal.colnames["portal"])
         rowdict["db"] = db
-        r[rowdict["name"]] = Portal(**rowdict)
+        r[rowdict["dimension"]][rowdict["name"]] = Portal(**rowdict)
     return r

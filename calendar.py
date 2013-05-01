@@ -1,11 +1,10 @@
-from util import SaveableMetaclass, dictify_row
+from util import SaveableMetaclass, dictify_row, stringlike
 
 
 class CalendarCell:
     # Being a block of time in a calendar, with or without an event in
     # it. This isn't stored in the database because really, why would
     # I store *empty calendar cells* in the database?
-    __metaclass__ = type
 
     def __init__(self, col, start, end, color, text=""):
         self.col = col
@@ -76,11 +75,11 @@ class CalendarCol:
         if db is not None:
             dimname = None
             itname = None
-            if isinstance(self.dimension, str):
+            if stringlike(self.dimension):
                 dimname = self.dimension
             else:
                 dimname = self.dimension.name
-            if isinstance(self.item, str):
+            if stringlike(self.item):
                 itname = self.item
             else:
                 itname = self.item.name

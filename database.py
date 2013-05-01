@@ -1,7 +1,6 @@
 import sqlite3
 import board
 import dimension
-from pyglet.resource import image
 from util import compile_tabdicts
 
 
@@ -18,6 +17,7 @@ class Database:
         self.spotdict = {}
         self.imgdict = {}
         self.boarddict = {}
+        self.menudict = {}
         self.menuitemdict = {}
         self.boardmenudict = {}
         self.pawndict = {}
@@ -147,10 +147,16 @@ class Database:
         return self.func[fname](farg)
 
     def load_dimensions(self, dimname):
-        return dimension.load_named(self, dimname)
+        return dimension.load_dimensions(self, dimname)
+
+    def load_dimension(self, dimname):
+        return self.load_dimensions([dimname])
 
     def load_boards(self, dimname):
-        return board.load_named(self, dimname)
+        return board.load_boards(self, dimname)
+
+    def load_board(self, dimname):
+        return self.load_boards([dimname])
 
     def toggle_menu_visibility(self, stringly):
         """Given a string arg of the form boardname.menuname, toggle the

@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, dictify_row
+from util import SaveableMetaclass, dictify_row, stringlike
 
 
 __metaclass__ = SaveableMetaclass
@@ -40,11 +40,11 @@ class Pawn:
         if db is not None:
             dimname = None
             thingname = None
-            if isinstance(self.dimension, str):
+            if stringlike(self.dimension):
                 dimname = self.dimension
             else:
                 dimname = self.dimension.name
-            if isinstance(self.thing, str):
+            if stringlike(self.thing):
                 thingname = self.thing
             else:
                 thingname = self.thing.name
@@ -62,11 +62,11 @@ class Pawn:
         return self.hsh
 
     def unravel(self, db):
-        if isinstance(self.dimension, str):
+        if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
-        if isinstance(self.thing, str):
+        if stringlike(self.thing):
             self.thing = db.thingdict[self.dimension.name][self.thing]
-        if isinstance(self.img, str):
+        if stringlike(self.img):
             self.img = db.imgdict[self.img]
 
     def getcoords(self):
@@ -136,7 +136,7 @@ pawn_dimension_qryfmt = (
 
 def read_pawns_in_dimensions(db, names):
     qryfmt = pawn_dimension_qryfmt
-    qrystr = qryfmt.format(["?"] * len(names))
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
     r = {}
     for name in names:

@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, dictify_row
+from util import SaveableMetaclass, dictify_row, stringlike
 import pyglet
 
 
@@ -95,7 +95,7 @@ class Style:
     def unravel(self, db):
         for colr in [self.bg_inactive, self.bg_active,
                      self.fg_inactive, self.fg_active]:
-            if isinstance(colr, str):
+            if stringlike(colr):
                 colr = db.colordict[colr]
 
 

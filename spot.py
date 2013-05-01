@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, dictify_row
+from util import SaveableMetaclass, dictify_row, stringlike
 
 
 __metaclass__ = SaveableMetaclass
@@ -37,11 +37,11 @@ class Spot:
         if db is not None:
             dimname = None
             placename = None
-            if isinstance(self.dimension, str):
+            if stringlike(self.dimension):
                 dimname = self.dimension
             else:
                 dimname = self.dimension.name
-            if isinstance(self.place, str):
+            if stringlike(self.place):
                 placename = self.place
             else:
                 placename = self.place.name
@@ -62,11 +62,11 @@ class Spot:
         return self.hsh
 
     def unravel(self, db):
-        if isinstance(self.dimension, str):
+        if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
-        if isinstance(self.place, str):
+        if stringlike(self.place):
             self.place = db.placedict[self.dimension.name][self.place]
-        if isinstance(self.img, str):
+        if stringlike(self.img):
             self.img = db.imgdict[self.img]
 
     def getleft(self):

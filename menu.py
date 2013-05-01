@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, dictify_row
+from util import SaveableMetaclass, dictify_row, stringlike
 from effect import read_effect_decks
 
 
@@ -42,9 +42,9 @@ class MenuItem:
             db.menuitemdict[menun][self.idx] = self
 
     def unravel(self, db):
-        if isinstance(self.menu, str):
+        if stringlike(self.menu):
             self.menu = db.menudict[self.menu]
-        if isinstance(self.onclick, str):
+        if stringlike(self.onclick):
             self.onclick = db.effectdeckdict[self.onclick]
         while len(self.menu.items) < self.idx:
             self.menu.items.append(None)
@@ -167,8 +167,8 @@ class Menu:
     interactive = True
 
     def __init__(self, name, left, bottom, top, right, style,
-                 main_for_window, visible, interactive,
-                 items=[], db=None):
+                 main_for_window, visible,
+                 items=[], db=None, board=None):
         self.name = name
         self.left = left
         self.bottom = bottom
@@ -177,8 +177,9 @@ class Menu:
         self.style = style
         self.main_for_window = main_for_window
         self.visible = visible
-        self.interactive = interactive
+        self.interactive = True
         self.items = items
+        self.board = board
         if db is not None:
             db.menudict[self.name] = self
 
@@ -249,10 +250,10 @@ item_qualified_cols = ["menu_item." + col
                        for col in MenuItem.colnames["menu_item"]]
 
 item_menu_qryfmt = (
-    "SELECT {0}, effect_deck.idx, effect.func, effect.arg "
-    "FROM menu_item, effect_deck, effect "
-    "WHERE menu_item.onclick=effect_deck.name "
-    "AND effect.deck.effect=effect.name "
+    "SELECT {0}, effect_deck_link.idx, effect.func, effect.arg "
+    "FROM menu_item, effect_deck_link, effect "
+    "WHERE menu_item.onclick=effect_deck_link.deck "
+    "AND effect_deck_link.effect=effect.name "
     "AND menu_item.menu IN ({1})".format(
         ", ".join(item_qualified_cols), "{0}"))
 
@@ -260,8 +261,8 @@ item_menu_qryfmt = (
 def read_items_in_menus(db, menus):
     # Assumes menus are already in db.menudict
     qryfmt = item_menu_qryfmt
-    qrystr = qryfmt.format(["?"] * len(menus))
-    db.c.execute(qrystr, menus)
+    qrystr = qryfmt.format(", ".join(["?"] * len(menus)))
+    db.c.execute(qrystr, tuple(menus))
     r = {}
     decknames = set()
     for menu in menus:
@@ -274,7 +275,7 @@ def read_items_in_menus(db, menus):
         numi = MenuItem(**rowdict)
         r[rowdict["menu"]][rowdict["idx"]] = numi
         decknames.add(numi.onclick)
-    read_effect_decks(db, iter(decknames))
+    read_effect_decks(db, list(decknames))
     return r
 
 
@@ -299,12 +300,12 @@ menu_board_qryfmt = (
     "SELECT board_menu.board, {0} FROM menu, board_menu WHERE "
     "menu.name=board_menu.menu AND "
     "board_menu.board IN ({1})".format(
-        menu_qualified_cols, "{0}"))
+        ", ".join(menu_qualified_cols), "{0}"))
 
 
 def read_menus_in_boards(db, boards):
     qryfmt = menu_board_qryfmt
-    qrystr = qryfmt.format(["?"] * len(boards))
+    qrystr = qryfmt.format(", ".join(["?"] * len(boards)))
     db.c.execute(qrystr, boards)
     r = {}
     menunames = set()
@@ -320,7 +321,7 @@ def read_menus_in_boards(db, boards):
         menus.append(numenu)
     items = read_items_in_menus(db, menunames)
     for menu in menus:
-        menu["items"] = items[menu.name]
+        menu.items = items[menu.name]
     return r
 
 

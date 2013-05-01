@@ -70,16 +70,23 @@ class Board:
                len(self.pawns), len(self.menus))
 
 
+load_some_boards_qryfmt = (
+    "SELECT {0} FROM board WHERE dimension IN ({1})".format(
+        Board.colnamestr["board"], "{0}"))
+
+
+load_all_boards_qrystr = (
+    "SELECT {0} FROM board".format(Board.colnamestr["board"]))
+
+
 def load_boards(db, names):
     boarddict = {}
     imgs2load = set()
-    for name in names:
-        boarddict[name] = {
-            "dimension": name,
-            "db": db}
-    qrystr = "SELECT {0} FROM board WHERE name IN ({1})".format(
-        ", ".join(Board.colnames["board"]), ", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, names)
+    if names is None or len(names) == 0:
+        db.c.execute(load_all_boards_qrystr)
+    else:
+        qrystr = load_some_boards_qryfmt.format(", ".join(["?"] * len(names)))
+        db.c.execute(qrystr, names)
     for row in db.c:
         rowdict = dictify_row(row, Board.colnames["board"])
         boarddict[rowdict["dimension"]] = rowdict
@@ -104,3 +111,7 @@ def load_boards(db, names):
         board = Board(**nubd)
         board.unravel(db)
     return boarddict
+
+
+def load_all_boards(db):
+    return load_boards(db, None)
