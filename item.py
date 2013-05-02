@@ -1,8 +1,9 @@
 from util import (
     SaveableMetaclass, dictify_row,
     LocationException, ContainmentException)
-from pawn import Pawn
-from schedule import Schedule
+from event import Event
+from effect import Effect
+from dimension import Dimension
 
 
 __metaclass__ = SaveableMetaclass
@@ -87,14 +88,19 @@ class Thing(Item):
         "thing_kind":
         {"dimension": ("dimension", "name"),
          "thing": ("thing", "name"),
-         "kind": ("thing_kind", "name")}}
+         "kind": ("thing_kind", "name")},
+        "journey_step":
+        {"dimension, thing": ("thing", "dimension, name"),
+         "dimension, portal": ("portal", "dimension, name")}}
 
-    def __init__(self, dimension, name, location, container, kinds, db=None):
+    def __init__(self, dimension, name, location, container,
+                 journey=None, schedule=None, db=None):
         self.dimension = dimension
         self.name = name
         self.location = location
         self.container = container
-        self.kinds = kinds
+        self.journey = journey
+        self.schedule = schedule
         self.contents = set()
         if db is not None:
             dimname = None
@@ -205,6 +211,255 @@ game-clock it takes to pass through the portal.
         return 1/60.
 
 
+class Journey:
+    """Series of steps taken by a Thing to get to a Place.
+
+    Journey is the class for keeping track of a path that a traveller
+    wants to take across one of the game maps. It is stateful: it
+    tracks where the traveller is, and how far it's gotten along the
+    edge through which it's travelling. Each step of the journey is a
+    portal in the steps supplied on creation. The list should consist
+    of Portals in the precise order that they are to be travelled
+    through.
+
+    Each Journey has a progress attribute. It is a float, at least 0.0
+    and less than 1.0. When the traveller moves some distance along
+    the current Portal, call move(prop), where prop is a float, of the
+    same kind as progress, representing the proportion of the length
+    of the Portal that the traveller has travelled. progress will be
+    updated, and if it meets or exceeds 1.0, the current Portal will
+    become the previous Portal, and the next Portal will become the
+    current Portal. progress will then be decremented by 1.0.
+
+    You probably shouldn't move the traveller through more than 1.0 of
+    a Portal at a time, but Journey handles that case anyhow.
+
+    """
+
+    def __init__(self, dimension, thing, steps, db=None):
+        self.dimension = dimension
+        self.thing = thing
+        self.steps = steps
+        if db is not None:
+            if dimension not in db.journeydict:
+                db.journeydict[dimension] = {}
+            db.journeydict[dimension][thing] = self
+
+    def unravel(self, db):
+        self.dimension = db.dimensiondict[self.dimension]
+        self.thing = db.itemdict[self.dimension.name][self.thing]
+        for step in self.steps:
+            step = db.itemdict[self.dimension.name][step]
+
+    def steps(self):
+        """Get the number of steps in the Journey.
+
+        steps() => int
+
+        Returns the number of Portals the traveller ever passed
+        through or ever will on this Journey.
+
+        """
+        return len(self.steplist)
+
+    def stepsleft(self):
+        """Get the number of steps remaining until the end of the Journey.
+
+        stepsleft() => int
+
+        Returns the number of Portals left to be travelled through,
+        including the one the traveller is in right now.
+
+        """
+        return len(self.steplist) - self.curstep
+
+    def getstep(self, i):
+        """Get the ith next Portal in the journey.
+
+        getstep(i) => Portal
+
+        getstep(0) returns the portal the traveller is presently
+        travelling through. getstep(1) returns the one it wil travel
+        through after that, etc. getstep(-1) returns the step before
+        this one, getstep(-2) the one before that, etc.
+
+        If i is out of range, returns None.
+
+        """
+        return self.steplist[i+self.curstep]
+
+    def speed_at_step(self, i):
+        """Get the thing's speed at step i.
+
+Speed is the proportion of the portal that the thing passes through
+per unit of game time. It is expressed as a float, greater than zero,
+no greater than one.
+
+Speed should be expected to vary a lot depending on the properties and
+current status of the thing and the portal. Thus it is delegated to a
+method of the thing that operates on the portal.
+
+"""
+        return self.thing.speed_thru(self.getstep(i))
+
+    def move(self, prop):
+
+        """Move the specified amount through the current portal.
+
+        move(prop) => Portal
+
+        Increments the current progress, and then adjusts the next and
+        previous portals as needed.  Returns the Portal the traveller
+        is now travelling through. prop may be negative.
+
+        If the traveller moves past the end (or start) of the path,
+        returns None.
+
+        """
+        self.thing.progress += prop
+        while self.thing.progress >= 1.0:
+            self.thing.curstep += 1
+            self.thing.progress -= 1.0
+        while self.thing.progress < 0.0:
+            self.thing.curstep -= 1
+            self.thing.progress += 1.0
+        if self.thing.curstep > len(self.steplist):
+            return None
+        else:
+            return self.getstep(0)
+
+    def set_step(self, idx, port):
+        while idx >= len(self.steplist):
+            self.steplist.append(None)
+        self.steplist[idx] = port
+
+    def gen_event(self, step, db):
+        """Make an Event representing every tick of travel through the given
+portal.
+
+The Event will not have a start or a length.
+
+        """
+        # Work out how many ticks this is going to take.  Of course,
+        # just because a thing is scheduled to travel doesn't mean it
+        # always will--which makes it convenient to have
+        # events to resolve all the steps, ne?
+        commence_arg = step.name
+        commence_s = "{0}.{1}.enter({2})".format(
+            self.dimension.name, self.thing.name, commence_arg)
+        effd = {
+            "name": commence_s,
+            "func": "%s.%s.enter" % (self.dimension.name, self.thing.name),
+            "arg": commence_arg,
+            "dict_hint": "dimension.thing",
+            "db": db}
+        commence = Effect(**effd)
+        proceed_arg = step.name
+        proceed_s = "%s.%s.remain(%s)" % (
+            self.dimension.name, self.thing.name, proceed_arg)
+        effd = {
+            "name": proceed_s,
+            "func": "%s.%s.remain" % (self.dimension.name, self.thing.name),
+            "arg": proceed_arg,
+            "dict_hint": "dimension.thing",
+            "db": db}
+        proceed = Effect(**effd)
+        conclude_arg = step.dest.name
+        conclude_s = "%s.%s.enter(%s)" % (
+            self.dimension.name, self.thing.name, conclude_arg)
+        effd = {
+            "name": conclude_s,
+            "func": "%s.%s.enter" % (self.dimension.name, self.thing.name),
+            "arg": conclude_arg,
+            "dict_hint": "dimension.thing",
+            "db": db}
+        conclude = Effect(**effd)
+        event_name = "%s:%s-thru-%s" % (
+            self.dimension.name, self.thing.name, step.name),
+        event_d = {
+            "name": event_name,
+            "ongoing": False,
+            "commence_effect": commence,
+            "proceed_effect": proceed,
+            "conclude_effect": conclude,
+            "db": db}
+        event = Event(**event_d)
+        return event
+
+    def schedule(self, start=0):
+        """Make a Schedule filled with Events representing the steps in this
+Journey.
+
+        Optional argument start indicates the start time of the schedule.
+
+        """
+        stepevents = []
+        for step in self.steplist:
+            ev = self.gen_event(step)
+            ev.start = start
+            start += ev.length
+        tabdict = {
+            "schedule": {
+                "name": self.__name__ + ".schedule",
+                "age": 0},
+            "scheduled_event": stepevents}
+        s = Schedule(tabdict)
+        return s
+
+
+class Schedule:
+    def __init__(self, dimension, item, events, db=None):
+        self.dimension = dimension
+        self.item = item
+        if isinstance(events, dict):
+            self.starting_events = events
+        elif isinstance(events[0], dict):
+            self.starting_events = {}
+            for ev in events:
+                self.starting_events[ev["start"]] = ev
+        else:
+            self.starting_events = {}
+            for ev in iter(events):
+                self.starting_events[ev.start] = ev
+        if db is not None:
+            if dimension not in db.scheduledict:
+                db.scheduledict[dimension] = {}
+            db.scheduledict[dimension][item] = self
+
+    def unravel(self, db):
+        if isinstance(self.dimension, str):
+            self.dimension = db.dimensiondict[self.dimension]
+        elif not isinstance(self.dimension, Dimension):
+            raise TypeError("Dimension or string needed")
+        if isinstance(self.item, str):
+            self.item = db.itemdict[self.dimension.name][self.item]
+        elif not issubclass(self.item.__class__, Item):
+            raise TypeError("Item or string needed")
+        for item in self.events_starting.iteritems():
+            (starttime, evt) = item
+            if isinstance(evt, Event):
+                continue
+            elif isinstance(evt, dict):
+                self.events_starting[starttime] = Event(**evt)
+            else:
+                raise TypeError("Event or string needed")
+
+    def __getitem__(self, n):
+        return self.startevs[n]
+
+    def advance(self, n):
+        # advance time by n ticks
+        prior_age = self.age
+        new_age = prior_age + n
+        starts = [self.startevs[i] for i in xrange(prior_age, new_age)]
+        for start in starts:
+            start.start()
+        ends = [self.endevs[i] for i in xrange(prior_age, new_age)]
+        for end in ends:
+            end.end()
+        self.age = new_age
+
+
 class Portal(Item):
     tablenames = ["portal"]
     coldecls = {"portal":
@@ -286,60 +541,17 @@ thing_dimension_qryfmt = (
         ", ".join(Thing.colns), "{0}"))
 
 
-schedule_item_qryfmt = (
-    "SELECT {0} FROM scheduled_event WHERE "
-    "(dimension, item) IN ({1})".format(
-        ", ".join(Item.colnames["scheduled_event"]),
-        "{0}"))
-
-
-def read_schedules_in_item(db, dimitems):
-    qmstr = ", ".join(["(?, ?)"] * len(dimitems))
-    qryfmt = schedule_item_qryfmt
-    qrystr = qryfmt.format(qmstr)
-    flat = []
-    for pair in dimitems:
-        flat.extend(iter(pair))
-    db.c.execute(qrystr, flat)
-    r = {}
-    for pair in dimitems:
-        (dim, it) = pair
-        r[dim] = {}
-    for row in db.c:
-        rowdict = dictify_row(row, Item.colnames["scheduled_event"])
-        d = rowdict["dimension"]
-        i = rowdict["item"]
-        s = rowdict["start"]
-        if i not in r[d]:
-            r[d][i] = {}
-        r[d][i][s] = rowdict
-    return r
-
-
 def read_things_in_dimensions(db, dimnames):
     qryfmt = thing_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
     db.c.execute(qrystr, dimnames)
     r = {}
-    dim_thing_pairs = []
     for name in dimnames:
         r[name] = {}
     for row in db.c:
         rowdict = dictify_row(row, Thing.colns)
         rowdict["db"] = db
-        r[rowdict["dimension"]][rowdict["name"]] = rowdict
-        dim_thing_pairs.append((rowdict["dimension"], rowdict["name"]))
-    s = read_schedules_in_things(db, dim_thing_pairs)
-    for dimn in dimnames:
-        rptr = r[dimn]
-        sptr = s[dimn]
-        for item in sptr.iteritems():
-            (itemn, 
-    j = read_journeys_in_things(db, dim_thing_pairs)
-
-    for things in r.itervalues():
-        for thing in things.itervalues():
-            thing = Thing(**thing)
+        r[rowdict["dimension"]][rowdict["name"]] = Thing(**rowdict)
     return r
 
 
@@ -358,6 +570,107 @@ def unravel_things_in_dimensions(db, tddb):
 def load_things_in_dimensions(db, dimnames):
     return unravel_things_in_dimensions(
         db, read_things_in_dimensions(db, dimnames))
+
+
+schedule_dimension_qryfmt = (
+    "SELECT {0} FROM scheduled_event WHERE dimension IN "
+    "({1})".format(
+        ", ".join(Item.colnames["scheduled_event"]), "{0}"))
+
+
+def read_schedules_in_dimensions(db, dimnames):
+    qryfmt = schedule_dimension_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
+    db.c.execute(qrystr, dimnames)
+    r = {}
+    for dimname in dimnames:
+        r[dimname] = {}
+    for row in db.c:
+        rowdict = dictify_row(row, Item.colnames["scheduled_event"])
+        if rowdict["item"] not in r[rowdict["dimension"]]:
+            r[rowdict["dimension"]][rowdict["item"]] = {
+                "db": db,
+                "dimension": rowdict["dimension"],
+                "item": rowdict["item"],
+                "events": {}}
+        rptr = r[rowdict["dimension"]][rowdict["item"]]
+        rptr["events"][rowdict["start"]] = {
+            "event": rptr["event"],
+            "start": rptr["start"],
+            "length": rptr["length"]}
+    for level0 in r.iteritems():
+        (dimn, its) = level0
+        for it in its.iteritems():
+            (itn, sched) = it
+            r[dimn][itn] = Schedule(**sched)
+    return r
+
+
+def unravel_schedules(db, schd):
+    for sched in schd.itervalues():
+        sched.unravel(db)
+    return schd
+
+
+def unravel_schedules_in_dimensions(db, schdd):
+    for scheds in schdd.itervalues():
+        unravel_schedules(db, scheds)
+    return schdd
+
+
+def load_schedules_in_dimensions(db, dimnames):
+    return unravel_schedules_in_dimensions(
+        db, read_schedules_in_dimensions(db, dimnames))
+
+
+journey_dimension_qryfmt = (
+    "SELECT {0} FROM journey_step WHERE dimension IN "
+    "({1})".format(
+        ", ".join(Thing.colnames["journey_step"]), "{0}"))
+
+
+def read_journeys_in_dimensions(db, dimnames):
+    qryfmt = journey_dimension_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
+    db.c.execute(qrystr, dimnames)
+    r = {}
+    for name in dimnames:
+        r[name] = {}
+    for row in db.c:
+        rowdict = dictify_row(row, Thing.colnames["journey_step"])
+        if rowdict["thing"] not in r[rowdict["dimension"]]:
+            r[rowdict["thing"]][rowdict["dimension"]] = {
+                "db": db,
+                "dimension": rowdict["dimension"],
+                "thing": rowdict["thing"],
+                "steps": []}
+        stepl = r[rowdict["dimension"]][rowdict["thing"]]["steps"]
+        while len(stepl) < rowdict["idx"]:
+            stepl.append(None)
+        stepl[rowdict["idx"]] = rowdict["portal"]
+    for item in r.iteritems():
+        (dimname, journeys) = item
+        for journey in journeys.iteritems():
+            (thingname, jo) = journey
+            r[dimname][thingname] = Journey(**jo)
+    return r
+
+
+def unravel_journeys(db, jod):
+    for jo in jod.itervalues():
+        jo.unravel(db)
+    return jod
+
+
+def unravel_journeys_in_dimensions(db, jodd):
+    for jod in jodd.itervalues():
+        unravel_journeys(db, jod)
+    return jodd
+
+
+def load_journeys_in_dimensions(db, dimnames):
+    return unravel_journeys_in_dimensions(
+        db, read_journeys_in_dimensions(db, dimnames))
 
 
 place_dimension_qryfmt = (

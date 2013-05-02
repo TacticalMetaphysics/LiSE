@@ -102,14 +102,16 @@ def load_boards(db, names):
         for spt in spts.itervalues():
             imgs2load.add(spt.img)
     load_imgs(db, iter(imgs2load))
-    for board in boarddict.itervalues():
+    for item in boarddict.itervalues():
+        (key, board) = item
         nubd = dict(board)
         dim = board["dimension"]
         nubd["pawndict"] = db.pawndict[dim]
         nubd["spotdict"] = db.spotdict[dim]
         nubd["menudict"] = db.boardmenudict[dim]
-        board = Board(**nubd)
-        board.unravel(db)
+        nubd["db"] = db
+        boarddict[key] = Board(**nubd)
+        boarddict[key].unravel(db)
     return boarddict
 
 

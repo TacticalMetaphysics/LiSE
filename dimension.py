@@ -2,7 +2,9 @@ import igraph
 from item import (
     read_things_in_dimensions,
     read_places_in_dimensions,
-    read_portals_in_dimensions)
+    read_portals_in_dimensions,
+    read_schedules_in_dimensions,
+    read_journeys_in_dimensions)
 from util import SaveableMetaclass
 
 
@@ -55,6 +57,8 @@ class Dimension:
 
 
 def read_dimensions(db, names):
+    read_schedules_in_dimensions(db, names)
+    read_journeys_in_dimensions(db, names)
     things = read_things_in_dimensions(db, names)
     places = read_places_in_dimensions(db, names)
     portals = read_portals_in_dimensions(db, names)
