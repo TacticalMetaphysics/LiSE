@@ -1,6 +1,8 @@
 from util import (
     SaveableMetaclass, dictify_row,
     LocationException, ContainmentException)
+from pawn import Pawn
+from schedule import Schedule
 
 
 __metaclass__ = SaveableMetaclass
@@ -11,9 +13,20 @@ class Item:
     coldecls = {
         "item":
         {"dimension": "text",
-         "name": "text"}}
+         "name": "text"},
+        "scheduled_event":
+        {"dimension": "text",
+         "item": "text",
+         "start": "integer",
+         "event": "text not null",
+         "length": "integer"}}
     primarykeys = {
-        "item": ("dimension", "name")}
+        "item": ("dimension", "name"),
+        "scheduled_event": ("dimension", "item", "start")}
+    foreignkeys = {
+        "scheduled_event": {
+            "dimension, item": ("item", "dimension, name"),
+            "event": ("event", "name")}}
 
 
 class Place(Item):
@@ -49,24 +62,29 @@ class Thing(Item):
         "thing":
         {"dimension": "text",
          "name": "text",
-         "location": "text",
-         "container": "text"},
+         "location": "text not null",
+         "container": "text default null",
+         "portal": "text default null",
+         "progress": "float default 0.0",
+         "age": "integer default 0"},
         "thing_kind":
-        {"name": "text"},
-        "thing_kind_link":
         {"dimension": "text",
          "thing": "text",
-         "kind": "text"}}
+         "kind": "text"},
+        "journey_step":
+        {"dimension": "text",
+         "thing": "text",
+         "idx": "integer",
+         "portal": "text"}}
     primarykeys = {
         "thing": ("dimension", "name"),
-        "location": ("dimension", "thing"),
-        "thing_kind": ("name",),
-        "thing_kind_link": ("thing", "kind")}
+        "journey_step": ("dimension", "thing", "idx"),
+        "thing_kind": ("dimension", "thing", "kind")}
     foreignkeys = {
         "thing":
         {"dimension": ("dimension", "name"),
          "dimension, container": ("thing", "dimension, name")},
-        "thing_kind_link":
+        "thing_kind":
         {"dimension": ("dimension", "name"),
          "thing": ("thing", "name"),
          "kind": ("thing_kind", "name")}}
@@ -263,9 +281,39 @@ class Portal(Item):
 
 
 thing_dimension_qryfmt = (
-    "SELECT {0} FROM thing WHERE "
-    "dimension IN ({1})".format(
-        ", ".join(Thing.colnames["thing"]), "{0}"))
+    "SELECT {0} FROM thing WHERE dimension IN "
+    "({1})".format(
+        ", ".join(Thing.colns), "{0}"))
+
+
+schedule_item_qryfmt = (
+    "SELECT {0} FROM scheduled_event WHERE "
+    "(dimension, item) IN ({1})".format(
+        ", ".join(Item.colnames["scheduled_event"]),
+        "{0}"))
+
+
+def read_schedules_in_item(db, dimitems):
+    qmstr = ", ".join(["(?, ?)"] * len(dimitems))
+    qryfmt = schedule_item_qryfmt
+    qrystr = qryfmt.format(qmstr)
+    flat = []
+    for pair in dimitems:
+        flat.extend(iter(pair))
+    db.c.execute(qrystr, flat)
+    r = {}
+    for pair in dimitems:
+        (dim, it) = pair
+        r[dim] = {}
+    for row in db.c:
+        rowdict = dictify_row(row, Item.colnames["scheduled_event"])
+        d = rowdict["dimension"]
+        i = rowdict["item"]
+        s = rowdict["start"]
+        if i not in r[d]:
+            r[d][i] = {}
+        r[d][i][s] = rowdict
+    return r
 
 
 def read_things_in_dimensions(db, dimnames):
@@ -273,11 +321,25 @@ def read_things_in_dimensions(db, dimnames):
     qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
     db.c.execute(qrystr, dimnames)
     r = {}
+    dim_thing_pairs = []
     for name in dimnames:
         r[name] = {}
     for row in db.c:
-        rowdict = dictify_row(row, Thing.colnames["thing"])
+        rowdict = dictify_row(row, Thing.colns)
         rowdict["db"] = db
+        r[rowdict["dimension"]][rowdict["name"]] = rowdict
+        dim_thing_pairs.append((rowdict["dimension"], rowdict["name"]))
+    s = read_schedules_in_things(db, dim_thing_pairs)
+    for dimn in dimnames:
+        rptr = r[dimn]
+        sptr = s[dimn]
+        for item in sptr.iteritems():
+            (itemn, 
+    j = read_journeys_in_things(db, dim_thing_pairs)
+
+    for things in r.itervalues():
+        for thing in things.itervalues():
+            thing = Thing(**thing)
     return r
 
 
@@ -293,15 +355,15 @@ def unravel_things_in_dimensions(db, tddb):
     return tddb
 
 
-def load_things_in_dimensions(db, names):
+def load_things_in_dimensions(db, dimnames):
     return unravel_things_in_dimensions(
-        db, read_things_in_dimensions(db, names))
+        db, read_things_in_dimensions(db, dimnames))
 
 
 place_dimension_qryfmt = (
     "SELECT {0} FROM place WHERE dimension IN "
     "({1})".format(
-        ", ".join(Place.colnames["place"]), "{0}"))
+        ", ".join(Place.colns), "{0}"))
 
 
 def read_places_in_dimensions(db, dimnames):
@@ -353,3 +415,20 @@ def read_portals_in_dimensions(db, dimnames):
         rowdict["db"] = db
         r[rowdict["dimension"]][rowdict["name"]] = Portal(**rowdict)
     return r
+
+
+def unravel_portals(db, portd):
+    for port in portd.itervalues():
+        port.unravel(db)
+    return portd
+
+
+def unravel_portals_in_dimensions(db, portdd):
+    for ports in portdd.itervalues():
+        unravel_portals(db, ports)
+    return portdd
+
+
+def load_portals_in_dimensions(db, dimnames):
+    return unravel_portals_in_dimensions(
+        db, read_portals_in_dimensions(db, dimnames))

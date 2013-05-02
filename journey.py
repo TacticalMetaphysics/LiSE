@@ -32,24 +32,14 @@ class Journey:
 
     """
     tablenames = ["journey", "journey_step"]
-    coldecls = {"journey":
-                {"dimension": "text",
-                 "thing": "text",
-                 "curstep": "integer",
-                 "progress": "float"},
-                "journey_step":
-                {"dimension": "text",
-                 "thing": "text",
-                 "idx": "integer",
-                 "portal": "text"}}
-    primarykeys = {"journey": ("dimension", "thing"),
-                   "journey_step": ("dimension", "thing", "idx")}
-    fkeydict = {"journey":
-                {"dimension, thing": ("thing", "dimension, name")},
-                "journey_step":
-                {"dimension, thing": ("thing", "dimension, name"),
-                 "dimension, portal": ("portal", "dimension, name")}}
-    checks = {"journey": ["progress>=0.0", "progress<1.0"]}
+    coldecls = {
+}
+    primarykeys = {
+        "journey_step": ("dimension", "thing", "idx")}
+    fkeydict = {
+        "journey_step":
+        {"dimension, thing": ("thing", "dimension, name"),
+         "dimension, portal": ("portal", "dimension, name")}}
 
     def __init__(self, dimension, thing, curstep, progress, steps, db=None):
         self.dimension = dimension

@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, dictify_row, stringlike
+from util import SaveableMetaclass, stringlike
 
 
 class CalendarCell:
