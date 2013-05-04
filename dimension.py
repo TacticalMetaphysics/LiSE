@@ -5,7 +5,7 @@ from item import (
     read_portals_in_dimensions,
     read_schedules_in_dimensions,
     read_journeys_in_dimensions)
-from util import SaveableMetaclass
+from util import SaveableMetaclass, stringlike
 
 
 __metaclass__ = SaveableMetaclass
@@ -27,10 +27,16 @@ class Dimension:
 
     def unravel(self, db):
         for place in self.places:
+            if stringlike(place):
+                place = db.itemdict[self.name][place]
             place.unravel(db)
         for portal in self.portals:
+            if stringlike(portal):
+                portal = db.itemdict[self.name][portal]
             portal.unravel(db)
         for thing in self.things:
+            if stringlike(thing):
+                thing = db.itemdict[self.name][thing]
             thing.unravel(db)
 
     def get_edge(self, portal):

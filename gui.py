@@ -43,8 +43,10 @@ class GameWindow:
         self.view_left = 0
         self.view_bot = 0
 
-        self.to_mouse = list(self.board.pawns) + list(self.board.spots)
-        for menu in self.board.menus:
+        self.to_mouse = (
+            self.board.pawndict.values() +
+            self.board.spotdict.values())
+        for menu in self.board.menudict.itervalues():
             self.to_mouse.extend(menu.items)
 
         window = pyglet.window.Window()
@@ -77,16 +79,16 @@ class GameWindow:
 
         self.window = window
         self.batch = batch
-        for menu in self.board.menus:
+        for menu in self.board.menudict.itervalues():
             menu.window = self.window
             if menu.main_for_window:
                 self.mainmenu = menu
 
         self.drawn = {"edges": {}}
 
-        self.menus_changed = [menu for menu in self.board.menus]
-        self.pawns_changed = [pawn for pawn in self.board.pawns]
-        self.spots_changed = [spot for spot in self.board.spots]
+        self.menus_changed = self.board.menudict.values()
+        self.pawns_changed = self.board.pawndict.values()
+        self.spots_changed = self.board.spotdict.values()
 
     def add_stuff_to_batch(self):
         self.window.clear()

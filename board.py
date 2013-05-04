@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, dictify_row
+from util import SaveableMetaclass, dictify_row, stringlike
 from menu import read_menus_in_boards
 from img import load_imgs
 from spot import read_spots_in_dimensions
@@ -38,9 +38,16 @@ class Board:
         self.height = height
         self.wallpaper = wallpaper
         if db is not None:
-            db.boarddict[self.dimension.name] = self
+            dimname = None
+            if stringlike(self.dimension):
+                dimname = self.dimension
+            else:
+                dimname = self.dimension.name
+            db.boarddict[dimname] = self
 
     def unravel(self, db):
+        if stringlike(self.dimension):
+            self.dimension = db.dimensiondict[self.dimension]
         self.dimension.unravel(db)
         for pwn in self.pawndict.itervalues():
             pwn.unravel(db)
@@ -101,8 +108,8 @@ def load_boards(db, names):
     for spts in db.spotdict.itervalues():
         for spt in spts.itervalues():
             imgs2load.add(spt.img)
-    load_imgs(db, iter(imgs2load))
-    for item in boarddict.itervalues():
+    load_imgs(db, list(imgs2load))
+    for item in boarddict.iteritems():
         (key, board) = item
         nubd = dict(board)
         dim = board["dimension"]

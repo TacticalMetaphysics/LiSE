@@ -197,6 +197,7 @@ class SaveableMetaclass(type):
         atrdic = {'coldecls': coldecls,
                   'colnames': colnames,
                   'colnamestr': colnamestr,
+                  'colnstr': colnamestr[tablenames[0]],
                   'keynames': keynames,
                   'valnames': valnames,
                   'keyns': keynames[tablenames[0]],

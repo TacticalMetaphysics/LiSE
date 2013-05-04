@@ -65,7 +65,7 @@ class Spot:
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.place):
-            self.place = db.placedict[self.dimension.name][self.place]
+            self.place = db.itemdict[self.dimension.name][self.place]
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
 

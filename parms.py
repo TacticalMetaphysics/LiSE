@@ -166,7 +166,10 @@ def mkthingd(t):
         'dimension': dimname,
         'name': name,
         'location': loc,
-        'container': contr)
+        'container': contr,
+        'age': 0,
+        'portal': None,
+        'progress': 0.0}
 
 
 things = [mkthingd(th) for th in ths]

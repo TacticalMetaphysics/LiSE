@@ -1,5 +1,6 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 from effect import read_effect_decks
+from style import read_styles
 
 
 __metaclass__ = SaveableMetaclass
@@ -265,6 +266,7 @@ def read_items_in_menus(db, menus):
     db.c.execute(qrystr, tuple(menus))
     r = {}
     decknames = set()
+    stylenames = set()
     for menu in menus:
         r[menu] = []
     for row in db.c:
@@ -275,7 +277,9 @@ def read_items_in_menus(db, menus):
         numi = MenuItem(**rowdict)
         r[rowdict["menu"]][rowdict["idx"]] = numi
         decknames.add(numi.onclick)
+        stylenames.add(numi.style)
     read_effect_decks(db, list(decknames))
+    read_styles(db, list(stylenames))
     return r
 
 
@@ -309,6 +313,7 @@ def read_menus_in_boards(db, boards):
     db.c.execute(qrystr, boards)
     r = {}
     menunames = set()
+    stylenames = set()
     menus = []
     for board in boards:
         r[board] = {}
@@ -318,8 +323,13 @@ def read_menus_in_boards(db, boards):
         numenu = Menu(**rowdict)
         r[rowdict["board"]][rowdict["name"]] = numenu
         menunames.add(rowdict["name"])
+        stylenames.add(rowdict["style"])
         menus.append(numenu)
-    items = read_items_in_menus(db, menunames)
+        if rowdict["board"] not in db.boardmenudict:
+            db.boardmenudict[rowdict["board"]] = {}
+        db.boardmenudict[rowdict["board"]][rowdict["name"]] = numenu
+    items = read_items_in_menus(db, list(menunames))
+    styles = read_styles(db, list(stylenames))
     for menu in menus:
         menu.items = items[menu.name]
     return r

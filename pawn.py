@@ -65,7 +65,7 @@ class Pawn:
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.thing):
-            self.thing = db.thingdict[self.dimension.name][self.thing]
+            self.thing = db.itemdict[self.dimension.name][self.thing]
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
 

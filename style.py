@@ -69,6 +69,7 @@ class Style:
                     "bg_active": ("color", "name"),
                     "fg_inactive": ("color", "name"),
                     "fg_active": ("color", "name")}}
+    color_cols = ["bg_inactive", "bg_active", "fg_inactive", "fg_active"]
 
     def __init__(self, name, fontface, fontsize, spacing,
                  bg_inactive, bg_active, fg_inactive, fg_active,
@@ -83,6 +84,12 @@ class Style:
         self.fg_active = fg_active
         if db is not None:
             db.styledict[self.name] = self
+
+    def unravel(self, db):
+        for col in self.color_cols:
+            color = getattr(self, col)
+            if stringlike(color):
+                color = db.colordict[color]
 
     def __eq__(self, other):
         return (
@@ -99,21 +106,36 @@ class Style:
                 colr = db.colordict[colr]
 
 
-colorcols = ", ".join(Color.colnames["color"])
-
-pull_colors_named_fmt = (
-    "SELECT {0} FROM color WHERE name IN ({1})".format(colorcols, "{1}"))
+read_colors_fmt = (
+    "SELECT {0} FROM color WHERE name IN ({1})".format(Color.colnstr, "{0}"))
 
 
-def load_colors_named(db, names):
-    qryfmt = pull_colors_named_fmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, names)
+def read_colors(db, colornames):
+    qryfmt = read_colors_fmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(colornames)))
+    db.c.execute(qrystr, colornames)
     r = {}
-    q = []
     for row in db.c:
-        q.append(dictify_row(row, Color.colnames["color"]))
-    for rowdict in q:
+        rowdict = dictify_row(row, Color.colns)
+        r[rowdict["name"]] = Color(**rowdict)
+    return r
+
+
+read_styles_fmt = (
+    "SELECT {0} FROM style WHERE name IN ({1})".format(Style.colnstr, "{0}"))
+
+
+def read_styles(db, stylenames):
+    qryfmt = read_styles_fmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(stylenames)))
+    db.c.execute(qrystr, stylenames)
+    r = {}
+    colornames = set()
+    for row in db.c:
+        rowdict = dictify_row(row, Style.colns)
+        for colorcol in Style.color_cols:
+            colornames.add(rowdict[colorcol])
         rowdict["db"] = db
-        r[q["name"]] = Color(**rowdict)
+        r[rowdict["name"]] = Style(**rowdict)
+    read_colors(db, list(colornames))
     return r

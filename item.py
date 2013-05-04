@@ -1,9 +1,9 @@
 from util import (
     SaveableMetaclass, dictify_row,
-    LocationException, ContainmentException)
+    LocationException, ContainmentException,
+    stringlike)
 from event import Event
 from effect import Effect
-from dimension import Dimension
 
 
 __metaclass__ = SaveableMetaclass
@@ -14,20 +14,12 @@ class Item:
     coldecls = {
         "item":
         {"dimension": "text",
-         "name": "text"},
-        "scheduled_event":
-        {"dimension": "text",
-         "item": "text",
-         "start": "integer",
-         "event": "text not null",
-         "length": "integer"}}
+         "name": "text"}}
     primarykeys = {
-        "item": ("dimension", "name"),
-        "scheduled_event": ("dimension", "item", "start")}
+        "item": ("dimension", "name")}
     foreignkeys = {
-        "scheduled_event": {
-            "dimension, item": ("item", "dimension, name"),
-            "event": ("event", "name")}}
+        "item": {
+            "dimension": ("dimension", "name")}}
 
 
 class Place(Item):
@@ -58,7 +50,7 @@ class Place(Item):
 
 
 class Thing(Item):
-    tablenames = ["thing", "thing_kind", "thing_kind_link"]
+    tablenames = ["thing", "thing_kind"]
     coldecls = {
         "thing":
         {"dimension": "text",
@@ -94,33 +86,43 @@ class Thing(Item):
          "dimension, portal": ("portal", "dimension, name")}}
 
     def __init__(self, dimension, name, location, container,
-                 journey=None, schedule=None, db=None):
+                 portal=None, progress=0.0, age=0, schedule=None, db=None):
         self.dimension = dimension
         self.name = name
         self.location = location
         self.container = container
-        self.journey = journey
+        self.portal = portal
+        self.progress = progress
+        self.age = age
         self.schedule = schedule
         self.contents = set()
         if db is not None:
             dimname = None
-            if isinstance(dimension, str):
-                dimname = dimension
+            if stringlike(self.dimension):
+                dimname = self.dimension
             else:
-                dimname = dimension.name
+                dimname = self.dimension.name
+            if dimname not in db.itemdict:
+                db.itemdict[dimname] = {}
             db.itemdict[dimname][self.name] = self
 
     def unravel(self, db):
-        if isinstance(self.dimension, str):
+        if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
-        if isinstance(self.location, str):
+        if stringlike(self.location):
             self.location = db.itemdict[self.dimension.name][self.location]
-            assert(isinstance(self.location, Place))
-        if isinstance(self.container, str):
+        if stringlike(self.container):
             self.container = db.itemdict[self.dimension.name][self.container]
-            assert(isinstance(self.container, Thing))
-        self.unravelled = True
-        self.container.add(self)
+        if stringlike(self.portal):
+            self.portal = db.itemdict[self.dimension.name][self.portal]
+        if stringlike(self.schedule):
+            self.schedule = db.scheduledict[self.dimension.name][self.name]
+        if (
+                self.dimension.name in db.journeydict and
+                self.name in db.journeydict[self.dimension.name]):
+            self.journey = db.journeydict[self.dimension.name][self.name]
+        if self.container is not None:
+            self.container.add(self)
 
     def __str__(self):
         return "(%s, %s)" % (self.dimension, self.name)
@@ -235,6 +237,19 @@ class Journey:
     a Portal at a time, but Journey handles that case anyhow.
 
     """
+    tablenames = ["journey_step"]
+    coldecls = {
+        "journey_step": {
+            "dimension": "text",
+            "thing": "text",
+            "idx": "integer",
+            "portal": "text"}}
+    primarykeys = {
+        "journey_step": ("dimension", "thing", "idx")}
+    foreignkeys = {
+        "journey_step": {
+            "dimension, thing": ("thing", "dimension, name"),
+            "dimension, portal": ("portal", "dimension, name")}}
 
     def __init__(self, dimension, thing, steps, db=None):
         self.dimension = dimension
@@ -246,10 +261,13 @@ class Journey:
             db.journeydict[dimension][thing] = self
 
     def unravel(self, db):
-        self.dimension = db.dimensiondict[self.dimension]
-        self.thing = db.itemdict[self.dimension.name][self.thing]
+        if isinstance(self.dimension, str):
+            self.dimension = db.dimensiondict[self.dimension]
+        if isinstance(self.thing, str):
+            self.thing = db.itemdict[self.dimension.name][self.thing]
         for step in self.steps:
-            step = db.itemdict[self.dimension.name][step]
+            if isinstance(step, str):
+                step = db.itemdict[self.dimension.name][step]
 
     def steps(self):
         """Get the number of steps in the Journey.
@@ -408,6 +426,20 @@ Journey.
 
 
 class Schedule:
+    tablenames = ["scheduled_event"]
+    coldecls = {
+        "scheduled_event":
+        {"dimension": "text",
+         "item": "text",
+         "start": "integer",
+         "event": "text not null",
+         "length": "integer"}}
+    primarykeys = {
+        "scheduled_event": ("dimension", "item")}
+    foreignkeys = {
+        "scheduled_event": {
+            "dimension, item": ("item", "dimension, name"),
+            "event": ("event", "name")}}
     def __init__(self, dimension, item, events, db=None):
         self.dimension = dimension
         self.item = item
@@ -429,20 +461,14 @@ class Schedule:
     def unravel(self, db):
         if isinstance(self.dimension, str):
             self.dimension = db.dimensiondict[self.dimension]
-        elif not isinstance(self.dimension, Dimension):
-            raise TypeError("Dimension or string needed")
         if isinstance(self.item, str):
             self.item = db.itemdict[self.dimension.name][self.item]
-        elif not issubclass(self.item.__class__, Item):
-            raise TypeError("Item or string needed")
         for item in self.events_starting.iteritems():
             (starttime, evt) = item
             if isinstance(evt, Event):
                 continue
-            elif isinstance(evt, dict):
-                self.events_starting[starttime] = Event(**evt)
             else:
-                raise TypeError("Event or string needed")
+                self.events_starting[starttime] = Event(**evt)
 
     def __getitem__(self, n):
         return self.startevs[n]
@@ -575,7 +601,7 @@ def load_things_in_dimensions(db, dimnames):
 schedule_dimension_qryfmt = (
     "SELECT {0} FROM scheduled_event WHERE dimension IN "
     "({1})".format(
-        ", ".join(Item.colnames["scheduled_event"]), "{0}"))
+        ", ".join(Schedule.colnames["scheduled_event"]), "{0}"))
 
 
 def read_schedules_in_dimensions(db, dimnames):
