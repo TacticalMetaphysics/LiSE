@@ -1,7 +1,12 @@
 import sqlite3
 import board
 import dimension
+import re
 from util import compile_tabdicts
+
+
+def noop(nope):
+    pass
 
 
 class Database:
@@ -29,7 +34,19 @@ class Database:
         self.placecontentsdict = {}
         self.portalorigdestdict = {}
         self.portaldestorigdict = {}
-        self.func = {'toggle_menu_visibility': self.toggle_menu_visibility}
+        self.effectdict = {}
+        self.effectdeckdict = {}
+        self.func = {'toggle_menu_visibility': self.toggle_menu_visibility,
+                     'start_new_map': noop,
+                     'open_map': noop,
+                     'save_map': noop,
+                     'quit_map_editor': noop,
+                     'editor_select': noop,
+                     'editor_copy': noop,
+                     'editor_paste': noop,
+                     'editor_delete': noop,
+                     'new_place': noop,
+                     'new_thing': noop}
 
     def __del__(self):
         self.c.close()
@@ -157,35 +174,6 @@ class Database:
 
     def load_board(self, dimname):
         return self.load_boards([dimname])
-
-    def toggle_menu_visibility(self, stringly):
-        """Given a string arg of the form boardname.menuname, toggle the
-visibility of the given menu on the given board.
-
-"""
-        splot = stringly.split('.')
-        if len(splot) == 1:
-            # I only got the menu name.
-            # Maybe I've gotten an appropriate xfunc for that?
-            if "toggle_menu_visibility_by_name" in self.func:
-                return self.func["toggle_menu_visibility_by_name"](stringly)
-            # I might be able to find the right menu object anyhow: if
-            # there's only one by that name, toggle it.
-            menuname = splot[0]
-            menu = None
-            for boardmenu in self.boardmenudict.itervalues():
-                for boardmenuitem in boardmenu.iteritems():
-                    if boardmenuitem[0] == menuname:
-                        if menu is None:
-                            menu = boardmenuitem[1]
-                        else:
-                            raise Exception("Unable to disambiguate"
-                                            "the menu identifier: " + stringly)
-            menu.toggle_visibility()
-        else:
-            # Nice. Toggle that.
-            (boardname, menuname) = splot
-            self.boardmenudict[boardname][menuname].toggle_visibility()
 
     def remember(self, obj):
         self.altered.add(obj)
@@ -350,3 +338,8 @@ disk.
             return pdod[orign][destn]
         except:
             return None
+
+    def toggle_menu_visibility(self, menuspec):
+        spoke = menuspec.split('.')
+        (boardn, menun) = spoke
+        self.boardmenudict[boardn][menun].toggle_visibility()

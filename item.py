@@ -32,6 +32,7 @@ class Place(Item):
     def __init__(self, dimension, name, db=None):
         self.dimension = dimension
         self.name = name
+        self.contents = set()
         if db is not None:
             if dimension not in db.itemdict:
                 db.itemdict[dimension] = {}
@@ -47,6 +48,12 @@ class Place(Item):
         else:
             # The name is the key in the database. Must be unique.
             return self.name == other.name
+
+    def add(self, other):
+        self.contents.add(other)
+
+    def remove(self, other):
+        self.contents.remove(other)
 
 
 class Thing(Item):
@@ -96,6 +103,7 @@ class Thing(Item):
         self.age = age
         self.schedule = schedule
         self.contents = set()
+        self.hsh = hash(hash(self.dimension) + hash(self.name))
         if db is not None:
             dimname = None
             if stringlike(self.dimension):
@@ -123,6 +131,10 @@ class Thing(Item):
             self.journey = db.journeydict[self.dimension.name][self.name]
         if self.container is not None:
             self.container.add(self)
+        self.location.add(self)
+
+    def __hash__(self):
+        return self.hsh
 
     def __str__(self):
         return "(%s, %s)" % (self.dimension, self.name)
@@ -520,11 +532,11 @@ class Portal(Item):
             pdod[dimension][to_place][from_place] = self
 
     def unravel(self, db):
-        if isinstance(self.dimension, str):
+        if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
-        if isinstance(self.orig, str):
+        if stringlike(self.orig):
             self.orig = db.itemdict[self.dimension.name][self.orig]
-        if isinstance(self.dest, str):
+        if stringlike(self.dest):
             self.dest = db.itemdict[self.dimension.name][self.dest]
 
     def __hash__(self):

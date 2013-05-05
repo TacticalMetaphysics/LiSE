@@ -30,6 +30,15 @@ class Img:
             else:
                 self.tex = load_regular_img(db, self.name, self.path)
 
+    def get_texture(self):
+        return self.tex
+
+    def getwidth(self):
+        return self.tex.width
+
+    def getheight(self):
+        return self.tex.height
+
 
 def load_rltile(db, name, path):
     badimg = image(path)

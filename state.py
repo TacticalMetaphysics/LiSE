@@ -3,8 +3,8 @@ class GameState:
 state of the interface.
 
     """
-    def __init__(self, boards):
-        self.boarddict = boards
+    def __init__(self, boarddict):
+        self.boarddict = boarddict
 
     def update(self, ts, st):
         pass

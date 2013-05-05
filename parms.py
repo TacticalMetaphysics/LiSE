@@ -38,10 +38,10 @@ def mkmids(proto):
                 'menu': menu,
                 'idx': i,
                 'text': txt,
-                'onclick': onclick,
+                'effect_deck': onclick,
                 'closer': menu != 'Main',
-                'interactive': menu == 'Main',
-                'visible': menu == 'Main'})
+                'interactive': True,
+                'visible': True})
             i += 1
     return r
 
@@ -320,11 +320,42 @@ boards = {
     'dimension': dimname,
     'width': 800,
     'height': 600,
-    'wallpaper': 'wallpape'}
+    'wallpaper': 'wall'}
 
-board_menu = [
-    (dimname, 'Main'),
-    (dimname, 'Thing'),
-    (dimname, 'Place'),
-    (dimname, 'Editor'),
-    (dimname, 'Thing')]
+board_menu = [(dimname, menuname) for menuname in
+              ['Thing', 'Place', 'Game', 'Editor', 'Main']]
+
+
+def mkeffectdict(name, fun, arg):
+    return {
+        "name": name,
+        "func": fun,
+        "arg": arg}
+
+
+def mkefd2(fun, arg):
+    return {
+        "name": "{0}({1})".format(fun, arg),
+        "func": fun,
+        "arg": arg}
+
+effects = (
+    [mkefd2("new_place", a) for a in [
+        'custom', 'workplace', 'commons', 'lair']] +
+    [mkefd2("new_thing", a) for a in [
+        'custom', 'decoration', 'clothing', 'tool']] +
+    [mkefd2("editor_copy", ""),
+     mkefd2("editor_select", ""),
+     mkefd2("editor_paste", ""),
+     mkefd2("editor_delete", ""),
+     mkefd2("start_new_map", ""),
+     mkefd2("open_map", ""),
+     mkefd2("save_map", ""),
+     mkefd2("quit_map_editor", "")])
+
+
+effect_decks = [
+    {"deck": effectdict["name"],
+     "idx": 0,
+     "effect": effectdict["name"]}
+    for effectdict in effects]

@@ -5,7 +5,7 @@ from item import (
     read_portals_in_dimensions,
     read_schedules_in_dimensions,
     read_journeys_in_dimensions)
-from util import SaveableMetaclass, stringlike
+from util import SaveableMetaclass
 
 
 __metaclass__ = SaveableMetaclass
@@ -17,27 +17,21 @@ class Dimension:
                 {"name": "text"}}
     primarykeys = {"dimension": ("name",)}
 
-    def __init__(self, name, places, portals, things, db=None):
+    def __init__(self, name, placedict, portaldict, thingdict, db=None):
         self.name = name
-        self.places = places
-        self.portals = portals
-        self.things = things
+        self.placedict = placedict
+        self.portaldict = portaldict
+        self.thingdict = thingdict
         if db is not None:
             db.dimensiondict[name] = self
 
+    def __hash__(self):
+        return hash(self.name)
+
     def unravel(self, db):
-        for place in self.places:
-            if stringlike(place):
-                place = db.itemdict[self.name][place]
-            place.unravel(db)
-        for portal in self.portals:
-            if stringlike(portal):
-                portal = db.itemdict[self.name][portal]
-            portal.unravel(db)
-        for thing in self.things:
-            if stringlike(thing):
-                thing = db.itemdict[self.name][thing]
-            thing.unravel(db)
+        for mydict in [self.placedict, self.portaldict, self.thingdict]:
+            for val in mydict.itervalues():
+                val.unravel(db)
 
     def get_edge(self, portal):
         origi = self.places.index(portal.orig)

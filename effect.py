@@ -19,7 +19,7 @@ class Effect:
          "func": "text",
          "arg": "text"}}
     primarykeys = {
-        "effect": ("name", "func", "arg")}
+        "effect": ("name",)}
 
     def __init__(self, name, func, arg, db=None):
         self.name = name
@@ -29,28 +29,25 @@ class Effect:
             db.effectdict[name] = self
 
     def unravel(self, db):
-        self.func = db.func[self.func]
+        if stringlike(self.func):
+            self.func = db.func[self.func]
 
     def do(self):
         return self.func(self.arg)
 
 
 class EffectDeck:
-    tablenames = ["effect_deck", "effect_deck_link"]
+    tablenames = ["effect_deck_link"]
     coldecls = {
-        "effect_deck":
-        {"name": "text"},
         "effect_deck_link":
         {"deck": "text",
          "idx": "integer",
          "effect": "text"}}
     primarykeys = {
-        "effect_deck": ("name",),
         "effect_deck_link": ("deck", "idx")}
     foreignkeys = {
         "effect_deck_link":
-        {"deck": ("effect_deck", "name"),
-         "effect": ("effect", "name")}}
+        {"effect": ("effect", "name")}}
 
     def __init__(self, name, effects, db=None):
         self.name = name
@@ -101,6 +98,10 @@ class EffectDeck:
                 r[deck].append(effect)
         return r
 
+    def do(self):
+        for effect in self.effects:
+            effect.do()
+
 
 load_effect_qryfmt = (
     "SELECT {0} FROM effect WHERE name IN ({1})".format(
@@ -109,7 +110,7 @@ load_effect_qryfmt = (
 
 def read_effects(db, names):
     qryfmt = load_effect_qryfmt
-    qrystr = qryfmt.format(["?"] * len(names))
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
     r = {}
     for row in db.c:
@@ -155,19 +156,25 @@ def read_effect_decks(db, names):
     db.c.execute(qrystr, names)
     r = {}
     effectnames = set()
-    if db.c.rowcount > 0:
-        for row in db.c:
-            rowdict = dictify_row(row, effect_join_cols)
-            if rowdict["deck"] not in r:
-                r[rowdict["deck"]] = []
-            while len(r[rowdict["deck"]]) < rowdict["idx"]:
-                r[rowdict["deck"]].append(None)
-            r[rowdict["deck"]][rowdict["idx"]] = rowdict["effect"]
-            effectnames.add(rowdict["effect"])
-        load_effects(db, list(effectnames))
-    for deck in r.iteritems():
-        (name, cards) = deck
-        deck = EffectDeck(name, cards, db)
+    for row in db.c:
+        rowdict = dictify_row(row, effect_join_cols)
+        rowdict["db"] = db
+        effectnames.add(rowdict["effect"])
+        if rowdict["deck"] not in r:
+            r[rowdict["deck"]] = []
+        short = rowdict["idx"] + 1 - len(r[rowdict["deck"]])
+        if short > 0:
+            nothing = [None] * short
+            r[rowdict["deck"]].extend(nothing)
+        r[rowdict["deck"]][rowdict["idx"]] = rowdict["effect"]
+    efs = load_effects(db, list(effectnames))
+    for effect_deck in r.iteritems():
+        (deckname, effects) = effect_deck
+        i = 0
+        while i < len(effects):
+            effects[i] = efs[effects[i]]
+            i += 1
+        r[deckname] = EffectDeck(deckname, effects, db)
     return r
 
 

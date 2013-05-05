@@ -46,6 +46,8 @@ class Board:
             db.boarddict[dimname] = self
 
     def unravel(self, db):
+        if stringlike(self.wallpaper):
+            self.wallpaper = db.imgdict[self.wallpaper]
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         self.dimension.unravel(db)
@@ -73,8 +75,8 @@ class Board:
     def __repr__(self):
         return "A board, %d pixels wide by %d tall, representing the "\
             "dimension %s, containing %d spots, %d pawns, and %d menus."\
-            % (self.width, self.height, self.dimension, len(self.spots),
-               len(self.pawns), len(self.menus))
+            % (self.width, self.height, self.dimension, len(self.spotdict),
+               len(self.pawndict), len(self.menudict))
 
 
 load_some_boards_qryfmt = (
@@ -124,3 +126,7 @@ def load_boards(db, names):
 
 def load_all_boards(db):
     return load_boards(db, None)
+
+
+def load_board(db, name):
+    return load_boards(db, [name])

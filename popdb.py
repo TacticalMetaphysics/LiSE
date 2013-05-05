@@ -6,6 +6,7 @@ from img import Img
 from pawn import Pawn
 from spot import Spot
 from board import Board
+from effect import Effect, EffectDeck
 from database import Database
 import parms
 
@@ -60,6 +61,13 @@ def populate_items(db, things, places, portals):
     Portal.dbop['insert'](db, portal_td)
 
 
+def populate_effects(db, effects, decks):
+    eftd = {"effect": effects}
+    decktd = {"effect_deck_link": decks}
+    Effect.dbop['insert'](db, eftd)
+    EffectDeck.dbop['insert'](db, decktd)
+
+
 def populate_gfx(db, imgs, pawns, spots, boards):
     img_td = {'img': imgs}
     pawn_td = {'pawn': pawns}
@@ -85,6 +93,7 @@ def populate_database(db, data):
     populate_menus(db, data.menus, data.menu_items)
     populate_styles(db, data.colors, data.styles)
     populate_items(db, data.things, data.places, data.portals)
+    populate_effects(db, data.effects, data.effect_decks)
     populate_gfx(db, data.imgs, data.pawns, data.spots, data.boards)
     boardmenu(db, data.board_menu)
 

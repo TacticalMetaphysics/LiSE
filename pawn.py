@@ -1,4 +1,5 @@
 from util import SaveableMetaclass, dictify_row, stringlike
+from copy import copy
 
 
 __metaclass__ = SaveableMetaclass
@@ -37,6 +38,10 @@ class Pawn:
         self.img = img
         self.visible = visible
         self.interactive = interactive
+        self.grabpoint = None
+        self.sprite = None
+        self.oldstate = None
+        self.hovered = False
         if db is not None:
             dimname = None
             thingname = None
@@ -56,18 +61,26 @@ class Pawn:
         return (
             isinstance(other, Pawn) and
             self.dimension == other.dimension and
-            self.thingname == other.thingname)
-
-    def __hash__(self):
-        return self.hsh
+            self.thing == other.thing and
+            self.img == other.img and
+            self.visible == other.visible and
+            self.interactive == other.interactive and
+            self.grabpoint == other.grabpoint)
 
     def unravel(self, db):
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.thing):
             self.thing = db.itemdict[self.dimension.name][self.thing]
+        self.thing.pawn = self
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
+        self.rx = self.img.getwidth() / 2
+        self.ry = self.img.getheight() / 2
+        if self.rx >= self.ry:
+            self.r = self.rx
+        else:
+            self.r = self.ry
 
     def getcoords(self):
         # Assume I've been provided a spotdict. Use it to get the
@@ -82,10 +95,6 @@ class Pawn:
         # loader instantiates things before assigning them data that's
         # not strings or numbers. Calculate self.rx to save some
         # division.
-        if not hasattr(self, 'rx'):
-            self.rx = self.img.width / 2
-        if not hasattr(self, 'ry'):
-            self.ry = self.img.height / 2
         if hasattr(self.thing, 'journey') and\
            self.thing.journey.stepsleft() > 0:
             j = self.thing.journey
@@ -113,7 +122,7 @@ class Pawn:
         return self.getcoords()[0] + self.rx
 
     def gettop(self):
-        return self.getcoords()[1] + self.img.height
+        return self.getcoords()[1] + self.img.getheight()
 
     def getbot(self):
         return self.getcoords()[1]
@@ -126,6 +135,17 @@ class Pawn:
 
     def onclick(self, button, modifiers):
         pass
+
+    def get_state_tup(self):
+        (x, y) = self.getcoords()
+        return (
+            copy(self.img),
+            copy(self.visible),
+            copy(self.interactive),
+            copy(self.grabpoint),
+            copy(self.hovered),
+            copy(x),
+            copy(y))
 
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])

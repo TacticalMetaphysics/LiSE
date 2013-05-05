@@ -1,6 +1,10 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 from effect import read_effect_decks
 from style import read_styles
+from effect import Effect, EffectDeck
+from copy import copy
+import re
+import pyglet
 
 
 __metaclass__ = SaveableMetaclass
@@ -12,24 +16,30 @@ class MenuItem:
                 {'menu': 'text',
                  'idx': 'integer',
                  'text': 'text',
-                 'onclick': 'text',
+                 'effect_deck': 'text',
                  'closer': 'boolean',
                  'visible': 'boolean',
                  'interactive': 'boolean'}}
     primarykeys = {'menu_item': ('menu', 'idx')}
     foreignkeys = {'menu_item':
                    {"menu": ("menu", "name"),
-                    "onclick": ("effect_deck", "name")}}
+                    "effect_deck": ("effect_deck_link", "deck")}}
 
-    def __init__(self, menu, idx, text, onclick, closer,
+    def __init__(self, menu, idx, text, effect_deck, closer,
                  visible, interactive, db=None):
         self.menu = menu
         self.idx = idx
         self.text = text
-        self.onclick = onclick
+        self.effect_deck = effect_deck
         self.closer = closer
         self.visible = visible
         self.interactive = interactive
+        self.grabpoint = None
+        self.hovered = False
+        self.label = None
+        self.oldstate = None
+        self.pressed = False
+        self.toggles = 0
         if db is not None:
             menun = None
             if isinstance(self.menu, Menu):
@@ -38,27 +48,49 @@ class MenuItem:
                 menun = self.menu
             if not menun in db.menuitemdict:
                 db.menuitemdict[menun] = []
-            while len(db.menuitemdict[menun]) < self.idx:
+            while len(db.menuitemdict[menun]) <= self.idx:
                 db.menuitemdict[menun].append(None)
             db.menuitemdict[menun][self.idx] = self
 
     def unravel(self, db):
         if stringlike(self.menu):
             self.menu = db.menudict[self.menu]
-        if stringlike(self.onclick):
-            self.onclick = db.effectdeckdict[self.onclick]
+        if stringlike(self.effect_deck):
+            menu_tog_match = re.match(
+                'toggle_menu_visibility\((.*)\)', self.effect_deck)
+            if menu_tog_match is not None:
+                menuspec = menu_tog_match.groups()[0]
+                self.make_toggler(menuspec, db)
+            else:
+                self.effect_deck = db.effectdeckdict[self.effect_deck]
         while len(self.menu.items) < self.idx:
             self.menu.items.append(None)
         self.menu.items[self.idx] = self
+
+    def onclick(self, button, modifiers):
+        self.effect_deck.do()
+
+    def make_toggler(self, menuspec, db):
+        boardname = None
+        if stringlike(self.menu.board):
+            boardname = self.menu.board
+        else:
+            boardname = self.menu.board.name
+        menuspec = "{0}.{1}".format(boardname, menuspec)
+        togglername = "toggle_menu_visibility({0})".format(menuspec),
+        toggler = Effect(togglername, "toggle_menu_visibility", menuspec, db)
+        togdeck = EffectDeck(togglername, [toggler], db)
+        toggler.unravel(db)
+        togdeck.unravel(db)
+        db.effectdict[togglername] = toggler
+        db.effectdeckdict[togglername] = togdeck
+        self.effect_deck = togdeck
 
     def __eq__(self, other):
         return (
             isinstance(other, MenuItem) and
             self.menu == other.menu and
             self.idx == other.idx)
-
-    def __hash__(self):
-        return self.hsh
 
     def __gt__(self, other):
         if isinstance(other, str):
@@ -123,13 +155,23 @@ class MenuItem:
             self.height = self.menu.style.fontsize + self.menu.style.spacing
         return self.height
 
-    def onclick(self, button, modifiers):
-        return self.onclick_core(self.onclick_arg)
-
     def toggle_visibility(self):
         self.visible = not self.visible
+        self.toggles += 1
         for item in self.items:
             item.toggle_visibility()
+
+    def get_state_tup(self):
+        return (
+            self.menu.get_state_tup(),
+            copy(self.idx),
+            copy(self.text),
+            copy(self.visible),
+            copy(self.interactive),
+            copy(self.grabpoint),
+            copy(self.hovered),
+            copy(self.pressed),
+            copy(self.toggles))
 
 
 def pull_items_in_menus(db, menunames):
@@ -168,8 +210,7 @@ class Menu:
     interactive = True
 
     def __init__(self, name, left, bottom, top, right, style,
-                 main_for_window, visible,
-                 items=[], db=None, board=None):
+                 main_for_window, visible, db=None, board=None):
         self.name = name
         self.left = left
         self.bottom = bottom
@@ -179,33 +220,40 @@ class Menu:
         self.main_for_window = main_for_window
         self.visible = visible
         self.interactive = True
-        self.items = items
+        self.hovered = False
+        self.grabpoint = None
         self.board = board
+        self.sprite = None
+        self.oldstate = None
+        self.pressed = False
+        self.toggles = 0
         if db is not None:
             db.menudict[self.name] = self
 
     def unravel(self, db):
-        self.style = db.styledict[self.style]
+        if stringlike(self.style):
+            self.style = db.styledict[self.style]
+        self.style.unravel(db)
+        color = self.style.bg_inactive
+        self.pattern = pyglet.image.SolidColorImagePattern(color.tup)
+        self.items = db.menuitemdict[self.name]
+        for item in self.items:
+            item.unravel(db)
+        if self.board is not None:
+            if stringlike(self.board):
+                self.board = db.boarddict[self.board]
+            boardname = self.board.dimension.name
+            if boardname not in db.boardmenudict:
+                db.boardmenudict[boardname] = {}
+            db.boardmenudict[boardname][self.name] = self
 
     def __eq__(self, other):
         if hasattr(self, 'gw'):
-            return (
-                hasattr(other, 'gw') and
-                other.gw == self.gw and
-                other.name == self.name)
-        else:
-            return (
-                other.name == self.name)
-
-    def __hash__(self):
-        if hasattr(self, 'gw'):
-            return hash(self.name) + hash(self.gw)
-        else:
-            return hash(self.name)
-
-    def __iter__(self):
-        return (self.name, self.left, self.bottom, self.top,
-                self.right, self.style.name, self.visible)
+            if not hasattr(other, 'gw') or other.gw != self.gw:
+                return False
+        return (
+            self.name == other.name and
+            self.board == other.board)
 
     def __getitem__(self, i):
         return self.items[i]
@@ -244,19 +292,28 @@ class Menu:
         return self.interactive
 
     def toggle_visibility(self):
+        print "toggling visibility of menu {0}".format(self.name)
         self.visible = not self.visible
+        self.toggles += 1
 
+    def get_state_tup(self):
+        return (
+            copy(self.left),
+            copy(self.bottom),
+            copy(self.top),
+            copy(self.right),
+            copy(hash(self.style)),
+            copy(self.main_for_window),
+            copy(self.visible),
+            copy(self.hovered),
+            copy(self.grabpoint),
+            copy(self.pressed),
+            copy(self.toggles))
 
-item_qualified_cols = ["menu_item." + col
-                       for col in MenuItem.colnames["menu_item"]]
 
 item_menu_qryfmt = (
-    "SELECT {0}, effect_deck_link.idx, effect.func, effect.arg "
-    "FROM menu_item, effect_deck_link, effect "
-    "WHERE menu_item.onclick=effect_deck_link.deck "
-    "AND effect_deck_link.effect=effect.name "
-    "AND menu_item.menu IN ({1})".format(
-        ", ".join(item_qualified_cols), "{0}"))
+    "SELECT {0} FROM menu_item WHERE menu IN ({1})".format(
+        ", ".join(MenuItem.colns), "{0}"))
 
 
 def read_items_in_menus(db, menus):
@@ -266,20 +323,17 @@ def read_items_in_menus(db, menus):
     db.c.execute(qrystr, tuple(menus))
     r = {}
     decknames = set()
-    stylenames = set()
     for menu in menus:
         r[menu] = []
     for row in db.c:
         rowdict = dictify_row(row, MenuItem.colnames["menu_item"])
-        while len(r[rowdict["menu"]]) < rowdict["idx"]:
+        while len(r[rowdict["menu"]]) <= rowdict["idx"]:
             r[rowdict["menu"]].append(None)
         rowdict["db"] = db
         numi = MenuItem(**rowdict)
         r[rowdict["menu"]][rowdict["idx"]] = numi
-        decknames.add(numi.onclick)
-        stylenames.add(numi.style)
+        decknames.add(numi.effect_deck)
     read_effect_decks(db, list(decknames))
-    read_styles(db, list(stylenames))
     return r
 
 
@@ -328,10 +382,8 @@ def read_menus_in_boards(db, boards):
         if rowdict["board"] not in db.boardmenudict:
             db.boardmenudict[rowdict["board"]] = {}
         db.boardmenudict[rowdict["board"]][rowdict["name"]] = numenu
-    items = read_items_in_menus(db, list(menunames))
-    styles = read_styles(db, list(stylenames))
-    for menu in menus:
-        menu.items = items[menu.name]
+    read_items_in_menus(db, list(menunames))
+    read_styles(db, list(stylenames))
     return r
 
 

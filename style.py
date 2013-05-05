@@ -86,10 +86,11 @@ class Style:
             db.styledict[self.name] = self
 
     def unravel(self, db):
-        for col in self.color_cols:
-            color = getattr(self, col)
-            if stringlike(color):
-                color = db.colordict[color]
+        for colorcol in self.color_cols:
+            colorname = getattr(self, colorcol)
+            if stringlike(colorname):
+                color = db.colordict[colorname]
+                setattr(self, colorcol, color)
 
     def __eq__(self, other):
         return (
@@ -97,14 +98,9 @@ class Style:
             self.name == other.name)
 
     def __hash__(self):
-        return self.hsh
-
-    def unravel(self, db):
-        for colr in [self.bg_inactive, self.bg_active,
-                     self.fg_inactive, self.fg_active]:
-            if stringlike(colr):
-                colr = db.colordict[colr]
-
+        return hash((self.name, self.fontface, self.fontsize, self.spacing,
+                     self.bg_inactive, self.bg_active, self.fg_inactive,
+                     self.fg_active))
 
 read_colors_fmt = (
     "SELECT {0} FROM color WHERE name IN ({1})".format(Color.colnstr, "{0}"))
@@ -117,6 +113,7 @@ def read_colors(db, colornames):
     r = {}
     for row in db.c:
         rowdict = dictify_row(row, Color.colns)
+        rowdict["db"] = db
         r[rowdict["name"]] = Color(**rowdict)
     return r
 

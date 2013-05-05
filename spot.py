@@ -1,4 +1,5 @@
 from util import SaveableMetaclass, dictify_row, stringlike
+from copy import copy
 
 
 __metaclass__ = SaveableMetaclass
@@ -34,6 +35,10 @@ class Spot:
         self.y = y
         self.visible = visible
         self.interactive = interactive
+        self.grabpoint = None
+        self.sprite = None
+        self.oldstate = None
+        self.hovered = False
         if db is not None:
             dimname = None
             placename = None
@@ -58,9 +63,6 @@ class Spot:
             self.dimension == other.dimension and
             self.name == other.name)
 
-    def __hash__(self):
-        return self.hsh
-
     def unravel(self, db):
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
@@ -68,6 +70,13 @@ class Spot:
             self.place = db.itemdict[self.dimension.name][self.place]
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
+            self.rx = self.img.getwidth() / 2
+            self.ry = self.img.getheight() / 2
+            if self.rx >= self.ry:
+                self.r = self.rx
+            else:
+                self.r = self.ry
+        self.place.spot = self
 
     def getleft(self):
         return self.x - self.r
@@ -87,6 +96,9 @@ class Spot:
     def gettup(self):
         return (self.img, self.getleft(), self.getbot())
 
+    def getcoords(self):
+        return (self.getleft(), self.getbot())
+
     def is_visible(self):
         return self.visible
 
@@ -105,6 +117,16 @@ class Spot:
         (grabx, graby) = self.grabpoint
         self.x = x - grabx + dx
         self.y = y - graby + dy
+
+    def get_state_tup(self):
+        return (
+            copy(self.img.name),
+            copy(self.x),
+            copy(self.y),
+            copy(self.visible),
+            copy(self.interactive),
+            copy(self.grabpoint),
+            copy(self.hovered))
 
 
 spot_dimension_qryfmt = (
