@@ -1,6 +1,9 @@
 from util import SaveableMetaclass
 
 
+"""Things that should have character sheets."""
+
+
 __metaclass__ = SaveableMetaclass
 
 

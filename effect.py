@@ -21,7 +21,7 @@ class Effect:
     primarykeys = {
         "effect": ("name",)}
 
-    def __init__(self, name, func, arg, db=None):
+    def __init__(self, name, func, arg, db):
         self.name = name
         self.func = func
         self.arg = arg

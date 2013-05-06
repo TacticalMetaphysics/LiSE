@@ -6,10 +6,26 @@ from pawn import read_pawns_in_dimensions
 from dimension import read_dimensions
 
 
+"""Class for user's view on gameworld, and support functions."""
+
+
 __metaclass__ = SaveableMetaclass
 
 
 class Board:
+    """A widget notionally representing the game board on which the rest
+of the game pieces lie.
+
+Each board represents exactly one dimension in the world model. It has
+a width and height in pixels, which do not necessarily match the width
+or height of the window it's displayed in--a board may be scrolled
+horizontally or vertically. Every Board has a static background image,
+and may have menus. The menus' positions are relative to the window
+rather than the board, but they are linked to the board anyhow, on the
+assumption that each board will be open in at most one window at a
+time.
+
+"""
     tablenames = ["board", "board_menu"]
     coldecls = {"board":
                 {"dimension": "text",
@@ -28,12 +44,18 @@ class Board:
                    {"board": ("board", "name"),
                     "menu": ("menu", "name")}}
 
-    def __init__(self, dimension, pawndict, spotdict, menudict,
+    def __init__(self, dimension,
                  width, height, wallpaper, db=None):
+        """Return a board representing the given dimension.
+
+dimension may be an instance of Dimension or the name of
+one. wallpaper may be a pyglet image or the name of one. Boards aren't
+very useful without pointers to the stuff that's on them, so you
+really should supply a Database instance as db, and then unravel the
+board later to get those pointers.
+
+        """
         self.dimension = dimension
-        self.pawndict = pawndict
-        self.spotdict = spotdict
-        self.menudict = menudict
         self.width = width
         self.height = height
         self.wallpaper = wallpaper
@@ -46,11 +68,21 @@ class Board:
             db.boarddict[dimname] = self
 
     def unravel(self, db):
+        """Dereference strings into Python objects.
+
+Grab the Python objects referred to by self.wallpaper and
+self.dimension, if they are strings; then unravel all pawns, spots,
+and menus herein.
+
+        """
         if stringlike(self.wallpaper):
             self.wallpaper = db.imgdict[self.wallpaper]
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         self.dimension.unravel(db)
+        self.pawndict = db.pawndict[self.dimension.name]
+        self.spotdict = db.spotdict[self.dimension.name]
+        self.menudict = db.boardmenudict[self.dimension.name]
         for pwn in self.pawndict.itervalues():
             pwn.unravel(db)
         for spt in self.spotdict.itervalues():
@@ -67,9 +99,11 @@ class Board:
         return self.hsh
 
     def getwidth(self):
+        """Return the width assigned at instantiation."""
         return self.width
 
     def getheight(self):
+        """Return the height assigned at instantiation."""
         return self.height
 
     def __repr__(self):
@@ -89,6 +123,7 @@ load_all_boards_qrystr = (
 
 
 def load_boards(db, names):
+    """Make boards representing dimensions of the given names, returning a list."""
     boarddict = {}
     imgs2load = set()
     if names is None or len(names) == 0:
@@ -114,10 +149,6 @@ def load_boards(db, names):
     for item in boarddict.iteritems():
         (key, board) = item
         nubd = dict(board)
-        dim = board["dimension"]
-        nubd["pawndict"] = db.pawndict[dim]
-        nubd["spotdict"] = db.spotdict[dim]
-        nubd["menudict"] = db.boardmenudict[dim]
         nubd["db"] = db
         boarddict[key] = Board(**nubd)
         boarddict[key].unravel(db)
@@ -125,8 +156,10 @@ def load_boards(db, names):
 
 
 def load_all_boards(db):
+    """Make every board described in the database, returning a list."""
     return load_boards(db, None)
 
 
 def load_board(db, name):
-    return load_boards(db, [name])
+    """Load and return the board representing the dimension named thus."""
+    return load_boards(db, [name])[name]

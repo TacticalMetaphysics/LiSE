@@ -1,10 +1,22 @@
 from util import SaveableMetaclass, stringlike
 
 
+"""User's view on a given item's schedule."""
+
+
 class CalendarCell:
-    # Being a block of time in a calendar, with or without an event in
-    # it. This isn't stored in the database because really, why would
-    # I store *empty calendar cells* in the database?
+    """A block of time in a calendar.
+
+Every calendar cell must be in a CalendarCol. Everything else in the
+constructor may be chosen arbitrarily, although it would be most
+helpful to match the CalendarCell's values with those of an Event
+instance.
+
+Calendar cells are not stored in the database. Many of them are
+created on the fly to fill in space on the calendar where/when nothing
+is happening.
+
+    """
 
     def __init__(self, col, start, end, color, text=""):
         self.col = col
@@ -31,11 +43,17 @@ class CalendarCell:
 
 
 class CalendarCol:
-    # A board may have up to one of these. It may be toggled. It
-    # may display any schedule or combination thereof, distinguishing
-    # them by color or not at all. It has only one column.
+    """A single-column visual representation of a schedule.
+
+As schedules are uniquely associated with Item objects, so are the
+calendar-columns representing those schedules. They are drawn by
+fetching events in the time period that's on screen, instantiating
+CalendarCells for those, and drawing boxes to represent those
+cells.
+
+    """
     __metaclass__ = SaveableMetaclass
-    tablenames = ["calendar_col", "calendar_schedule_link"]
+    tablenames = ["calendar_col"]
     coldecls = {"calendar_col":
                 {"dimension": "text",
                  "item": "text",
@@ -46,17 +64,10 @@ class CalendarCol:
                  "left": "float",
                  "top": "float",
                  "bot": "float",
-                 "right": "float"},
-                "calendar_schedule_link":
-                {"calendar": "text",
-                 "schedule": "text"}}
-    primarykeys = {"calendar_col": ("dimension",),
-                   "calendar_schedule_link": ("calendar", "schedule")}
+                 "right": "float"}}
+    primarykeys = {"calendar_col": ("dimension", "item")}
     foreignkeys = {"calendar_col":
-                   {"dimension": ("dimension", "name")},
-                   "calendar_schedule":
-                   {"calendar": ("calendar_col", "name"),
-                    "schedule": ("schedule", "name")}}
+                   {"dimension, item": ("item", "dimension, name")}}
     checks = {"calendar_col": ["rows_on_screen>0", "scrolled_to>=0"]}
 
     def __init__(self, dimension, item, visible, interactive,

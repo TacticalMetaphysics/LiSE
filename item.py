@@ -29,14 +29,22 @@ class Place(Item):
                  "name": "text"}}
     primarykeys = {"place": ("dimension", "name")}
 
-    def __init__(self, dimension, name, db=None):
+    def __init__(self, dimension, name, db):
         self.dimension = dimension
         self.name = name
         self.contents = set()
         if db is not None:
-            if dimension not in db.itemdict:
-                db.itemdict[dimension] = {}
-            db.itemdict[dimension][name] = self
+            dimname = None
+            if stringlike(self.dimension):
+                dimname = self.dimension
+            else:
+                dimname = self.dimension.name
+            if dimname not in db.itemdict:
+                db.itemdict[dimname] = {}
+            if dimname not in db.placedict:
+                db.placedict[dimname] = {}
+            db.itemdict[dimname][self.name] = self
+            db.placedict[dimname][self.name] = self
 
     def unravel(self, db):
         if isinstance(self.dimension, str):
@@ -112,7 +120,10 @@ class Thing(Item):
                 dimname = self.dimension.name
             if dimname not in db.itemdict:
                 db.itemdict[dimname] = {}
+            if dimname not in db.thingdict:
+                db.thingdict[dimname] = {}
             db.itemdict[dimname][self.name] = self
+            db.thingdict[dimname][self.name] = self
 
     def unravel(self, db):
         if stringlike(self.dimension):
@@ -268,9 +279,17 @@ class Journey:
         self.thing = thing
         self.steps = steps
         if db is not None:
-            if dimension not in db.journeydict:
-                db.journeydict[dimension] = {}
-            db.journeydict[dimension][thing] = self
+            dimname = None
+            thingname = None
+            if stringlike(self.dimension):
+                dimname = self.dimension
+            else:
+                dimname = self.dimension.name
+            if stringlike(self.thing):
+                thingname = self.thing
+            else:
+                thingname = self.thing.name
+            db.journeydict[dimname][thingname] = self
 
     def unravel(self, db):
         if isinstance(self.dimension, str):
@@ -452,6 +471,7 @@ class Schedule:
         "scheduled_event": {
             "dimension, item": ("item", "dimension, name"),
             "event": ("event", "name")}}
+
     def __init__(self, dimension, item, events, db=None):
         self.dimension = dimension
         self.item = item
@@ -466,9 +486,19 @@ class Schedule:
             for ev in iter(events):
                 self.starting_events[ev.start] = ev
         if db is not None:
-            if dimension not in db.scheduledict:
-                db.scheduledict[dimension] = {}
-            db.scheduledict[dimension][item] = self
+            dimname = None
+            itemname = None
+            if stringlike(self.dimension):
+                dimname = self.dimension
+            else:
+                dimname = self.dimension.name
+            if stringlike(self.item):
+                itemname = self.item
+            else:
+                itemname = self.item.name
+            if dimname not in db.scheduledict:
+                db.scheduledict[dimname] = {}
+            db.scheduledict[dimname][itemname] = self
 
     def unravel(self, db):
         if isinstance(self.dimension, str):
@@ -517,19 +547,34 @@ class Portal(Item):
         self.orig = from_place
         self.dest = to_place
         if db is not None:
-            pd = db.itemdict
+            dimname = None
+            from_place_name = None
+            to_place_name = None
+            if stringlike(self.dimension):
+                dimname = self.dimension
+            else:
+                dimname = self.dimension.name
+            if stringlike(self.orig):
+                from_place_name = self.orig
+            else:
+                from_place_name = self.orig.name
+            if stringlike(self.dest):
+                to_place_name = self.dest
+            else:
+                to_place_name = self.dest.name
             podd = db.portalorigdestdict
             pdod = db.portaldestorigdict
-            for d in [pd, podd, pdod]:
-                if dimension not in d:
-                    d[dimension] = {}
-            if from_place not in podd:
-                podd[dimension][from_place] = {}
-            if to_place not in pdod:
-                pdod[dimension][to_place] = {}
-            pd[dimension][name] = self
-            podd[dimension][from_place][to_place] = self
-            pdod[dimension][to_place][from_place] = self
+            for d in [db.itemdict, db.portaldict, podd, pdod]:
+                if dimname not in d:
+                    d[dimname] = {}
+            if from_place_name not in podd[dimname]:
+                podd[dimname][from_place_name] = {}
+            if to_place_name not in pdod[dimname]:
+                pdod[dimname][to_place_name] = {}
+            db.itemdict[dimname][self.name] = self
+            db.portaldict[dimname][self.name] = self
+            podd[dimname][from_place_name][to_place_name] = self
+            pdod[dimname][to_place_name][from_place_name] = self
 
     def unravel(self, db):
         if stringlike(self.dimension):

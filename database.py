@@ -1,8 +1,9 @@
 import sqlite3
 import board
 import dimension
-import re
-from util import compile_tabdicts
+
+
+"""The database backend, with dictionaries of loaded objects."""
 
 
 def noop(nope):
@@ -10,7 +11,35 @@ def noop(nope):
 
 
 class Database:
-    def __init__(self, dbfile):
+    """Container for an SQLite database connection.
+
+You need to create a SQLite database file with the appropriate schema
+before this will work. For that, run mkdb.py. You may want to insert
+some test data with popdb.py.
+
+The database container has various dictionary attributes. Normally
+these hold objects loaded from the database, and have the same key as
+the main table for that object class. Storing an object there does not
+mean it will be saved. Mark objects to be saved by passing them to the
+remember(_) method. It's best to do this for objects already saved
+that you want to change, as well.
+
+Call the sync() method to write remembered objects to disk. This
+*should* be done automatically on destruction, but if, eg., the
+program closes just after destruction, the garbage collector might not
+have gotten around to finishing the job.
+
+    """
+
+    def __init__(self, dbfile, xfuncs={}):
+        """Return a database wrapper around the given SQLite database file.
+
+Optional argument xfuncs is a dictionary of functions, with strings
+for keys. They should take only one argument, also a string. Effects
+will be able to call those functions with arbitrary string
+arguments.
+
+        """
         self.conn = sqlite3.connect(dbfile)
         self.c = self.conn.cursor()
         self.altered = set()
@@ -19,6 +48,9 @@ class Database:
         self.calendardict = {}
         self.scheduledict = {}
         self.itemdict = {}
+        self.placedict = {}
+        self.portaldict = {}
+        self.thingdict = {}
         self.spotdict = {}
         self.imgdict = {}
         self.boarddict = {}
@@ -47,143 +79,112 @@ class Database:
                      'editor_delete': noop,
                      'new_place': noop,
                      'new_thing': noop}
+        self.func.update(xfuncs)
 
     def __del__(self):
+        self.sync()
         self.c.close()
-        self.conn.commit()
         self.conn.close()
 
-    def insert_rowdict_table(self, rowdict, clas, tablename):
+    def insert_rowdicts_table(self, rowdict, clas, tablename):
+        """Insert the given rowdicts into the table of the given name, as defined by the given class.
+
+For more information, consult SaveableMetaclass in util.py.
+
+        """
         if rowdict != []:
             clas.dbop['insert'](self, rowdict, tablename)
 
-    def delete_keydict_table(self, keydict, clas, tablename):
+    def delete_keydicts_table(self, keydict, clas, tablename):
+        """Delete the records identified by the keydicts from the given table,
+as defined by the given class.
+
+For more information, consult SaveableMetaclass in util.py.
+
+        """
         if keydict != []:
             clas.dbop['delete'](self, keydict, tablename)
 
-    def detect_keydict_table(self, keydict, clas, tablename):
+    def detect_keydicts_table(self, keydict, clas, tablename):
+        """Return the rows in the given table, as defined by the given class,
+matching the given keydicts.
+
+For more information, consult SaveableMetaclass in util.py.
+
+        """
         if keydict != []:
             return clas.dbop['detect'](self, keydict, tablename)
         else:
             return []
 
-    def missing_keydict_table(self, keydict, clas, tablename):
+    def missing_keydicts_table(self, keydict, clas, tablename):
+        """Return rows in the given table, as defined by the given class,
+*not* matching any of the given keydicts.
+
+For more information, consult SaveableMetaclass in util.py.
+
+        """
         if keydict != []:
             return clas.dbop['missing'](self, keydict, tablename)
         else:
             return []
 
-    def insert_obj_table(self, obj, tablename):
-        if isinstance(obj, list):
-            objs = obj
+    def xfunc(self, func, name=None):
+        """Add the given function to those accessible to effects.
+
+Optional argument name is the one the effect needs to use to access
+the function.
+
+        """  
+        if name is None:
+            self.func[func.__name__] = func
         else:
-            objs = [obj]
-        rowdicts = [o.tabdict[tablename] for o in objs]
-        self.insert_rowdict_table(rowdicts, objs[0], tablename)
-
-    def delete_obj_table(self, obj, tablename):
-        if isinstance(obj, list):
-            objs = obj
-        else:
-            objs = [obj]
-        rowdicts = [o.tabdict[tablename] for o in objs]
-        self.delete_keydict_table(rowdicts, objs[0], tablename)
-
-    def detect_obj_table(self, obj, tablename):
-        if isinstance(obj, list):
-            objs = obj
-        else:
-            objs = [obj]
-        rowdicts = [o.tabdict[tablename] for o in objs]
-        return self.detect_keydict_table(rowdicts, objs[0], tablename)
-
-    def missing_obj_table(self, obj, tablename):
-        if isinstance(obj, list):
-            objs = obj
-        else:
-            objs = [obj]
-        rowdicts = [o.tabdict[tablename] for o in objs]
-        return self.missing_keydict_table(rowdicts, objs[0], tablename)
-
-    def insert_obj(self, obj):
-        if isinstance(obj, list):
-            objs = obj
-        else:
-            objs = [obj]
-        clas = objs[0].__class__
-        mastertab = compile_tabdicts(objs)
-        for tabname in mastertab.iterkeys():
-            self.insert_rowdict_table(mastertab[tabname], clas, tabname)
-
-    def delete_obj(self, obj):
-        if isinstance(obj, list):
-            objs = obj
-        else:
-            objs = [obj]
-        clas = objs[0].__class__
-        mastertab = compile_tabdicts(objs)
-        for tabname in mastertab.iterkeys():
-            self.delete_keydict_table(mastertab[tabname], clas, tabname)
-
-    def detect_obj(self, obj):
-        if isinstance(obj, list):
-            objs = obj
-        else:
-            objs = [obj]
-        clas = objs[0].__class__
-        mastertab = compile_tabdicts(objs)
-        r = []
-        for tabname in mastertab.iterkeys():
-            r.extend(self.detect_keydict_table(
-                mastertab[tabname], clas, tabname))
-        return r
-
-    def missing_obj(self, obj):
-        if isinstance(obj, list):
-            objs = obj
-        else:
-            objs = [obj]
-        clas = objs[0].__class__
-        mastertab = compile_tabdicts(objs)
-        r = []
-        for tabname in mastertab.iterkeys():
-            r.extend(self.missing_keydict_table(
-                mastertab[tabname], clas, tabname))
-        return r
-
-    def mkschema(self, table_classes):
-        for clas in table_classes:
-            for tab in clas.schemata:
-                self.c.execute(tab)
-        self.conn.commit()
-
-    def xfunc(self, func):
-        self.func[func.__name__] = func
+            self.func[name] = func
 
     def call_func(self, fname, farg):
+        """Look up a function by its name in self.func, then call it with
+argument farg.
+
+Returns whatever that function does."""
         return self.func[fname](farg)
 
     def load_dimensions(self, dimname):
+        """Load all dimensions with names in the given list.
+
+Return a list of them.
+
+"""
         return dimension.load_dimensions(self, dimname)
 
     def load_dimension(self, dimname):
-        return self.load_dimensions([dimname])
+        """Load and return the dimension with the given name."""
+        return self.load_dimensions([dimname])[0]
 
     def load_boards(self, dimname):
+        """Load the boards representing the named dimensions. Return them in a
+list.
+
+        """
         return board.load_boards(self, dimname)
 
     def load_board(self, dimname):
-        return self.load_boards([dimname])
+        """Load and return the board representing the named dimension."""
+        return self.load_boards([dimname])[0]
 
     def remember(self, obj):
+        """Indicate that the object should be saved to disk on next sync."""
         self.altered.add(obj)
+        self.removed.discard(obj)
 
     def forget(self, obj):
+        """Indicate that the object should be deleted from disk on next
+sync."""
         self.removed.add(obj)
+        self.altered.discard(obj)
 
     def sync(self):
-        """Write all altered objects to disk. Delete all deleted objects from
-disk.
+
+        """Write all remembered objects to disk. Delete all forgotten objects from disk.
 
         """
         # Handle additions and changes first.
@@ -317,6 +318,14 @@ disk.
         self.removed = set()
 
     def things_in_place(self, place):
+        """Return a list of Thing objects that are located in the given Place
+object.
+
+The things' location property will be used. Note that things are
+always considered to be in one place or another, even if they are also
+in the portal between two places.
+
+        """
         dim = place.dimension
         pname = place.name
         pcd = self.placecontentsdict
@@ -326,11 +335,14 @@ disk.
         return [self.itemdict[dim][name] for name in thingnames]
 
     def pawns_on_spot(self, spot):
+        """Return a list of pawns on the given spot."""
         return [thing.pawn for thing in
                 spot.place.contents
                 if thing.name in self.pawndict[spot.dimension]]
 
     def inverse_portal(self, portal):
+        """Return the portal whose origin is the given portal's destination
+and vice-versa."""
         orign = portal.orig.name
         destn = portal.dest.name
         pdod = self.portaldestorigdict[portal.dimension]
@@ -340,6 +352,8 @@ disk.
             return None
 
     def toggle_menu_visibility(self, menuspec):
+        """Given a string consisting of a board name, a dot, and a menu name,
+toggle the visibility of that menu."""
         spoke = menuspec.split('.')
         (boardn, menun) = spoke
         self.boardmenudict[boardn][menun].toggle_visibility()
