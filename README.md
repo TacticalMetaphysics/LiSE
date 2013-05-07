@@ -95,14 +95,15 @@ the "portals" are actually the relationships between them, connecting,
 disconnecting, and changing color in response to drama. Templates for
 several such boards will be provided.
 
-Various places, things, and portals could represent the same person to
-different game systems. They are grouped together in a "character,"
-along with whatever other information the game needs to have about the
-person. It's similar to the character sheets that are used in tabletop
-roleplaying games. The information in a character may be used to
-resolve the effects of any given event, and to decide how to schedule
-any event. The character is what determines how fast someone can move,
-whether in the physical world, the tech tree, or elsewhere.
+Various places, things, and portals could represent the same person
+for the purposes of different game mechanics. They are grouped
+together in a "character," along with whatever other information the
+game needs to have about the person. It's similar to the character
+sheets that are used in tabletop roleplaying games. The information in
+a character may be used to resolve the effects of any given event, and
+to decide how to schedule any event. The character is what determines
+how fast someone can move, whether in the physical world, the tech
+tree, or elsewhere.
 
 It's all very abstract. You could implement physics in this engine, if
 you wanted, but if that's your main concern, you might be happier with
@@ -128,7 +129,7 @@ Show more than one board at a time.
 
 Get effects to do more than open and close menus.
 
-Get events and schedules working, so that the UI can use them for anything.
+Get events and schedules working.
 
 That last calls for a main loop--for the game state only, not the
 UI--that polls the schedule, calls the events that are happening, and
