@@ -31,6 +31,10 @@ time.
                 {"dimension": "text",
                  "width": "integer",
                  "height": "integer",
+                 "view_width": "integer default width",
+                 "view_height": "integer default height",
+                 "view_x": "integer default 0",
+                 "view_y": "integer default 0",
                  "wallpaper": "text"},
                 "board_menu":
                 {"board": "text",
@@ -45,7 +49,8 @@ time.
                     "menu": ("menu", "name")}}
 
     def __init__(self, dimension,
-                 width, height, wallpaper, db=None):
+                 width, height, view_width, view_height, view_x, view_y,
+                 wallpaper, db=None):
         """Return a board representing the given dimension.
 
 dimension may be an instance of Dimension or the name of
@@ -58,6 +63,10 @@ board later to get those pointers.
         self.dimension = dimension
         self.width = width
         self.height = height
+        self.view_width = view_width
+        self.view_height = view_height
+        self.view_x = view_x
+        self.view_y = view_y
         self.wallpaper = wallpaper
         if db is not None:
             dimname = None
@@ -106,6 +115,28 @@ and menus herein.
         """Return the height assigned at instantiation."""
         return self.height
 
+    def getviewx(self):
+        """Return the x-coordinate the user has scrolled to."""
+        return self.view_x
+
+    def getviewy(self):
+        """Return the y-coordinate the user has scrolled to."""
+        return self.view_y
+
+    def getviewwidth(self):
+        """Return the minimum width of the part of the board the user can see
+at a given time.
+
+        """
+        return self.view_width
+
+    def getviewheight(self):
+        """Return the minimum height of the part of the board the user can see
+at a given time.
+
+        """
+        return self.view_height
+
     def __repr__(self):
         return "A board, %d pixels wide by %d tall, representing the "\
             "dimension %s, containing %d spots, %d pawns, and %d menus."\
@@ -123,7 +154,8 @@ load_all_boards_qrystr = (
 
 
 def load_boards(db, names):
-    """Make boards representing dimensions of the given names, returning a list."""
+    """Make boards representing dimensions of the given names, returning a
+list."""
     boarddict = {}
     imgs2load = set()
     if names is None or len(names) == 0:

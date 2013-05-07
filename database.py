@@ -87,7 +87,8 @@ arguments.
         self.conn.close()
 
     def insert_rowdicts_table(self, rowdict, clas, tablename):
-        """Insert the given rowdicts into the table of the given name, as defined by the given class.
+        """Insert the given rowdicts into the table of the given name, as
+defined by the given class.
 
 For more information, consult SaveableMetaclass in util.py.
 
@@ -184,7 +185,8 @@ sync."""
 
     def sync(self):
 
-        """Write all remembered objects to disk. Delete all forgotten objects from disk.
+        """Write all remembered objects to disk. Delete all forgotten objects
+from disk.
 
         """
         # Handle additions and changes first.
@@ -273,7 +275,7 @@ sync."""
             inslst = [obj.key + obj.val for obj in objs]
             insertions_by_table[table] = inslst
         newl = [
-            (item[0], list(item[1])) for item in unknownobjs.iteritems]
+            (item[0], list(item[1])) for item in unknownobjs.iteritems()]
         for pair in newl:
             (table, objs) = pair
             inslst = [obj.key + obj.val for obj in objs]

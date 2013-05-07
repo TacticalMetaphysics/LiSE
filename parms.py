@@ -316,11 +316,15 @@ mainmenu = {'name': 'Main',
             'main_for_window': True}
 menus = [gamemenu, editormenu, placemenu, thingmenu, mainmenu]
 
-boards = {
+boards = [{
     'dimension': dimname,
     'width': 800,
     'height': 600,
-    'wallpaper': 'wall'}
+    'view_width': 800,
+    'view_height': 600,
+    'view_x': 0,
+    'view_y': 0,
+    'wallpaper': 'wall'}]
 
 board_menu = [(dimname, menuname) for menuname in
               ['Thing', 'Place', 'Game', 'Editor', 'Main']]
