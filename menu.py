@@ -4,7 +4,7 @@ from style import read_styles
 from effect import Effect, EffectDeck
 from copy import copy
 import re
-import pyglet
+from pyglet.image import SolidColorImagePattern as color_pattern
 
 
 __metaclass__ = SaveableMetaclass
@@ -115,46 +115,6 @@ class MenuItem:
     def __repr__(self):
         return self.text
 
-    def getcenter(self):
-        width = self.getwidth()
-        height = self.getheight()
-        rx = width / 2
-        ry = height / 2
-        x = self.getleft()
-        y = self.getbot()
-        return (x + rx, y + ry)
-
-    def getleft(self):
-        if not hasattr(self, 'left'):
-            self.left = self.menu.getleft() + self.menu.style.spacing
-        return self.left
-
-    def getright(self):
-        if not hasattr(self, 'right'):
-            self.right = self.menu.getright() - self.menu.style.spacing
-        return self.right
-
-    def gettop(self):
-        if not hasattr(self, 'top'):
-            self.top = (self.menu.gettop() - self.menu.style.spacing -
-                        (self.idx * self.getheight()))
-        return self.top
-
-    def getbot(self):
-        if not hasattr(self, 'bot'):
-            self.bot = self.gettop() - self.menu.style.fontsize
-        return self.bot
-
-    def getwidth(self):
-        if not hasattr(self, 'width'):
-            self.width = self.getright() - self.getleft()
-        return self.width
-
-    def getheight(self):
-        if not hasattr(self, 'height'):
-            self.height = self.menu.style.fontsize + self.menu.style.spacing
-        return self.height
-
     def toggle_visibility(self):
         self.visible = not self.visible
         self.toggles += 1
@@ -163,7 +123,8 @@ class MenuItem:
 
     def get_state_tup(self):
         return (
-            self.menu.get_state_tup(),
+            self,
+            self.menu,
             copy(self.idx),
             copy(self.text),
             copy(self.visible),
@@ -174,33 +135,12 @@ class MenuItem:
             copy(self.toggles))
 
 
-def pull_items_in_menus(db, menunames):
-    qryfmt = "SELECT {0} FROM menu_item WHERE menu IN ({1})"
-    qms = ["?"] * len(menunames)
-    qrystr = qryfmt.format(
-        MenuItem.colnamestr["menu_item"],
-        ", ".join(qms))
-    db.c.execute(qrystr, menunames)
-    return parse_menu_item([
-        dictify_row(MenuItem.colnames["menu_item"], row)
-        for row in db.c])
-
-
-def parse_menu_item(rows):
-    r = {}
-    for row in rows:
-        if row["menu"] not in r:
-            r[row["menu"]] = {}
-        r[row["menu"]][row["idx"]] = row
-    return r
-
-
 class Menu:
     tablenames = ["menu"]
     coldecls = {'menu':
                 {'name': 'text',
                  'left': 'float not null',
-                 'bottom': 'float not null',
+                 'bot': 'float not null',
                  'top': 'float not null',
                  'right': 'float not null',
                  'style': "text default 'Default'",
@@ -209,13 +149,15 @@ class Menu:
     primarykeys = {'menu': ('name',)}
     interactive = True
 
-    def __init__(self, name, left, bottom, top, right, style,
+    def __init__(self, name, left, bot, top, right, style,
                  main_for_window, visible, db=None, board=None):
         self.name = name
-        self.left = left
-        self.bottom = bottom
-        self.top = top
-        self.right = right
+        self.left_prop = left
+        self.bot_prop = bot
+        self.top_prop = top
+        self.right_prop = right
+        self.width_prop = 1.0 - left - right
+        self.height_prop = 1.0 - top - bot
         self.style = style
         self.main_for_window = main_for_window
         self.visible = visible
@@ -234,8 +176,8 @@ class Menu:
         if stringlike(self.style):
             self.style = db.styledict[self.style]
         self.style.unravel(db)
-        color = self.style.bg_inactive
-        self.pattern = pyglet.image.SolidColorImagePattern(color.tup)
+        self.active_pattern = color_pattern(self.style.bg_active.tup)
+        self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         self.items = db.menuitemdict[self.name]
         for item in self.items:
             item.unravel(db)
@@ -246,6 +188,24 @@ class Menu:
             if boardname not in db.boardmenudict:
                 db.boardmenudict[boardname] = {}
             db.boardmenudict[boardname][self.name] = self
+
+    def set_gw(self, gw):
+        self.left = self.left_prop * gw.width
+        self.right = self.right_prop * gw.width
+        self.width = self.right - self.left
+        self.top = self.top_prop * gw.height
+        self.bot = self.bot_prop * gw.height
+        self.height = self.top - self.bot
+        self.gw = gw
+        self.adjust()
+
+    def adjust(self):
+        for item in self.items:
+            item.left = self.left + self.style.spacing
+            item.right = self.right - self.style.spacing
+            item.height = self.style.fontsize + self.style.spacing
+            item.top = self.top - self.style.spacing - (item.idx * item.height)
+            item.bot = item.top - self.style.fontsize
 
     def __eq__(self, other):
         if hasattr(self, 'gw'):

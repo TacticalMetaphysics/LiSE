@@ -1,27 +1,3 @@
-class LocationException(Exception):
-    pass
-
-
-class ContainmentException(Exception):
-    pass
-
-
-class SenselessEventException(Exception):
-    pass
-
-
-class ImpossibleEventException(Exception):
-    pass
-
-
-class IrrelevantEventException(Exception):
-    pass
-
-
-class ImpracticalEventException(Exception):
-    pass
-
-
 class SaveableMetaclass(type):
     def __new__(metaclass, clas, parents, attrs):
         if 'coldecls' not in attrs:
@@ -30,7 +6,11 @@ class SaveableMetaclass(type):
             raise Exception("no primarykeys in {0}".format(clas))
         coldecls = attrs['coldecls']
         primarykeys = attrs['primarykeys']
-        tablenames = attrs['tablenames']
+        tablenames = None
+        if 'tablenames' in attrs:
+            tablenames = attrs['tablenames']
+        else:
+            tablenames = coldecls.keys()
 
         if 'foreignkeys' in attrs:
             foreignkeys = attrs['foreignkeys']
@@ -167,25 +147,51 @@ class SaveableMetaclass(type):
         def insert_tabdict(db, tabdict):
             for item in tabdict.iteritems():
                 (tabn, rd) = item
-                if isinstance(rd, list):
-                    insert_rowdicts_table(db, rd, tabn)
-                else:
-                    insert_rowdicts_table(db, [rd], tabn)
+                insert_rowdicts_table(db, iter(rd), tabn)
 
         def delete_tabdict(db, tabdict):
             for item in tabdict.iteritems():
                 (tabn, rd) = item
-                delete_keydicts_table(db, rd, tabn)
+                delete_keydicts_table(db, iter(rd), tabn)
 
         def detect_tabdict(db, tabdict):
             for item in tabdict.iteritems():
                 (tabn, rd) = item
-                return detect_keydicts_table(db, rd, tabn)
+                return detect_keydicts_table(db, iter(rd), tabn)
 
         def missing_tabdict(db, tabdict):
             for item in tabdict.iteritems():
                 (tabn, rd) = item
-                return missing_keydicts_table(db, rd, tabn)
+                return missing_keydicts_table(db, iter(rd), tabn)
+
+        def mkrow(self, tabname, rowdict=None):
+            if rowdict is None:
+                rowdict = self.mkrowdict(tabname)
+            r = []
+            for coln in self.colnames[tabname]:
+                r.append(rowdict[coln])
+            return tuple(r)
+
+        def mkrowdict(self, tabname):
+            # Invariant: For the named table, I have attributes named
+            # and typed the same way as the columns. Where this does
+            # not hold, I should instead have an attribute named for
+            # the *table*, which contains tuples representing rows of
+            # that table.
+            if hasattr(self, tabname):
+                return [
+                    dictify_row(r, self.colnames[tabname])
+                    for r in iter(getattr(self, tabname))]
+            r = {}
+            for colname in self.colnames[tabname]:
+                r[colname] = getattr(self, colname)
+            return r
+
+        def mktabdict(self):
+            r = {}
+            for tabname in self.coldecls.iterkeys():
+                r[tabname] = self.mkrowdict(tabname)
+            return r
 
         def unravel(self, db):
             pass
@@ -213,6 +219,9 @@ class SaveableMetaclass(type):
                   'rowqms': rowqms,
                   'dbop': dbop,
                   'unravel': unravel,
+                  'mkrow': mkrow,
+                  'mkrowdict': mkrowdict,
+                  'mktabdict': mktabdict,
                   'maintab': tablenames[0]}
         atrdic.update(attrs)
 

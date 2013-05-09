@@ -1,12 +1,27 @@
 from util import (
-    SaveableMetaclass, dictify_row,
-    LocationException, ContainmentException,
+    SaveableMetaclass,
+    dictify_row,
+    LocationException,
+    ContainmentException,
     stringlike)
-from event import Event
+from event import (
+    Event,
+    SenselessEvent,
+    ImpossibleEvent,
+    IrrelevantEvent,
+    ImpracticalEvent)
 from effect import Effect
 
 
 __metaclass__ = SaveableMetaclass
+
+
+class LocationException(Exception):
+    pass
+
+
+class ContainmentException(Exception):
+    pass
 
 
 class Item:
@@ -17,9 +32,6 @@ class Item:
          "name": "text"}}
     primarykeys = {
         "item": ("dimension", "name")}
-    foreignkeys = {
-        "item": {
-            "dimension": ("dimension", "name")}}
 
 
 class Place(Item):
@@ -65,7 +77,6 @@ class Place(Item):
 
 
 class Thing(Item):
-    tablenames = ["thing", "thing_kind"]
     coldecls = {
         "thing":
         {"dimension": "text",
@@ -74,31 +85,12 @@ class Thing(Item):
          "container": "text default null",
          "portal": "text default null",
          "progress": "float default 0.0",
-         "age": "integer default 0"},
-        "thing_kind":
-        {"dimension": "text",
-         "thing": "text",
-         "kind": "text"},
-        "journey_step":
-        {"dimension": "text",
-         "thing": "text",
-         "idx": "integer",
-         "portal": "text"}}
+         "age": "integer default 0"}}
     primarykeys = {
-        "thing": ("dimension", "name"),
-        "journey_step": ("dimension", "thing", "idx"),
-        "thing_kind": ("dimension", "thing", "kind")}
+        "thing": ("dimension", "name")}
     foreignkeys = {
         "thing":
-        {"dimension": ("dimension", "name"),
-         "dimension, container": ("thing", "dimension, name")},
-        "thing_kind":
-        {"dimension": ("dimension", "name"),
-         "thing": ("thing", "name"),
-         "kind": ("thing_kind", "name")},
-        "journey_step":
-        {"dimension, thing": ("thing", "dimension, name"),
-         "dimension, portal": ("portal", "dimension, name")}}
+        {"dimension, container": ("thing", "dimension, name")}}
 
     def __init__(self, dimension, name, location, container,
                  portal=None, progress=0.0, age=0, schedule=None, db=None):
@@ -260,7 +252,6 @@ class Journey:
     a Portal at a time, but Journey handles that case anyhow.
 
     """
-    tablenames = ["journey_step"]
     coldecls = {
         "journey_step": {
             "dimension": "text",
@@ -457,7 +448,6 @@ Journey.
 
 
 class Schedule:
-    tablenames = ["scheduled_event"]
     coldecls = {
         "scheduled_event":
         {"dimension": "text",
@@ -472,19 +462,12 @@ class Schedule:
             "dimension, item": ("item", "dimension, name"),
             "event": ("event", "name")}}
 
-    def __init__(self, dimension, item, events, db=None):
+    def __init__(self, dimension, item, db=None):
         self.dimension = dimension
         self.item = item
-        if isinstance(events, dict):
-            self.starting_events = events
-        elif isinstance(events[0], dict):
-            self.starting_events = {}
-            for ev in events:
-                self.starting_events[ev["start"]] = ev
-        else:
-            self.starting_events = {}
-            for ev in iter(events):
-                self.starting_events[ev.start] = ev
+        self.events_starting = dict()
+        self.events_ending = dict()
+        self.ongoing = set()
         if db is not None:
             dimname = None
             itemname = None
@@ -505,31 +488,74 @@ class Schedule:
             self.dimension = db.dimensiondict[self.dimension]
         if isinstance(self.item, str):
             self.item = db.itemdict[self.dimension.name][self.item]
-        for item in self.events_starting.iteritems():
-            (starttime, evt) = item
-            if isinstance(evt, Event):
-                continue
-            else:
-                self.events_starting[starttime] = Event(**evt)
-
-    def __getitem__(self, n):
-        return self.startevs[n]
 
     def advance(self, n):
         # advance time by n ticks
         prior_age = self.age
         new_age = prior_age + n
-        starts = [self.startevs[i] for i in xrange(prior_age, new_age)]
-        for start in starts:
-            start.start()
-        ends = [self.endevs[i] for i in xrange(prior_age, new_age)]
-        for end in ends:
-            end.end()
+        starts = []
+        ends = []
+        for i in xrange(prior_age, new_age):
+            startevs = iter(self.starting_events[i])
+            endevs = iter(self.ending_events[i])
+            starts.extend(startevs)
+            ends.extend(endevs)
+        for ev in starts:
+            try:
+                ev.commence()
+            except SenselessEvent:
+                # Actually, the various event exceptions ought to
+                # provide info on the kind of failure that I could
+                # parse and show to the user as applicable.
+                continue
+            except ImpossibleEvent:
+                continue
+            except IrrelevantEvent:
+                continue
+            except ImpracticalEvent:
+                pass
+            self.ongoing.add(ev)
+        for ev in ends:
+            ev.conclude()
+            self.ongoing.remove(ev)
+        for ev in iter(self.ongoing):
+            ev.proceed()
         self.age = new_age
+
+    def add(self, ev):
+        if not hasattr(ev, 'end'):
+            ev.end = ev.start + ev.length
+        if ev.start not in self.events_starting:
+            self.events_starting[ev.start] = set()
+        if ev.end not in self.events_ending:
+            self.events_ending[ev.end] = set()
+        self.events_starting[ev.start].add(ev)
+        self.events_ending[ev.end].add[ev]
+
+    def timeframe(self, start, end):
+        """Return a set of events starting or ending within the given
+timeframe.
+
+Events are assumed never to overlap. This is for ease of use only. You
+can make something do many things at once by turning it into a
+container, and putting things inside, each with one of the schedules
+you want the container to follow.
+
+        """
+        r = set()
+        for i in xrange(start, end):
+            try:
+                r.add(self.starting_events[i])
+            except KeyError:
+                pass
+            try:
+                r.add(self.ending_events[i])
+            except KeyError:
+                pass
+        return r
 
 
 class Portal(Item):
-    tablenames = ["portal"]
     coldecls = {"portal":
                 {"dimension": "text",
                  "name": "text",

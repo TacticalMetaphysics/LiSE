@@ -59,6 +59,7 @@ board later to get those pointers.
         self.width = width
         self.height = height
         self.wallpaper = wallpaper
+        self.board_menu = set()
         if db is not None:
             dimname = None
             if stringlike(self.dimension):
@@ -89,6 +90,7 @@ and menus herein.
             spt.unravel(db)
         for mnu in self.menudict.itervalues():
             mnu.unravel(db)
+            self.board_menu.add((self.name, mnu.name))
 
     def __eq__(self, other):
         return (
@@ -123,7 +125,8 @@ load_all_boards_qrystr = (
 
 
 def load_boards(db, names):
-    """Make boards representing dimensions of the given names, returning a list."""
+    """Make boards representing dimensions of the given names, returning a
+list."""
     boarddict = {}
     imgs2load = set()
     if names is None or len(names) == 0:

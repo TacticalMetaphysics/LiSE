@@ -1,4 +1,5 @@
 from util import SaveableMetaclass, stringlike
+from pyglet.image import SolidColorImagePattern as color_pattern
 
 
 """User's view on a given item's schedule."""
@@ -18,17 +19,20 @@ is happening.
 
     """
 
-    def __init__(self, col, start, end, color, text=""):
-        self.col = col
+    def __init__(self, calendar, start, end, empty, text=""):
+        self.calendar = calendar
         self.start = start
         self.end = end
-        self.color = color
+        self.empty = empty
         self.text = text
-        self.hsh = hash(str(start) + str(end) + text)
+        self.pattern_inactive = color_pattern(calendar.style.bg_inactive)
+        self.pattern_active = color_pattern(calendar.style.bg_active)
 
     def unravel(self, db):
-        self.col = db.calendarcoldict[self.col]
-        self.color = db.colordict[self.color]
+        if stringlike(self.calendar):
+            self.calendar = db.calendarcoldict[self.calendar]
+        if stringlike(self.color):
+            self.color = db.colordict[self.color]
 
     def __eq__(self, other):
         if not isinstance(other, CalendarCell):
@@ -37,9 +41,6 @@ is happening.
             self.start == other.start and
             self.end == other.end and
             self.text == other.text)
-
-    def __hash__(self):
-        return self.hsh
 
 
 class CalendarCol:
@@ -53,7 +54,6 @@ cells.
 
     """
     __metaclass__ = SaveableMetaclass
-    tablenames = ["calendar_col"]
     coldecls = {"calendar_col":
                 {"dimension": "text",
                  "item": "text",
@@ -64,18 +64,22 @@ cells.
                  "left": "float",
                  "top": "float",
                  "bot": "float",
-                 "right": "float"}}
+                 "right": "float",
+                 "style": "text"}}
     primarykeys = {"calendar_col": ("dimension", "item")}
     foreignkeys = {"calendar_col":
-                   {"dimension, item": ("item", "dimension, name")}}
+                   {"dimension, item": ("item", "dimension, name"),
+                    "style": ("style", "name")}}
     checks = {"calendar_col": ["rows_on_screen>0", "scrolled_to>=0"]}
 
     def __init__(self, dimension, item, visible, interactive,
                  rows_on_screen, scrolled_to,
-                 left, top, bot, right, db=None):
+                 left, top, bot, right, style,
+                 db=None):
         self.dimension = dimension
         self.item = item
         self.visible = visible
+        self.toggles = 0
         self.interactive = interactive
         self.rows_on_screen = rows_on_screen
         self.scrolled_to = scrolled_to
@@ -83,6 +87,9 @@ cells.
         self.top = top
         self.bot = bot
         self.right = right
+        self.height = 1.0 - self.top - self.bot
+        self.width = 1.0 - self.right - self.left
+        self.style = style
         if db is not None:
             dimname = None
             itname = None
@@ -98,48 +105,74 @@ cells.
                 db.calendardict[dimname] = {}
             db.calendardict[dimname][itname] = self
 
+    def toggle(self):
+        self.visible = not self.visible
+        self.toggles += 1
+
     def unravel(self, db):
-        self.dimension = db.dimensiondict[self.dimension]
-        self.item = db.itemdict[self.dimension.name][self.item]
-        self.schedule = db.scheduledict[self.dimension.name][self.item.name]
+        if stringlike(self.dimension):
+            self.dimension = db.dimensiondict[self.dimension]
+        dn = self.dimension.name
+        if stringlike(self.item):
+            self.item = db.itemdict[dn][self.item]
+        if stringlike(self.style):
+            self.style = db.styledict[self.style]
+        self.style.unravel(db)
+        self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
+        self.active_pattern = color_pattern(self.style.bg_active.tup)
+        if not hasattr(self, 'schedule'):
+            self.schedule = db.scheduledict[dn][self.item]
+
+    def set_gw(self, gw):
+        self.top_abs = self.top * gw.height
+        self.bot_abs = self.bot * gw.height
+        self.height_abs = self.height * gw.height
+        self.left_abs = self.left * gw.width
+        self.right_abs = self.right * gw.width
+        self.width_abs = self.width * gw.width
+        self.gw = gw
+        self.adjust()
+
+    def adjust(self):
+        self.cells = []
+        calstart = self.scrolled_to
+        calend = calstart + self.rows_on_screen
+        evl = sorted(list(self.schedule.timeframe(calstart, calend)))
+        if evl == []:
+            self.fill_empty()
+        celll = [
+            CalendarCell(
+                self, ev.start, ev.end, False, ev.display_str())
+            for ev in evl]
+        # I now have CalendarCells to represent the events; but I also
+        # need CalendarCells to represent the spaces between
+        # them. Those will always be one tick long. I'm not sure this
+        # is a sustainable assumption; if CalendarCols get to showing
+        # a lot of stuff at once, there will be a whole bunch of
+        # sprites in them. Is that a problem? I'll see, I suppose.
+        i = calstart
+        while celll != []:
+            cell = celll.pop()
+            while i < cell.start:
+                self.cells.append(CalendarCell(self, i, i+1, True))
+                i += 1
+            i = cell.end
+            self.cells.append(cell)
+        # There are now cells in self.cells to fill me up. There are
+        # also some that overrun my bounds. I'll have to take that
+        # into account when drawing.
 
     def __eq__(self, other):
-        # not checking for gw this time, because there can only be one
-        # CalendarWall per Board irrespective of if it's got a window
-        # or not.
         return (
             isinstance(other, CalendarCol) and
-            other.dimension == self.dimension)
+            other.dimension == self.dimension and
+            other.item == self.item)
 
-    def __hash__(self):
-        return self.hsh
-
-    def no_window(self):
-        raise Exception("I can't do this without a GameWindow. "
-                        "Set %s.gw to a GameWindow object." % (self.__name__,))
-
-    def getleft(self):
-        if not hasattr(self, 'gw'):
-            self.no_window()
-        return self.gw.mainmenu.getright() + self.gutter
-
-    def getright(self):
-        if not hasattr(self, 'gw'):
-            self.no_window()
-        return self.gw.window.width - self.gutter
-
-    def gettop(self):
-        if not hasattr(self, 'gw'):
-            self.no_window()
-        return self.gw.window.height - self.gutter
-
-    def getbot(self):
-        if not hasattr(self, 'gw'):
-            self.no_window()
-        return self.gutter
-
-    def getwidth(self):
-        return self.getright() - self.getleft()
-
-    def getheight(self):
-        return self.gettop() - self.getbot()
+    def get_state_tup(self):
+        return (
+            self,
+            self.visible,
+            self.interactive,
+            self.rows_on_screen,
+            self.scrolled_to,
+            self.toggles)

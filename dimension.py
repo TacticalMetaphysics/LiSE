@@ -5,24 +5,15 @@ from item import (
     read_portals_in_dimensions,
     read_schedules_in_dimensions,
     read_journeys_in_dimensions)
-from util import SaveableMetaclass
 
 
 """Class and loaders for dimensions--the top of the world hierarchy."""
-
-
-__metaclass__ = SaveableMetaclass
 
 
 class Dimension:
     """Container for a given view on the game world, sharing no things,
 places, or portals with any other dimension, but possibly sharing
 characters."""
-
-    tablenames = ["dimension"]
-    coldecls = {"dimension":
-                {"name": "text"}}
-    primarykeys = {"dimension": ("name",)}
 
     def __init__(self, name, db=None):
         """Return a dimension with the given name.

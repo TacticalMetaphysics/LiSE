@@ -60,47 +60,8 @@ class EffectDeck:
             if stringlike(effn):
                 effn = db.effectdict[effn]
 
-    def pull(self, db, keydicts):
-        names = [keydict["name"] for keydict in keydicts]
-        return self.pull_named(db, names)
-
-    def pull_named(self, db, names):
-        qryfmt = (
-            "SELECT {0} FROM effect_deck, effect_deck_link WHERE "
-            "effect_deck.name=effect_deck_link.deck AND "
-            "effect_deck.name IN ({1})")
-        cols = self.colnames["effect_deck_link"]
-        colns = ["effect_deck_link." + coln for coln in cols]
-        qrystr = qryfmt.format(
-            ", ".join(colns), ", ".join(["?"] * len(names)))
-        db.c.execute(qrystr, names)
-        return self.parse([
-            dictify_row(cols, row) for row in db.c])
-
-    def parse(self, rows):
-        r = {}
-        for row in rows:
-            if row["deck"] not in r:
-                r[row["deck"]] = {}
-            r[row["deck"]][row["idx"]] = row
-        return r
-
-    def combine(self, effect_deck_dict, effect_dict):
-        r = {}
-        for item in effect_deck_dict.iteritems():
-            (deck, cards) = item
-            r[deck] = []
-            i = 0
-            while i < len(cards):
-                card = cards[i]
-                effect_name = card["effect"]
-                effect = effect_dict[effect_name]
-                r[deck].append(effect)
-        return r
-
     def do(self):
-        for effect in self.effects:
-            effect.do()
+        return [effect.do() for effect in self.effects]
 
 
 load_effect_qryfmt = (
@@ -180,7 +141,7 @@ def read_effect_decks(db, names):
 
 def unravel_effect_decks(db, efd):
     for deck in efd.itervalues():
-        deck.unravel()
+        deck.unravel(db)
     return efd
 
 
