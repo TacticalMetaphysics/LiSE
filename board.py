@@ -3,6 +3,7 @@ from menu import read_menus_in_boards
 from img import load_imgs
 from spot import read_spots_in_dimensions
 from pawn import read_pawns_in_dimensions
+from calendar import read_calendars_in_dimensions
 from dimension import read_dimensions
 
 
@@ -59,7 +60,6 @@ board later to get those pointers.
         self.width = width
         self.height = height
         self.wallpaper = wallpaper
-        self.board_menu = set()
         if db is not None:
             dimname = None
             if stringlike(self.dimension):
@@ -84,13 +84,13 @@ and menus herein.
         self.pawndict = db.pawndict[self.dimension.name]
         self.spotdict = db.spotdict[self.dimension.name]
         self.menudict = db.boardmenudict[self.dimension.name]
+        self.calendardict = db.calendardict[self.dimension.name]
         for pwn in self.pawndict.itervalues():
             pwn.unravel(db)
         for spt in self.spotdict.itervalues():
             spt.unravel(db)
         for mnu in self.menudict.itervalues():
             mnu.unravel(db)
-            self.board_menu.add((self.name, mnu.name))
 
     def __eq__(self, other):
         return (
@@ -141,6 +141,7 @@ list."""
     read_dimensions(db, names)
     read_menus_in_boards(db, names)
     read_pawns_in_dimensions(db, names)
+    read_calendars_in_dimensions(db, names)
     for pwns in db.pawndict.itervalues():
         for pwn in pwns.itervalues():
             imgs2load.add(pwn.img)

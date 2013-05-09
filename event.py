@@ -127,7 +127,7 @@ success that strains a person terribly and causes them injury.
 
 
 class EventDeck:
-    tablenames = ["event_deck", "event_deck_link"]
+    tablenames = ["event_deck_link"]
     coldecls = {
         "event_deck_link": {
             "deck": "text",

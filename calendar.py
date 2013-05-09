@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, stringlike
+from util import SaveableMetaclass, stringlike, dictify_row
 from pyglet.image import SolidColorImagePattern as color_pattern
 
 
@@ -54,6 +54,7 @@ cells.
 
     """
     __metaclass__ = SaveableMetaclass
+    tablenames = ["calendar_col"]
     coldecls = {"calendar_col":
                 {"dimension": "text",
                  "item": "text",
@@ -176,3 +177,22 @@ cells.
             self.rows_on_screen,
             self.scrolled_to,
             self.toggles)
+
+
+cal_dim_qryfmt = (
+    "SELECT {0} FROM calendar_col WHERE dimension IN ({1})".format(
+        ", ".join(CalendarCol.colns), "{0}"))
+
+
+def read_calendars_in_dimensions(db, names):
+    qryfmt = cal_dim_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
+    db.c.execute(qrystr, names)
+    r = {}
+    for name in names:
+        r[name] = {}
+    for row in db.c:
+        rowdict = dictify_row(row, CalendarCol.colns)
+        rowdict["db"] = db
+        r[rowdict["dimension"]][rowdict["item"]] = CalendarCol(**rowdict)
+    return r

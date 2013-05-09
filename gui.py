@@ -59,17 +59,18 @@ class GameWindow:
         self.window = window
         self.width = self.window.width
         self.height = self.window.height
-        self.resized = True
         self.batch = batch
         self.menus = self.board.menudict.values()
         self.spots = self.board.spotdict.values()
         self.pawns = self.board.pawndict.values()
         self.portals = self.board.dimension.portaldict.values()
         self.calendars = self.board.calendardict.values()
+        for cal in self.calendars:
+            cal.set_gw(self)
         self.drawn_board = None
         self.drawn_edges = None
         for menu in self.menus:
-            menu.window = self.window
+            menu.set_gw(self)
             if menu.main_for_window:
                 self.mainmenu = menu
             self.drawn_menus[menu.name] = None
@@ -176,8 +177,6 @@ class GameWindow:
                         group=self.pawngroup)
             # draw the menus, really just their backgrounds for the moment
             for menu in menus_todo:
-                if self.resized:
-                    menu.set_gw(self)
                 w = menu.width
                 h = menu.height
                 image = menu.inactive_pattern.create_image(w, h)
@@ -199,8 +198,6 @@ class GameWindow:
                     batch=self.batch, group=self.labelgroup)
             # draw the calendars
             for col in col_todo:
-                if self.resized:
-                    col.set_gw(self)
                 w = col.width
                 h = col.height
                 image = col.inactive_pattern.create_image(w, h)

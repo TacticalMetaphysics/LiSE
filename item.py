@@ -1,8 +1,6 @@
 from util import (
     SaveableMetaclass,
     dictify_row,
-    LocationException,
-    ContainmentException,
     stringlike)
 from event import (
     Event,
@@ -77,6 +75,7 @@ class Place(Item):
 
 
 class Thing(Item):
+    tablenames = ["thing"]
     coldecls = {
         "thing":
         {"dimension": "text",
@@ -252,6 +251,7 @@ class Journey:
     a Portal at a time, but Journey handles that case anyhow.
 
     """
+    tablenames = ["journey_step"]
     coldecls = {
         "journey_step": {
             "dimension": "text",
@@ -448,6 +448,7 @@ Journey.
 
 
 class Schedule:
+    tablenames = ["scheduled_event"]
     coldecls = {
         "scheduled_event":
         {"dimension": "text",
@@ -556,6 +557,7 @@ you want the container to follow.
 
 
 class Portal(Item):
+    tablenames = ["portal"]
     coldecls = {"portal":
                 {"dimension": "text",
                  "name": "text",
@@ -735,7 +737,7 @@ def load_schedules_in_dimensions(db, dimnames):
 journey_dimension_qryfmt = (
     "SELECT {0} FROM journey_step WHERE dimension IN "
     "({1})".format(
-        ", ".join(Thing.colnames["journey_step"]), "{0}"))
+        ", ".join(Journey.colnames["journey_step"]), "{0}"))
 
 
 def read_journeys_in_dimensions(db, dimnames):
