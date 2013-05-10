@@ -8,12 +8,14 @@ __metaclass__ = SaveableMetaclass
 
 
 class Img:
-    tablenames = ["img"]
-    coldecls = {"img":
-                {"name": "text",
-                 "path": "text",
-                 "rltile": "boolean"}}
-    primarykeys = {"img": ("name",)}
+    tables = [
+        ("img",
+         {"name": "text",
+          "path": "text",
+          "rltile": "boolean"},
+         ("name",),
+         {},
+         [])]
 
     def __init__(self, name, path, rltile, db=None):
         self.name = name

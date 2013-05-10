@@ -1,50 +1,17 @@
-class LocationException(Exception):
-    pass
-
-
-class ContainmentException(Exception):
-    pass
-
-
-class SenselessEventException(Exception):
-    pass
-
-
-class ImpossibleEventException(Exception):
-    pass
-
-
-class IrrelevantEventException(Exception):
-    pass
-
-
-class ImpracticalEventException(Exception):
-    pass
-
-
 class SaveableMetaclass(type):
     def __new__(metaclass, clas, parents, attrs):
-        if 'coldecls' not in attrs:
-            raise Exception("No coldecls in {0}".format(clas))
-        if 'primarykeys' not in attrs:
-            raise Exception("no primarykeys in {0}".format(clas))
-        coldecls = attrs['coldecls']
-        primarykeys = attrs['primarykeys']
-        tablenames = attrs['tablenames']
-
-        if 'foreignkeys' in attrs:
-            foreignkeys = attrs['foreignkeys']
-        else:
-            foreignkeys = {}
-
-        if 'checks' in attrs:
-            checks = attrs['checks']
-        else:
-            checks = {}
-        for d in foreignkeys, checks:
-            for tablename in tablenames:
-                if tablename not in d:
-                    d[tablename] = {}
+        tablenames = []
+        primarykeys = {}
+        foreignkeys = {}
+        coldecls = {}
+        checks = {}
+        for tabtup in attrs['tables']:
+            (name, decls, pkey, fkeys, cks) = tabtup
+            tablenames.append(name)
+            coldecls[name] = decls
+            primarykeys[name] = pkey
+            foreignkeys[name] = fkeys
+            checks[name] = cks
         schemata = []
         inserts = {}
         deletes = {}
@@ -134,6 +101,7 @@ class SaveableMetaclass(type):
                 qrylst.extend(extender)
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
+            return []
 
         def delete_keydicts_table(db, keydicts, tabname):
             keystr = keystrs[tabname]
@@ -143,6 +111,7 @@ class SaveableMetaclass(type):
                 qrylst.extend([keydict[col] for col in keynames[tabname]])
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
+            return []
 
         def detect_keydicts_table(db, keydicts, tabname):
             keystr = keystrs[tabname]
@@ -164,28 +133,55 @@ class SaveableMetaclass(type):
             db.c.execute(qrystr, qrytup)
             return db.c.fetchall()
 
-        def insert_tabdict(db, tabdict):
+        def op_tabdict(db, tabdict, op):
+            r = []
             for item in tabdict.iteritems():
-                (tabn, rd) = item
-                if isinstance(rd, list):
-                    insert_rowdicts_table(db, rd, tabn)
-                else:
-                    insert_rowdicts_table(db, [rd], tabn)
+                (table, rowdicts) = item
+                if not isinstance(rowdicts, list):
+                    rowdicts = [rowdicts]
+                r.extend(op(db, rowdicts, table))
+            return r
+
+        def insert_tabdict(db, tabdict):
+            op_tabdict(db, tabdict, insert_rowdicts_table)
 
         def delete_tabdict(db, tabdict):
-            for item in tabdict.iteritems():
-                (tabn, rd) = item
-                delete_keydicts_table(db, rd, tabn)
+            op_tabdict(db, tabdict, delete_keydicts_table)
 
         def detect_tabdict(db, tabdict):
-            for item in tabdict.iteritems():
-                (tabn, rd) = item
-                return detect_keydicts_table(db, rd, tabn)
+            return op_tabdict(db, tabdict, detect_keydicts_table)
 
         def missing_tabdict(db, tabdict):
-            for item in tabdict.iteritems():
-                (tabn, rd) = item
-                return missing_keydicts_table(db, rd, tabn)
+            return op_tabdict(db, tabdict, missing_keydicts_table)
+
+        def mkrow(self, tabname, rowdict=None):
+            if rowdict is None:
+                rowdict = self.mkrowdict(tabname)
+            r = []
+            for coln in self.colnames[tabname]:
+                r.append(rowdict[coln])
+            return tuple(r)
+
+        def mkrowdict(self, tabname):
+            # Invariant: For the named table, I have attributes named
+            # and typed the same way as the columns. Where this does
+            # not hold, I should instead have an attribute named for
+            # the *table*, which contains tuples representing rows of
+            # that table.
+            if hasattr(self, tabname):
+                return [
+                    dictify_row(r, self.colnames[tabname])
+                    for r in iter(getattr(self, tabname))]
+            r = {}
+            for colname in self.colnames[tabname]:
+                r[colname] = getattr(self, colname)
+            return r
+
+        def mktabdict(self):
+            r = {}
+            for tabname in self.coldecls.iterkeys():
+                r[tabname] = self.mkrowdict(tabname)
+            return r
 
         def unravel(self, db):
             pass
@@ -194,8 +190,7 @@ class SaveableMetaclass(type):
                 'delete': delete_tabdict,
                 'detect': detect_tabdict,
                 'missing': missing_tabdict}
-        atrdic = {'coldecls': coldecls,
-                  'colnames': colnames,
+        atrdic = {'colnames': colnames,
                   'colnamestr': colnamestr,
                   'colnstr': colnamestr[tablenames[0]],
                   'keynames': keynames,
@@ -203,9 +198,6 @@ class SaveableMetaclass(type):
                   'keyns': keynames[tablenames[0]],
                   'valns': valnames[tablenames[0]],
                   'colns': colnames[tablenames[0]],
-                  'primarykeys': primarykeys,
-                  'foreignkeys': foreignkeys,
-                  'checks': checks,
                   'schemata': schemata,
                   'keylen': keylen,
                   'rowlen': rowlen,
@@ -213,6 +205,9 @@ class SaveableMetaclass(type):
                   'rowqms': rowqms,
                   'dbop': dbop,
                   'unravel': unravel,
+                  'mkrow': mkrow,
+                  'mkrowdict': mkrowdict,
+                  'mktabdict': mktabdict,
                   'maintab': tablenames[0]}
         atrdic.update(attrs)
 

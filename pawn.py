@@ -20,17 +20,18 @@ class Pawn:
     nebulous dimension between Places.
 
     """
-    tablenames = ["pawn"]
-    coldecls = {"pawn":
-                {"dimension": "text",
-                 "thing": "text",
-                 "img": "text",
-                 "visible": "boolean",
-                 "interactive": "boolean"}}
-    primarykeys = {"pawn": ("dimension", "thing")}
-    fkeydict = {"pawn":
-                {"img": ("img", "name"),
-                 "dimension, thing": ("thing", "dimension, name")}}
+
+    tables = [
+        ("pawn",
+         {"dimension": "text",
+          "thing": "text",
+          "img": "text",
+          "visible": "boolean",
+          "interactive": "boolean"},
+         ("dimension", "thing"),
+         {"img": ("img", "name"),
+          "dimension, thing": ("thing", "dimension, name")},
+         [])]
 
     def __init__(self, dimension, thing, img, visible, interactive, db=None):
         self.dimension = dimension

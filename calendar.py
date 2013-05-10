@@ -54,24 +54,24 @@ cells.
 
     """
     __metaclass__ = SaveableMetaclass
-    tablenames = ["calendar_col"]
-    coldecls = {"calendar_col":
-                {"dimension": "text",
-                 "item": "text",
-                 "visible": "boolean",
-                 "interactive": "boolean",
-                 "rows_on_screen": "integer",
-                 "scrolled_to": "integer",
-                 "left": "float",
-                 "top": "float",
-                 "bot": "float",
-                 "right": "float",
-                 "style": "text"}}
-    primarykeys = {"calendar_col": ("dimension", "item")}
-    foreignkeys = {"calendar_col":
-                   {"dimension, item": ("item", "dimension, name"),
-                    "style": ("style", "name")}}
-    checks = {"calendar_col": ["rows_on_screen>0", "scrolled_to>=0"]}
+    tables = [
+        ("calendar_col",
+         {"dimension": "text",
+          "item": "text",
+          "visible": "boolean",
+          "interactive": "boolean",
+          "rows_on_screen": "integer",
+          "scrolled_to": "integer",
+          "left": "float",
+          "top": "float",
+          "bot": "float",
+          "right": "float",
+          "style": "text"},
+         ("dimension", "item"),
+         {"dimension, item": ("item", "dimension, name"),
+          "style": ("style", "name")},
+         ["rows_on_screen>0", "scrolled_to>=0"]
+         )]
 
     def __init__(self, dimension, item, visible, interactive,
                  rows_on_screen, scrolled_to,

@@ -42,29 +42,28 @@ key is composed of the dimension an item of this character is in, the
 item's name, and the name of the attribute.
 
 """
-    tablenames = ["character_item_link", "character_skill_link", "attribution"]
-    coldecls = {
-        "character_item_link":
-        {"character": "text",
-         "dimension": "text",
-         "item": "text"},
-        "character_skill_link":
-        {"character": "text",
-         "skill": "text",
-         "effect_deck": "text"},
-        "attribution":
-        {"character": "text",
-         "attribute": "text",
-         "value": "text"}}
-    primarykeys = {
-        "character_item_link": ("character", "dimension", "item"),
-        "character_skill_link": ("character", "skill"),
-        "attribution": ("character", "attribute")}
-    foreignkeys = {
-        "character_item_link":
-        {"dimension, item": ("item", "dimension, name")},
-        "character_skill_link":
-        {"effect_deck": ("effect_deck", "name")}}
+    tables = [
+        ("character_item_link",
+         {"character": "text",
+          "dimension": "text",
+          "item": "text"},
+         ("character", "dimension", "item"),
+         {"dimension, item": ("item", "dimension, name")},
+         []),
+        ("character_skill_link",
+         {"character": "text",
+          "skill": "text",
+          "effect_deck": "text"},
+         ("character", "skill"),
+         {"effect_deck": ("effect_deck", "name")},
+         []),
+        ("attribution",
+         {"character": "text",
+          "attribute": "text",
+          "value": "text"},
+         ("character", "attribute"),
+         [],
+         [])]
 
     def __init__(self, name, db=None):
         self.name = name

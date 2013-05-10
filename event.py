@@ -42,21 +42,18 @@ outcome occurs. This may be used, for instance, to model that kind of
 success that strains a person terribly and causes them injury.
 
     """
-    tablenames = ["event"]
-    coldecls = {
-        "event":
-        {"name": "text",
-         "ongoing": "boolean",
-         "commence_effects": "text",
-         "proceed_effects": "text",
-         "conclude_effects": "text"}}
-    primarykeys = {
-        "event": ("name",)}
-    foreignkeys = {
-        "event":
-        {"commence_effects": ("effect_deck", "name"),
-         "proceed_effects": ("effect_deck", "name"),
-         "conclude_effects": ("effect_deck", "name")}}
+    tables = [
+        ("event",
+         {"name": "text",
+          "ongoing": "boolean",
+          "commence_effects": "text",
+          "proceed_effects": "text",
+          "conclude_effects": "text"},
+         ("name",),
+         {"commence_effects": ("effect_deck", "name"),
+          "proceed_effects": ("effect_deck", "name"),
+          "conclude_effects": ("effect_deck", "name")},
+         [])]
 
     def __init__(self, name, ongoing, commence_effects,
                  proceed_effects, conclude_effects, db=None):
@@ -127,17 +124,14 @@ success that strains a person terribly and causes them injury.
 
 
 class EventDeck:
-    tablenames = ["event_deck_link"]
-    coldecls = {
-        "event_deck_link": {
-            "deck": "text",
-            "idx": "integer",
-            "event": "text"}}
-    primarykeys = {
-        "event_deck_link": ("deck", "idx")}
-    foreignkeys = {
-        "event_deck_link": {
-            "event": ("event", "name")}}
+    tables = [
+        ("event_deck_link",
+         {"deck": "text",
+          "idx": "integer",
+          "event": "text"},
+         ("deck", "idx"),
+         {"event": ("event", "name")},
+         [])]
 
     def __init__(self, name, event_list, db=None):
         self.name = name
