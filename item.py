@@ -8,7 +8,8 @@ from event import (
     ImpossibleEvent,
     IrrelevantEvent,
     ImpracticalEvent)
-from effect import Effect
+from effect import Effect, EffectDeck
+import re
 
 
 __metaclass__ = SaveableMetaclass
@@ -83,7 +84,8 @@ class Thing(Item):
          "location": "text not null",
          "container": "text default null",
          "portal": "text default null",
-         "progress": "float default 0.0",
+         "journey_step": "integer default 0",
+         "journey_progress": "float default 0.0",
          "age": "integer default 0"}}
     primarykeys = {
         "thing": ("dimension", "name")}
@@ -92,13 +94,15 @@ class Thing(Item):
         {"dimension, container": ("thing", "dimension, name")}}
 
     def __init__(self, dimension, name, location, container,
-                 portal=None, progress=0.0, age=0, schedule=None, db=None):
+                 portal=None, journey_step=0, progress=0.0, age=0,
+                 schedule=None, db=None):
         self.dimension = dimension
         self.name = name
         self.location = location
         self.container = container
         self.portal = portal
-        self.progress = progress
+        self.journey_step = journey_step
+        self.journey_progress = progress
         self.age = age
         self.schedule = schedule
         self.contents = set()
@@ -127,10 +131,15 @@ class Thing(Item):
             self.portal = db.itemdict[self.dimension.name][self.portal]
         if stringlike(self.schedule):
             self.schedule = db.scheduledict[self.dimension.name][self.name]
+            self.schedule.unravel(db)
         if (
                 self.dimension.name in db.journeydict and
                 self.name in db.journeydict[self.dimension.name]):
             self.journey = db.journeydict[self.dimension.name][self.name]
+            self.journey.unravel(db)
+            if self.schedule is None:
+                self.schedule = self.journey.schedule()
+                self.schedule.unravel(db)
         if self.container is not None:
             self.container.add(self)
         self.location.add(self)
@@ -280,15 +289,17 @@ class Journey:
                 thingname = self.thing
             else:
                 thingname = self.thing.name
+            if dimname not in db.journeydict:
+                db.journeydict[dimname] = {}
             db.journeydict[dimname][thingname] = self
 
     def unravel(self, db):
-        if isinstance(self.dimension, str):
+        if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
-        if isinstance(self.thing, str):
+        if stringlike(self.thing):
             self.thing = db.itemdict[self.dimension.name][self.thing]
         for step in self.steps:
-            if isinstance(step, str):
+            if stringlike(step):
                 step = db.itemdict[self.dimension.name][step]
 
     def steps(self):
@@ -300,18 +311,16 @@ class Journey:
         through or ever will on this Journey.
 
         """
-        return len(self.steplist)
+        return len(self.steps)
 
     def stepsleft(self):
         """Get the number of steps remaining until the end of the Journey.
-
-        stepsleft() => int
 
         Returns the number of Portals left to be travelled through,
         including the one the traveller is in right now.
 
         """
-        return len(self.steplist) - self.curstep
+        return len(self.steps) - self.thing.curstep
 
     def getstep(self, i):
         """Get the ith next Portal in the journey.
@@ -326,7 +335,7 @@ class Journey:
         If i is out of range, returns None.
 
         """
-        return self.steplist[i+self.curstep]
+        return self.steps[i+self.curstep]
 
     def speed_at_step(self, i):
         """Get the thing's speed at step i.
@@ -373,7 +382,7 @@ method of the thing that operates on the portal.
             self.steplist.append(None)
         self.steplist[idx] = port
 
-    def gen_event(self, step, db):
+    def gen_event(self, step, db=None):
         """Make an Event representing every tick of travel through the given
 portal.
 
@@ -384,44 +393,70 @@ The Event will not have a start or a length.
         # just because a thing is scheduled to travel doesn't mean it
         # always will--which makes it convenient to have
         # events to resolve all the steps, ne?
-        commence_arg = step.name
+        if stringlike(step):
+            commence_arg = step
+            proceed_arg = step
+            conclude_arg = re.match(
+                "portal\[.*?->(.*?)\]", step).groups()[0]
+        elif isinstance(step, dict):
+            commence_arg = step["portal"]
+            proceed_arg = step["portal"]
+            conclude_arg = re.match(
+                "portal\[.*?->(.*?)\]", step["portal"]).groups()[0]
+        else:
+            commence_arg = step.name
+            proceed_arg = step.name
+            conclude_arg = step.dest.name
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        elif isinstance(self.dimension, dict):
+            dimname = self.dimension["name"]
+        else:
+            dimname = self.dimension.name
+        if stringlike(self.thing):
+            thingname = self.thing
+        elif isinstance(self.thing, dict):
+            thingname = self.thing["name"]
+        else:
+            thingname = self.thing.name
         commence_s = "{0}.{1}.enter({2})".format(
-            self.dimension.name, self.thing.name, commence_arg)
+            dimname, thingname, commence_arg)
         effd = {
             "name": commence_s,
-            "func": "%s.%s.enter" % (self.dimension.name, self.thing.name),
+            "func": "%s.%s.enter" % (dimname, thingname),
             "arg": commence_arg,
             "dict_hint": "dimension.thing",
             "db": db}
         commence = Effect(**effd)
-        proceed_arg = step.name
+        commence_deck = EffectDeck(commence_s, [commence], db)
         proceed_s = "%s.%s.remain(%s)" % (
-            self.dimension.name, self.thing.name, proceed_arg)
+            dimname, thingname, proceed_arg)
         effd = {
             "name": proceed_s,
-            "func": "%s.%s.remain" % (self.dimension.name, self.thing.name),
+            "func": "%s.%s.remain" % (dimname, thingname),
             "arg": proceed_arg,
             "dict_hint": "dimension.thing",
             "db": db}
         proceed = Effect(**effd)
-        conclude_arg = step.dest.name
+        proceed_deck = EffectDeck(proceed_s, [proceed], db)
         conclude_s = "%s.%s.enter(%s)" % (
-            self.dimension.name, self.thing.name, conclude_arg)
+            dimname, thingname, conclude_arg)
         effd = {
             "name": conclude_s,
-            "func": "%s.%s.enter" % (self.dimension.name, self.thing.name),
+            "func": "%s.%s.enter" % (dimname, thingname),
             "arg": conclude_arg,
             "dict_hint": "dimension.thing",
             "db": db}
         conclude = Effect(**effd)
+        conclude_deck = EffectDeck(conclude_s, [conclude], db)
         event_name = "%s:%s-thru-%s" % (
-            self.dimension.name, self.thing.name, step.name),
+            dimname, thingname, commence_arg),
         event_d = {
             "name": event_name,
             "ongoing": False,
-            "commence_effect": commence,
-            "proceed_effect": proceed,
-            "conclude_effect": conclude,
+            "commence_effects": commence_deck,
+            "proceed_effects": proceed_deck,
+            "conclude_effects": conclude_deck,
             "db": db}
         event = Event(**event_d)
         return event
@@ -434,16 +469,13 @@ Journey.
 
         """
         stepevents = []
-        for step in self.steplist:
+        for step in self.steps:
             ev = self.gen_event(step)
             ev.start = start
-            start += ev.length
-        tabdict = {
-            "schedule": {
-                "name": self.__name__ + ".schedule",
-                "age": 0},
-            "scheduled_event": stepevents}
-        s = Schedule(tabdict)
+            ev.length = self.thing.speed_thru(step)
+        s = Schedule(self.dimension, self.thing)
+        for ev in stepevents:
+            s.add(ev)
         return s
 
 
@@ -497,8 +529,8 @@ class Schedule:
         starts = []
         ends = []
         for i in xrange(prior_age, new_age):
-            startevs = iter(self.starting_events[i])
-            endevs = iter(self.ending_events[i])
+            startevs = iter(self.events_starting[i])
+            endevs = iter(self.events_ending[i])
             starts.extend(startevs)
             ends.extend(endevs)
         for ev in starts:
@@ -546,11 +578,11 @@ you want the container to follow.
         r = set()
         for i in xrange(start, end):
             try:
-                r.add(self.starting_events[i])
+                r.add(self.events_starting[i])
             except KeyError:
                 pass
             try:
-                r.add(self.ending_events[i])
+                r.add(self.events_ending[i])
             except KeyError:
                 pass
         return r
@@ -748,15 +780,15 @@ def read_journeys_in_dimensions(db, dimnames):
     for name in dimnames:
         r[name] = {}
     for row in db.c:
-        rowdict = dictify_row(row, Thing.colnames["journey_step"])
+        rowdict = dictify_row(row, Journey.colnames["journey_step"])
         if rowdict["thing"] not in r[rowdict["dimension"]]:
-            r[rowdict["thing"]][rowdict["dimension"]] = {
+            r[rowdict["dimension"]][rowdict["thing"]] = {
                 "db": db,
                 "dimension": rowdict["dimension"],
                 "thing": rowdict["thing"],
                 "steps": []}
         stepl = r[rowdict["dimension"]][rowdict["thing"]]["steps"]
-        while len(stepl) < rowdict["idx"]:
+        while len(stepl) <= rowdict["idx"]:
             stepl.append(None)
         stepl[rowdict["idx"]] = rowdict["portal"]
     for item in r.iteritems():

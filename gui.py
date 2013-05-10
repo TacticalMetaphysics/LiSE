@@ -69,16 +69,6 @@ class GameWindow:
             cal.set_gw(self)
         self.drawn_board = None
         self.drawn_edges = None
-        for menu in self.menus:
-            menu.set_gw(self)
-            if menu.main_for_window:
-                self.mainmenu = menu
-            self.drawn_menus[menu.name] = None
-            self.drawn_mis[menu.name] = [None] * len(menu.items)
-        for spot in self.spots:
-            self.drawn_spots[spot.place.name] = None
-        for pawn in self.pawns:
-            self.drawn_pawns[pawn.thing.name] = None
 
         self.onscreen = set()
 

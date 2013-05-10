@@ -91,6 +91,8 @@ and menus herein.
             spt.unravel(db)
         for mnu in self.menudict.itervalues():
             mnu.unravel(db)
+        for cal in self.calendardict.itervalues():
+            cal.unravel(db)
 
     def __eq__(self, other):
         return (

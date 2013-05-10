@@ -273,7 +273,7 @@ sync."""
             inslst = [obj.key + obj.val for obj in objs]
             insertions_by_table[table] = inslst
         newl = [
-            (item[0], list(item[1])) for item in unknownobjs.iteritems]
+            (item[0], list(item[1])) for item in unknownobjs.iteritems()]
         for pair in newl:
             (table, objs) = pair
             inslst = [obj.key + obj.val for obj in objs]

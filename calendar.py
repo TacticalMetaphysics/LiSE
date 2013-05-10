@@ -25,8 +25,8 @@ is happening.
         self.end = end
         self.empty = empty
         self.text = text
-        self.pattern_inactive = color_pattern(calendar.style.bg_inactive)
-        self.pattern_active = color_pattern(calendar.style.bg_active)
+        self.pattern_inactive = color_pattern(calendar.style.bg_inactive.tup)
+        self.pattern_active = color_pattern(calendar.style.bg_active.tup)
 
     def unravel(self, db):
         if stringlike(self.calendar):
@@ -122,7 +122,9 @@ cells.
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         self.active_pattern = color_pattern(self.style.bg_active.tup)
         if not hasattr(self, 'schedule'):
-            self.schedule = db.scheduledict[dn][self.item]
+            self.schedule = self.item.schedule
+        else:
+            assert(self.item.schedule == self.schedule)
 
     def set_gw(self, gw):
         self.top_abs = self.top * gw.height
@@ -140,7 +142,10 @@ cells.
         calend = calstart + self.rows_on_screen
         evl = sorted(list(self.schedule.timeframe(calstart, calend)))
         if evl == []:
-            self.fill_empty()
+            self.cells = [
+                CalendarCell(self, i, i+1, True)
+                for i in xrange(self.scrolled_to, self.rows_on_screen - 1)]
+            return
         celll = [
             CalendarCell(
                 self, ev.start, ev.end, False, ev.display_str())

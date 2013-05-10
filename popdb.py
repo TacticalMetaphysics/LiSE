@@ -2,7 +2,7 @@ from menu import Menu, MenuItem
 from style import Color, Style
 from dimension import Dimension
 from item import Item, Thing, Place, Portal, Schedule, Journey
-from calendar import Calendar
+from calendar import CalendarCol
 from img import Img
 from pawn import Pawn
 from spot import Spot
@@ -107,12 +107,20 @@ styletups = [
      'solarized-base1',
      'solarized-base01')]
 
-styles = [dictify_row(style, Style.colns) for style in styletups]
+styles = [
+    {'name': style[0],
+     'fontface': style[1],
+     'fontsize': style[2],
+     'spacing': style[3],
+     'bg_inactive': style[4],
+     'bg_active': style[5],
+     'fg_inactive': style[6],
+     'fg_active': style[7]}
+    for style in styletups]
 parms.styles = styles
 
 rpos = [('myroom', 'guestroom'),
         ('myroom', 'mybathroom'),
-        ('myroom', 'outside'),
         ('myroom', 'diningoffice'),
         ('myroom', 'livingroom'),
         ('guestroom', 'diningoffice'),
@@ -127,7 +135,8 @@ rpos = [('myroom', 'guestroom'),
 
 nrpos = [('guestroom', 'outside'),
          ('diningoffice', 'outside'),
-         ('momsroom', 'outside')]
+         ('momsroom', 'outside'),
+         ('myroom', 'outside')]
 
 
 def mkportald(o, d):
@@ -165,7 +174,7 @@ ths = [('me', 'myroom'),
        ('mom', 'momsroom')]
 
 
-thss = [(dimname, th[0], th[1], None, None, 0.0, 0) for th in ths]
+thss = [(dimname, th[0], 0, None, th[1], None, 0.0) for th in ths]
 
 
 things = [dictify_row(th, Thing.colns) for th in thss]
@@ -192,41 +201,53 @@ def portnamer(f, t):
     return "portal[{0}->{1}]".format(f, t)
 
 
-def emport(l, dim, it):
+def journeystepd(dim, th, idx, pn):
+    return {
+        "dimension": dim,
+        "thing": th,
+        "idx": idx,
+        "portal": pn}
+
+
+def portlist2journey(dim, th, pl):
     r = []
-    prev = l.pop()
     i = 0
-    while l != []:
-        nxt = l.pop()
-        r.append({
-            "dimension": dim,
-            "thing": it,
-            "idx": i,
-            "portal": portnamer(prev, nxt)})
-        prev = nxt
+    for port in pl:
+        r.append(journeystepd(dim, th, i, port))
         i += 1
     return r
 
 
-moms_journey_outside = emport(
-    ['momsroom', 'longhall', 'livingroom', 'diningoffice', 'outside'],
-    dimname,
-    'mom')
-my_journey_to_kitchen = emport(
-    ['myroom', 'diningoffice', 'kitchen'],
-    dimname,
-    'me')
+def fmtports(pl):
+    return ['portal[{0}->{1}]'.format(*pair) for pair in pl]
 
 
-steps = [dictify_row(row, Journey.colns) for row in
-         my_journey_to_kitchen + moms_journey_outside]
+def mkjourney(dim, th, pl):
+    return portlist2journey(dim, th, fmtports(pl))
+
+
+moms_journey_outside = mkjourney(
+    dimname, 'mom',
+    [('momsroom', 'longhall'),
+     ('longhall', 'livingroom'),
+     ('livingroom', 'diningoffice'),
+     ('diningoffice', 'outside')])
+my_journey_to_kitchen = mkjourney(
+    dimname, 'me',
+    [('myroom', 'diningoffice'),
+     ('diningoffice', 'kitchen')])
+
+steps = my_journey_to_kitchen + moms_journey_outside
 parms.steps = steps
 
 
 journeys = [
-    Journey(dimname, 'mom', moms_journey_outside),
-    Journey(dimname, 'me', my_journey_to_kitchen)]
-schedules = [j.schedule() for j in journeys]
+    (dimname, 'mom', moms_journey_outside),
+    (dimname, 'me', my_journey_to_kitchen)]
+parms.journeys = journeys
+
+
+schedules = []
 parms.schedules = schedules
 
 
@@ -256,7 +277,13 @@ parms.spots = spots
 pawntups = [
     (dimname, 'me', 'troll_m'),
     (dimname, 'mom', 'zruty')]
-pawns = [dictify_row(row, Pawn.colns) for row in pawntups]
+pawns = [
+    {'dimension': row[0],
+     'thing': row[1],
+     'img': row[2],
+     'visible': True,
+     'interactive': False}
+    for row in pawntups]
 parms.pawns = pawns
 
 
@@ -327,7 +354,13 @@ caltups = [
         'Small')]
 
 
-calendars = [dictify_row(row, Calendar.colns) for row in caltups]
+calendars = [
+    dict(
+        zip(
+            ("dimension", "item", "visible", "interactive",
+             "rows_on_screen", "scrolled_to", "left", "top",
+             "bot", "right", "style"), row))
+    for row in caltups]
 parms.calendars = calendars
 
 
@@ -382,14 +415,23 @@ def populate_items(db, things, places, portals):
     Portal.dbop['insert'](db, portal_td)
 
 
-def populate_calendars(db, calendars):
-    caltd = {"calendar": calendars}
-    Calendar.dbop['insert'](db, caltd)
-
-
-def populate_journeys(db, steps):
+def populate_journey_steps(db, steps):
     jtd = {"journey_step": steps}
     Journey.dbop['insert'](db, jtd)
+
+
+def populate_schedules(db, scheds):
+    if scheds != []:
+        schedtd = {"schedule": scheds}
+        Schedule.dbop['insert'](db, schedtd)
+    for item in db.journeydict.iteritems():
+        (dimname, itdict) = item
+        for item in itdict.iteritems():
+            (itname, j) = item
+            s = j.schedule()
+            if dimname not in db.scheduledict:
+                db.scheduledict[dimname] = {}
+            db.scheduledict[dimname][itname] = s
 
 
 def populate_effects(db, effects, decks):
@@ -399,38 +441,32 @@ def populate_effects(db, effects, decks):
     EffectDeck.dbop['insert'](db, decktd)
 
 
-def populate_gfx(db, imgs, pawns, spots, boards):
+def populate_gfx(db, imgs, pawns, spots, boards, board_menus, calendars):
     img_td = {'img': imgs}
     pawn_td = {'pawn': pawns}
     spot_td = {'spot': spots}
-    board_td = {'board': boards}
+    board_td = {'board': boards,
+                'board_menu': board_menus}
+    cal_td = {'calendar_col': calendars}
     Img.dbop['insert'](db, img_td)
     Pawn.dbop['insert'](db, pawn_td)
     Spot.dbop['insert'](db, spot_td)
     Board.dbop['insert'](db, board_td)
-
-
-def boardmenu(db, board_menu_pairs):
-    qryfmt = "INSERT INTO board_menu VALUES {0}"
-    qms = ["(?, ?)"] * len(board_menu_pairs)
-    qrystr = qryfmt.format(", ".join(qms))
-    qrylst = []
-    for pair in board_menu_pairs:
-        qrylst.extend(pair)
-    db.c.execute(qrystr, qrylst)
+    CalendarCol.dbop['insert'](db, cal_td)
 
 
 def populate_database(db, data):
     populate_menus(db, data.menus, data.menu_items)
     populate_styles(db, data.colors, data.styles)
     populate_items(db, data.things, data.places, data.portals)
-    populate_calendars(db, data.calendars)
     populate_effects(db, data.effects, data.effect_decks)
-    populate_gfx(db, data.imgs, data.pawns, data.spots, data.boards)
-    boardmenu(db, data.board_menu)
+    populate_journey_steps(db, data.steps)
+    populate_schedules(db, data.schedules)
+    populate_gfx(db, data.imgs, data.pawns, data.spots, data.boards,
+                 data.board_menu, data.calendars)
 
 
 db = Database(TARGET_DB_FILE)
 populate_database(db, parms)
-db.__del__()
-del db
+db.c.close()
+db.conn.commit()

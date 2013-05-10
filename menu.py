@@ -213,9 +213,11 @@ class Menu:
                  main_for_window, visible, db=None, board=None):
         self.name = name
         self.left = left
-        self.bottom = bottom
+        self.bot = bottom
         self.top = top
         self.right = right
+        self.width = self.right - self.left
+        self.height = self.top - self.bot
         self.style = style
         self.main_for_window = main_for_window
         self.visible = visible
@@ -306,7 +308,7 @@ class Menu:
         return (
             self,
             self.left,
-            self.bottom,
+            self.bot,
             self.top,
             self.right,
             self.style,

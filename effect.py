@@ -21,10 +21,11 @@ class Effect:
     primarykeys = {
         "effect": ("name",)}
 
-    def __init__(self, name, func, arg, db):
+    def __init__(self, name, func, arg, dict_hint=None, db=None):
         self.name = name
         self.func = func
         self.arg = arg
+        self.dict_hint = dict_hint
         if db is not None:
             db.effectdict[name] = self
 
