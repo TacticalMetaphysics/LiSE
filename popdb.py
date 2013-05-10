@@ -100,5 +100,5 @@ def populate_database(db, data):
 
 db = Database(TARGET_DB_FILE)
 populate_database(db, parms)
-db.__del__()
-del db
+db.c.close()
+db.conn.commit()

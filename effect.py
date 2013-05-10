@@ -12,14 +12,14 @@ class Effect:
     table, which does in fact use these to describe effects.
 
     """
-    tablenames = ["effect"]
-    coldecls = {
-        "effect":
-        {"name": "text",
-         "func": "text",
-         "arg": "text"}}
-    primarykeys = {
-        "effect": ("name",)}
+    tables = [
+        ("effect",
+         {"name": "text",
+          "func": "text",
+          "arg": "text"},
+         ("name",),
+         {},
+         [])]
 
     def __init__(self, name, func, arg, db):
         self.name = name
@@ -37,17 +37,14 @@ class Effect:
 
 
 class EffectDeck:
-    tablenames = ["effect_deck_link"]
-    coldecls = {
-        "effect_deck_link":
-        {"deck": "text",
-         "idx": "integer",
-         "effect": "text"}}
-    primarykeys = {
-        "effect_deck_link": ("deck", "idx")}
-    foreignkeys = {
-        "effect_deck_link":
-        {"effect": ("effect", "name")}}
+    tables = [
+        ("effect_deck_link",
+         {"deck": "text",
+          "idx": "integer",
+          "effect": "text"},
+         ("deck", "idx"),
+         {"effect": ("effect", "name")},
+         [])]
 
     def __init__(self, name, effects, db=None):
         self.name = name

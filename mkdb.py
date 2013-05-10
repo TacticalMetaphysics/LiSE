@@ -1,8 +1,6 @@
 import database
 from dimension import Dimension
-from schedule import Schedule
-from item import Item, Thing, Place, Portal
-from journey import Journey
+from item import Item, Thing, Place, Portal, Journey, Schedule
 from effect import Effect, EffectDeck
 from event import Event, EventDeck
 from style import Color, Style

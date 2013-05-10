@@ -23,21 +23,23 @@ class ContainmentException(Exception):
 
 
 class Item:
-    tablenames = ["item"]
-    coldecls = {
-        "item":
-        {"dimension": "text",
-         "name": "text"}}
-    primarykeys = {
-        "item": ("dimension", "name")}
+    tables = [
+        ("item",
+         {"dimension": "text",
+          "name": "text"},
+         ("dimension", "name"),
+         {},
+         [])]
 
 
 class Place(Item):
-    tablenames = ["place"]
-    coldecls = {"place":
-                {"dimension": "text",
-                 "name": "text"}}
-    primarykeys = {"place": ("dimension", "name")}
+    tables = [
+        ("place",
+         {"dimension": "text",
+          "name": "text"},
+         ("dimension", "name"),
+         {},
+         [])]
 
     def __init__(self, dimension, name, db):
         self.dimension = dimension
@@ -75,21 +77,18 @@ class Place(Item):
 
 
 class Thing(Item):
-    tablenames = ["thing"]
-    coldecls = {
-        "thing":
-        {"dimension": "text",
-         "name": "text",
-         "location": "text not null",
-         "container": "text default null",
-         "portal": "text default null",
-         "progress": "float default 0.0",
-         "age": "integer default 0"}}
-    primarykeys = {
-        "thing": ("dimension", "name")}
-    foreignkeys = {
-        "thing":
-        {"dimension, container": ("thing", "dimension, name")}}
+    tables = [
+        ("thing",
+         {"dimension": "text",
+          "name": "text",
+          "location": "text not null",
+          "container": "text default null",
+          "portal": "text default null",
+          "progress": "float default 0.0",
+          "age": "integer default 0"},
+         ("dimension", "name"),
+         {"dimension, container": ("thing", "dimension, name")},
+         [])]
 
     def __init__(self, dimension, name, location, container,
                  portal=None, progress=0.0, age=0, schedule=None, db=None):
@@ -251,19 +250,16 @@ class Journey:
     a Portal at a time, but Journey handles that case anyhow.
 
     """
-    tablenames = ["journey_step"]
-    coldecls = {
-        "journey_step": {
-            "dimension": "text",
-            "thing": "text",
-            "idx": "integer",
-            "portal": "text"}}
-    primarykeys = {
-        "journey_step": ("dimension", "thing", "idx")}
-    foreignkeys = {
-        "journey_step": {
-            "dimension, thing": ("thing", "dimension, name"),
-            "dimension, portal": ("portal", "dimension, name")}}
+    tables = [
+        ("journey_step",
+         {"dimension": "text",
+          "thing": "text",
+          "idx": "integer",
+          "portal": "text"},
+         ("dimension", "thing", "idx"),
+         {"dimension, thing": ("thing", "dimension, name"),
+          "dimension, portal": ("portal", "dimension, name")},
+         [])]
 
     def __init__(self, dimension, thing, steps, db=None):
         self.dimension = dimension
@@ -448,20 +444,17 @@ Journey.
 
 
 class Schedule:
-    tablenames = ["scheduled_event"]
-    coldecls = {
-        "scheduled_event":
-        {"dimension": "text",
-         "item": "text",
-         "start": "integer",
-         "event": "text not null",
-         "length": "integer"}}
-    primarykeys = {
-        "scheduled_event": ("dimension", "item")}
-    foreignkeys = {
-        "scheduled_event": {
-            "dimension, item": ("item", "dimension, name"),
-            "event": ("event", "name")}}
+    tables = [
+        ("scheduled_event",
+         {"dimension": "text",
+          "item": "text",
+          "start": "integer",
+          "event": "text not null",
+          "length": "integer"},
+         ("dimension", "item"),
+         {"dimension, item": ("item", "dimension, name"),
+          "event": ("event", "name")},
+         [])]
 
     def __init__(self, dimension, item, db=None):
         self.dimension = dimension
@@ -557,17 +550,17 @@ you want the container to follow.
 
 
 class Portal(Item):
-    tablenames = ["portal"]
-    coldecls = {"portal":
-                {"dimension": "text",
-                 "name": "text",
-                 "from_place": "text",
-                 "to_place": "text"}}
-    primarykeys = {"portal": ("dimension", "name")}
-    foreignkeys = {"portal":
-                   {"dimension, name": ("item", "dimension, name"),
-                    "dimension, from_place": ("place", "dimension, name"),
-                    "dimension, to_place": ("place", "dimension, name")}}
+    tables = [
+        ("portal",
+         {"dimension": "text",
+          "name": "text",
+          "from_place": "text",
+          "to_place": "text"},
+         ("dimension", "name"),
+         {"dimension, name": ("item", "dimension, name"),
+          "dimension, from_place": ("place", "dimension, name"),
+          "dimension, to_place": ("place", "dimension, name")},
+         [])]
 
     def __init__(self, dimension, name, from_place, to_place, db=None):
         self.dimension = dimension

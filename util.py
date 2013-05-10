@@ -1,30 +1,17 @@
 class SaveableMetaclass(type):
     def __new__(metaclass, clas, parents, attrs):
-        if 'coldecls' not in attrs:
-            raise Exception("No coldecls in {0}".format(clas))
-        if 'primarykeys' not in attrs:
-            raise Exception("no primarykeys in {0}".format(clas))
-        coldecls = attrs['coldecls']
-        primarykeys = attrs['primarykeys']
-        tablenames = None
-        if 'tablenames' in attrs:
-            tablenames = attrs['tablenames']
-        else:
-            tablenames = coldecls.keys()
-
-        if 'foreignkeys' in attrs:
-            foreignkeys = attrs['foreignkeys']
-        else:
-            foreignkeys = {}
-
-        if 'checks' in attrs:
-            checks = attrs['checks']
-        else:
-            checks = {}
-        for d in foreignkeys, checks:
-            for tablename in tablenames:
-                if tablename not in d:
-                    d[tablename] = {}
+        tablenames = []
+        primarykeys = {}
+        foreignkeys = {}
+        coldecls = {}
+        checks = {}
+        for tabtup in attrs['tables']:
+            (name, decls, pkey, fkeys, cks) = tabtup
+            tablenames.append(name)
+            coldecls[name] = decls
+            primarykeys[name] = pkey
+            foreignkeys[name] = fkeys
+            checks[name] = cks
         schemata = []
         inserts = {}
         deletes = {}
@@ -114,6 +101,7 @@ class SaveableMetaclass(type):
                 qrylst.extend(extender)
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
+            return []
 
         def delete_keydicts_table(db, keydicts, tabname):
             keystr = keystrs[tabname]
@@ -123,6 +111,7 @@ class SaveableMetaclass(type):
                 qrylst.extend([keydict[col] for col in keynames[tabname]])
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
+            return []
 
         def detect_keydicts_table(db, keydicts, tabname):
             keystr = keystrs[tabname]
@@ -144,25 +133,26 @@ class SaveableMetaclass(type):
             db.c.execute(qrystr, qrytup)
             return db.c.fetchall()
 
-        def insert_tabdict(db, tabdict):
+        def op_tabdict(db, tabdict, op):
+            r = []
             for item in tabdict.iteritems():
-                (tabn, rd) = item
-                insert_rowdicts_table(db, iter(rd), tabn)
+                (table, rowdicts) = item
+                if not isinstance(rowdicts, list):
+                    rowdicts = [rowdicts]
+                r.extend(op(db, rowdicts, table))
+            return r
+
+        def insert_tabdict(db, tabdict):
+            op_tabdict(db, tabdict, insert_rowdicts_table)
 
         def delete_tabdict(db, tabdict):
-            for item in tabdict.iteritems():
-                (tabn, rd) = item
-                delete_keydicts_table(db, iter(rd), tabn)
+            op_tabdict(db, tabdict, delete_keydicts_table)
 
         def detect_tabdict(db, tabdict):
-            for item in tabdict.iteritems():
-                (tabn, rd) = item
-                return detect_keydicts_table(db, iter(rd), tabn)
+            return op_tabdict(db, tabdict, detect_keydicts_table)
 
         def missing_tabdict(db, tabdict):
-            for item in tabdict.iteritems():
-                (tabn, rd) = item
-                return missing_keydicts_table(db, iter(rd), tabn)
+            return op_tabdict(db, tabdict, missing_keydicts_table)
 
         def mkrow(self, tabname, rowdict=None):
             if rowdict is None:
@@ -200,8 +190,7 @@ class SaveableMetaclass(type):
                 'delete': delete_tabdict,
                 'detect': detect_tabdict,
                 'missing': missing_tabdict}
-        atrdic = {'coldecls': coldecls,
-                  'colnames': colnames,
+        atrdic = {'colnames': colnames,
                   'colnamestr': colnamestr,
                   'colnstr': colnamestr[tablenames[0]],
                   'keynames': keynames,
@@ -209,9 +198,6 @@ class SaveableMetaclass(type):
                   'keyns': keynames[tablenames[0]],
                   'valns': valnames[tablenames[0]],
                   'colns': colnames[tablenames[0]],
-                  'primarykeys': primarykeys,
-                  'foreignkeys': foreignkeys,
-                  'checks': checks,
                   'schemata': schemata,
                   'keylen': keylen,
                   'rowlen': rowlen,

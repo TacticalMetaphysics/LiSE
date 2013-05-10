@@ -12,19 +12,19 @@ class Color:
 tuples that Pyglet uses to identify colors.
 
     """
-    tablenames = ["color"]
-    coldecls = {"color":
-                {'name': 'text',
-                 'red': 'integer not null ',
-                 'green': 'integer not null ',
-                 'blue': 'integer not null ',
-                 'alpha': 'integer default 255 '}}
-    primarykeys = {"color": ("name",)}
-    checks = {"color":
-              ["red between 0 and 255",
-              "green between 0 and 255",
-              "blue between 0 and 255",
-              "alpha between 0 and 255"]}
+    tables = [
+        ("color",
+         {'name': 'text',
+          'red': 'integer not null ',
+          'green': 'integer not null ',
+          'blue': 'integer not null ',
+          'alpha': 'integer default 255 '},
+         ("name",),
+         {},
+         ["red between 0 and 255",
+          "green between 0 and 255",
+          "blue between 0 and 255",
+          "alpha between 0 and 255"])]
 
     def __init__(self, name, red, green, blue, alpha, db=None):
         self.name = name
@@ -53,22 +53,22 @@ tuples that Pyglet uses to identify colors.
 
 
 class Style:
-    tablenames = ["style"]
-    coldecls = {"style":
-                {"name": "text",
-                 "fontface": "text not null",
-                 "fontsize": "integer not null",
-                 "spacing": "integer default 6",
-                 "bg_inactive": "text not null",
-                 "bg_active": "text not null",
-                 "fg_inactive": "text not null",
-                 "fg_active": "text not null"}}
-    primarykeys = {"style": ("name",)}
-    foreignkeys = {"style":
-                   {"bg_inactive": ("color", "name"),
-                    "bg_active": ("color", "name"),
-                    "fg_inactive": ("color", "name"),
-                    "fg_active": ("color", "name")}}
+    tables = [
+        ("style",
+         {"name": "text",
+          "fontface": "text not null",
+          "fontsize": "integer not null",
+          "spacing": "integer default 6",
+          "bg_inactive": "text not null",
+          "bg_active": "text not null",
+          "fg_inactive": "text not null",
+          "fg_active": "text not null"},
+         ("name",),
+         {"bg_inactive": ("color", "name"),
+          "bg_active": ("color", "name"),
+          "fg_inactive": ("color", "name"),
+          "fg_active": ("color", "name")},
+         [])]
     color_cols = ["bg_inactive", "bg_active", "fg_inactive", "fg_active"]
 
     def __init__(self, name, fontface, fontsize, spacing,

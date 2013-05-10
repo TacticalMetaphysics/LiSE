@@ -11,19 +11,19 @@ __metaclass__ = SaveableMetaclass
 
 
 class MenuItem:
-    tablenames = ["menu_item"]
-    coldecls = {'menu_item':
-                {'menu': 'text',
-                 'idx': 'integer',
-                 'text': 'text',
-                 'effect_deck': 'text',
-                 'closer': 'boolean',
-                 'visible': 'boolean',
-                 'interactive': 'boolean'}}
-    primarykeys = {'menu_item': ('menu', 'idx')}
-    foreignkeys = {'menu_item':
-                   {"menu": ("menu", "name"),
-                    "effect_deck": ("effect_deck_link", "deck")}}
+    tables = [
+        ('menu_item',
+         {'menu': 'text',
+          'idx': 'integer',
+          'text': 'text',
+          'effect_deck': 'text',
+          'closer': 'boolean',
+          'visible': 'boolean',
+          'interactive': 'boolean'},
+         ('menu', 'idx'),
+         {"menu": ("menu", "name"),
+          "effect_deck": ("effect_deck_link", "deck")},
+         [])]
 
     def __init__(self, menu, idx, text, effect_deck, closer,
                  visible, interactive, db=None):
@@ -196,17 +196,19 @@ def parse_menu_item(rows):
 
 
 class Menu:
-    tablenames = ["menu"]
-    coldecls = {'menu':
-                {'name': 'text',
-                 'left': 'float not null',
-                 'bottom': 'float not null',
-                 'top': 'float not null',
-                 'right': 'float not null',
-                 'style': "text default 'Default'",
-                 "main_for_window": "boolean default 0",
-                 "visible": "boolean default 0"}}
-    primarykeys = {'menu': ('name',)}
+    tables = [
+        ('menu',
+         {'name': 'text',
+          'left': 'float not null',
+          'bottom': 'float not null',
+          'top': 'float not null',
+          'right': 'float not null',
+          'style': "text default 'Default'",
+          "main_for_window": "boolean default 0",
+          "visible": "boolean default 0"},
+         ('name',),
+         {},
+         [])]
     interactive = True
 
     def __init__(self, name, left, bottom, top, right, style,

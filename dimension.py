@@ -19,10 +19,11 @@ class Dimension:
 places, or portals with any other dimension, but possibly sharing
 characters."""
 
-    tablenames = ["dimension"]
-    coldecls = {"dimension":
-                {"name": "text"}}
-    primarykeys = {"dimension": ("name",)}
+    tables = [("dimension",
+               {"name": "text"},
+               ("name",),
+               {},
+               [])]
 
     def __init__(self, name, db=None):
         """Return a dimension with the given name.

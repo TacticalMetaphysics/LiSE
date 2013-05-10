@@ -12,19 +12,19 @@ class Spot:
     place; at the given x and y coordinates on the screen; in the
     given graph of Spots. The Spot will be magically connected to the other
     Spots in the same way that the underlying Places are connected."""
-    tablenames = ["spot"]
-    coldecls = {"spot":
-                {"dimension": "text",
-                 "place": "text",
-                 "img": "text",
-                 "x": "integer",
-                 "y": "integer",
-                 "visible": "boolean",
-                 "interactive": "boolean"}}
-    primarykeys = {"spot": ("dimension", "place")}
-    foreignkeys = {"spot":
-                   {"dimension, place": ("place", "dimension, name"),
-                    "img": ("img", "name")}}
+    tables = [
+        ("spot",
+         {"dimension": "text",
+          "place": "text",
+          "img": "text",
+          "x": "integer",
+          "y": "integer",
+          "visible": "boolean",
+          "interactive": "boolean"},
+         ("dimension", "place"),
+         {"dimension, place": ("place", "dimension, name"),
+          "img": ("img", "name")},
+         [])]
 
     def __init__(self, dimension, place, img, x, y,
                  visible, interactive, db=None):

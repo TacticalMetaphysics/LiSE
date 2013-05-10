@@ -27,23 +27,23 @@ assumption that each board will be open in at most one window at a
 time.
 
 """
-    tablenames = ["board", "board_menu"]
-    coldecls = {"board":
-                {"dimension": "text",
-                 "width": "integer",
-                 "height": "integer",
-                 "wallpaper": "text"},
-                "board_menu":
-                {"board": "text",
-                 "menu": "text"}}
-    primarykeys = {"board": ("dimension",),
-                   "board_menu": tuple()}
-    foreignkeys = {"board":
-                   {"dimension": ("dimension", "name"),
-                    "wallpaper": ("image", "name")},
-                   "board_menu":
-                   {"board": ("board", "name"),
-                    "menu": ("menu", "name")}}
+    tables = [
+        ("board",
+         {"dimension": "text",
+          "width": "integer",
+          "height": "integer",
+          "wallpaper": "text"},
+         ("dimension",),
+         {"dimension": ("dimension", "name"),
+          "wallpaper": ("image", "name")},
+         []),
+        ("board_menu",
+         {"board": "text",
+          "menu": "text"},
+         [],
+         {"board": ("board", "name"),
+          "menu": ("menu", "name")},
+         [])]
 
     def __init__(self, dimension,
                  width, height, wallpaper, db=None):
