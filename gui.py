@@ -167,11 +167,9 @@ class GameWindow:
                         group=self.pawngroup)
             # draw the menus, really just their backgrounds for the moment
             for menu in menus_todo:
-                w = menu.width
-                h = menu.height
-                image = menu.inactive_pattern.create_image(w, h)
+                image = menu.inactive_pattern.create_image(menu.getwidth(), menu.getheight())
                 menu.sprite = pyglet.sprite.Sprite(
-                    image, menu.left, menu.bot,
+                    image, menu.getleft(), menu.getbot())
                     batch=self.batch, group=self.menugroup)
             # draw the menu items proper
             for mitem in mi_todo:
@@ -180,34 +178,28 @@ class GameWindow:
                     color = sty.fg_active
                 else:
                     color = sty.fg_inactive
-                left = mitem.menu.left,
-                bot = mitem.bot,
                 mitem.label = pyglet.text.Label(
                     mitem.text, sty.fontface, sty.fontsize,
-                    color=color.tup, x=left, y=bot,
+                    color=color.tup, x=mitem.getleft(), y=mitem.getbot(),
                     batch=self.batch, group=self.labelgroup)
             # draw the calendars
             for col in col_todo:
-                w = col.width
-                h = col.height
-                image = col.inactive_pattern.create_image(w, h)
+                image = col.inactive_pattern.create_image(col.getwidth(), col.getheight())
                 col.sprite = pyglet.sprite.Sprite(
-                    image, col.left, col.bot,
+                    image, col.getleft(), col.getbot())
                     batch=self.batch, group=self.calendargroup)
                 # It would be a lot nicer if I only adjusted when the
                 # calendar scrolled, rather than whenever it's rendered.
                 col.adjust()
             # draw the cells in the calendars
             for cel in cel_todo:
-                w = cel.width
-                h = cel.height
                 if self.hovered is cel:
                     pattern = cel.active_pattern
                 else:
                     pattern = cel.inactive_pattern
-                image = pattern.create_image(w, h)
+                image = pattern.create_image(cel.getwidth(), cel.getheight())
                 cel.sprite = pyglet.sprite.Sprite(
-                    image, cel.left, cel.bot,
+                    image, cel.getleft(), cel.getbot(),
                     batch=self.batch, group=self.cellgroup)
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.

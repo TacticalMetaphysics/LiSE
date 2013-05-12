@@ -42,6 +42,7 @@ class Pawn:
         self.grabpoint = None
         self.sprite = None
         self.oldstate = None
+        self.newstate = None
         self.hovered = False
         if db is not None:
             dimname = None

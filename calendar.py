@@ -25,8 +25,12 @@ is happening.
         self.end = end
         self.empty = empty
         self.text = text
-        self.pattern_inactive = color_pattern(calendar.style.bg_inactive.tup)
-        self.pattern_active = color_pattern(calendar.style.bg_active.tup)
+        self.oldstate = None
+        self.newstate = None
+        self.visible = True
+        self.interactive = True
+        self.inactive_pattern = color_pattern(calendar.style.bg_inactive.tup)
+        self.active_pattern = color_pattern(calendar.style.bg_active.tup)
 
     def unravel(self, db):
         if stringlike(self.calendar):
@@ -41,6 +45,14 @@ is happening.
             self.start == other.start and
             self.end == other.end and
             self.text == other.text)
+
+    def get_state_tup(self):
+        return (
+            hash(self.calendar.get_state_tup()),
+            self.start,
+            self.end,
+            self.empty,
+            self.text)
 
 
 class CalendarCol:
@@ -91,6 +103,8 @@ cells.
         self.height = 1.0 - self.top - self.bot
         self.width = 1.0 - self.right - self.left
         self.style = style
+        self.oldstate = None
+        self.newstate = None
         if db is not None:
             dimname = None
             itname = None
@@ -176,7 +190,8 @@ cells.
 
     def get_state_tup(self):
         return (
-            self,
+            self.dimension.name,
+            self.item.name,
             self.visible,
             self.interactive,
             self.rows_on_screen,

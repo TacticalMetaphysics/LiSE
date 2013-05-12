@@ -38,6 +38,7 @@ class MenuItem:
         self.hovered = False
         self.label = None
         self.oldstate = None
+        self.newstate = None
         self.pressed = False
         self.toggles = 0
         if db is not None:
@@ -229,6 +230,7 @@ class Menu:
         self.board = board
         self.sprite = None
         self.oldstate = None
+        self.newstate = None
         self.pressed = False
         self.toggles = 0
         if db is not None:
@@ -238,8 +240,10 @@ class Menu:
         if stringlike(self.style):
             self.style = db.styledict[self.style]
         self.style.unravel(db)
-        color = self.style.bg_inactive
-        self.pattern = pyglet.image.SolidColorImagePattern(color.tup)
+        bgi = self.style.bg_inactive.tup
+        bga = self.style.bg_active.tup
+        self.inactive_pattern = pyglet.image.SolidColorImagePattern(bgi)
+        self.active_pattern = pyglet.image.SolidColorImagePattern(bga)
         self.items = db.menuitemdict[self.name]
         for item in self.items:
             item.unravel(db)
