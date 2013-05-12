@@ -174,10 +174,16 @@ ths = [('me', 'myroom'),
        ('mom', 'momsroom')]
 
 
-thss = [(dimname, th[0], 0, None, th[1], None, 0.0) for th in ths]
-
-
-things = [dictify_row(th, Thing.colns) for th in thss]
+things = [
+    {
+        "dimension": dimname,
+        "name": tup[0],
+        "location": tup[1],
+        "portal": None,
+        "journey_step": 0
+        "journey_progress": 0.0,
+        "age": 0}
+    for tup in ths]
 parms.things = things
 
 

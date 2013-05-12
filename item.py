@@ -85,14 +85,15 @@ class Thing(Item):
           "location": "text not null",
           "container": "text default null",
           "portal": "text default null",
-          "progress": "float default 0.0",
+          "journey_progress": "float default 0.0",
+          "journey_step": "integer default 0",
           "age": "integer default 0"},
          ("dimension", "name"),
          {"dimension, container": ("thing", "dimension, name")},
          [])]
 
     def __init__(self, dimension, name, location, container,
-                 portal=None, journey_step=0, progress=0.0, age=0,
+                 portal=None, journey_step=0, journey_progress=0.0, age=0,
                  schedule=None, db=None):
         self.dimension = dimension
         self.name = name
@@ -315,7 +316,7 @@ class Journey:
         including the one the traveller is in right now.
 
         """
-        return len(self.steps) - self.thing.curstep
+        return len(self.steps) - self.thing.journey_step
 
     def getstep(self, i):
         """Get the ith next Portal in the journey.
@@ -330,7 +331,7 @@ class Journey:
         If i is out of range, returns None.
 
         """
-        return self.steps[i+self.curstep]
+        return self.steps[i+self.journey_step]
 
     def speed_at_step(self, i):
         """Get the thing's speed at step i.
@@ -360,14 +361,14 @@ method of the thing that operates on the portal.
         returns None.
 
         """
-        self.thing.progress += prop
-        while self.thing.progress >= 1.0:
-            self.thing.curstep += 1
-            self.thing.progress -= 1.0
-        while self.thing.progress < 0.0:
-            self.thing.curstep -= 1
-            self.thing.progress += 1.0
-        if self.thing.curstep > len(self.steplist):
+        self.thin.journey_progress += prop
+        while self.thin.journey_progress >= 1.0:
+            self.thing.journey_step += 1
+            self.thin.journey_progress -= 1.0
+        while self.thin.journey_progress < 0.0:
+            self.thing.journey_step -= 1
+            self.thin.journey_progress += 1.0
+        if self.thing.journey_step > len(self.steplist):
             return None
         else:
             return self.getstep(0)
