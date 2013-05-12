@@ -81,12 +81,12 @@ solarized_colors = {
     'green': (0x85, 0x99, 0x00)}
 
 colors = [{
-    'name': 'solarized-' + c[0],
-    'red': d[0],
-    'green': d[1],
-    'blue': d[2],
+    'name': 'solarized-' + it[0],
+    'red': it[1][0],
+    'green': it[1][1],
+    'blue': it[1][2],
     'alpha': 255}
-          for (c, d) in solarized_colors.iteritems()]
+for it in solarized_colors.iteritems()]
 parms.colors = colors
 
 styletups = [
@@ -175,8 +175,9 @@ things = [
         "dimension": dimname,
         "name": tup[0],
         "location": tup[1],
+	"container": None,
         "portal": None,
-        "journey_step": 0
+        "journey_step": 0,
         "journey_progress": 0.0,
         "age": 0}
     for tup in ths]
