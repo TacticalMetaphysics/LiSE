@@ -80,17 +80,13 @@ solarized_colors = {
     'cyan': (0x2a, 0xa1, 0x98),
     'green': (0x85, 0x99, 0x00)}
 
-
-def mkcolord(c):
-    d = c[1]
-    return {
-        'name': 'solarized-' + c[0],
-        'red': d[0],
-        'green': d[1],
-        'blue': d[2],
-        'alpha': 255}
-
-colors = [mkcolord(c) for c in solarized_colors.iteritems()]
+colors = [{
+    'name': 'solarized-' + c[0],
+    'red': d[0],
+    'green': d[1],
+    'blue': d[2],
+    'alpha': 255}
+          for (c, d) in solarized_colors.iteritems()]
 parms.colors = colors
 
 styletups = [
@@ -297,8 +293,18 @@ menutups = [
     ('Game', 0.1, 0.3, 1.0, 0.2, 'Small', False, False),
     ('Editor', 0.1, 0.3, 1.0, 0.2, 'Small', False, False),
     ('Place', 0.1, 0.3, 1.0, 0.2, 'Small', False, False),
-    ('Main', 0.0, 0.0, 1.0, 0.12, 'Big', True, True)]
-menus = [dictify_row(row, Menu.colns) for row in menutups]
+    ('Main', 0.0, 0.1, 1.0, 0.12, 'Big', True, True)]
+menus = [
+    {
+        "name": tup[0],
+        "left": tup[1],
+        "right": tup[2],
+        "top": tup[3],
+        "bottom": tup[4],
+        "style": tup[5],
+        "visible": tup[6],
+        "main_for_window": tup[7]}
+    for tup in menutups]
 parms.menus = menus
 
 
