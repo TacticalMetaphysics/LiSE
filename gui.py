@@ -67,6 +67,8 @@ class GameWindow:
         self.calendars = self.board.calendardict.values()
         for cal in self.calendars:
             cal.set_gw(self)
+        for menu in self.menus:
+            menu.set_gw(self)
         self.drawn_board = None
         self.drawn_edges = None
 
@@ -169,7 +171,7 @@ class GameWindow:
             for menu in menus_todo:
                 image = menu.inactive_pattern.create_image(menu.getwidth(), menu.getheight())
                 menu.sprite = pyglet.sprite.Sprite(
-                    image, menu.getleft(), menu.getbot())
+                    image, menu.getleft(), menu.getbot(),
                     batch=self.batch, group=self.menugroup)
             # draw the menu items proper
             for mitem in mi_todo:
@@ -186,7 +188,7 @@ class GameWindow:
             for col in col_todo:
                 image = col.inactive_pattern.create_image(col.getwidth(), col.getheight())
                 col.sprite = pyglet.sprite.Sprite(
-                    image, col.getleft(), col.getbot())
+                    image, col.getleft(), col.getbot(),
                     batch=self.batch, group=self.calendargroup)
                 # It would be a lot nicer if I only adjusted when the
                 # calendar scrolled, rather than whenever it's rendered.
