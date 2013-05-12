@@ -54,9 +54,14 @@ keyed with their names.
             self.portalorigdestdict = db.portalorigdestdict[self.name]
         if not hasattr(self, 'portaldestorigdict'):
             self.portaldestorigdict = db.portaldestorigdict[self.name]
-        for it in self.itemdict.itervalues():
-            it.unravel(db)
-
+        # this order is deliberate
+        for place in self.placedict.itervalues():
+            place.unravel(db)
+        for portal in self.portaldict.itervalues():
+            portal.unravel(db)
+        for thing in self.thingdict.itervalues():
+            thing.unravel(db)
+            
     def get_edges(self):
         """Return pairs of hashes, where each hash represents a portal
 herein."""

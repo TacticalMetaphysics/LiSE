@@ -101,7 +101,7 @@ class Thing(Item):
         self.container = container
         self.portal = portal
         self.journey_step = journey_step
-        self.journey_progress = progress
+        self.journey_progress = journey_progress
         self.age = age
         self.schedule = schedule
         self.contents = set()
@@ -294,14 +294,14 @@ class Journey:
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.thing):
             self.thing = db.itemdict[self.dimension.name][self.thing]
-        for step in self.steps:
-            if stringlike(step):
-                step = db.itemdict[self.dimension.name][step]
+        i = 0
+        while i < len(self.steps):
+            if stringlike(self.steps[i]):
+                self.steps[i] = db.portaldict[self.dimension.name][self.steps[i]]
+            i += 1
 
     def steps(self):
         """Get the number of steps in the Journey.
-
-        steps() => int
 
         Returns the number of Portals the traveller ever passed
         through or ever will on this Journey.
@@ -331,7 +331,7 @@ class Journey:
         If i is out of range, returns None.
 
         """
-        return self.steps[i+self.journey_step]
+        return self.steps[i+self.thing.journey_step]
 
     def speed_at_step(self, i):
         """Get the thing's speed at step i.

@@ -104,7 +104,7 @@ class Pawn:
             end = port.dest.spot
             hdist = end.x - start.x
             vdist = end.y - start.y
-            p = j.progress
+            p = self.thing.journey_progress
             x = start.x + hdist * p
             y = start.y + vdist * p
             return (x, y)
