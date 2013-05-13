@@ -109,11 +109,6 @@ class GameWindow:
                 menus_todo = [
                     menu for menu in self.menus if
                     menu.get_state_tup() not in self.onscreen]
-                mi_todo = []
-                for menu in menus_todo:
-                    mi_todo.extend(
-                        [item for item in menu.items if
-                         item.get_state_tup() not in self.onscreen])
                 pawn_todo = [
                     pawn for pawn in self.pawns if
                     pawn.get_state_tup() not in self.onscreen]
@@ -123,26 +118,6 @@ class GameWindow:
                 col_todo = [
                     calcol for calcol in self.calendars if
                     calcol.get_state_tup() not in self.onscreen]
-                cel_todo = []
-                for calcol in col_todo:
-                    cel_todo.extend(
-                        [cel for cel in calcol.cells if
-                         cel.get_state_tup() not in self.onscreen])
-            # delete stuff not being drawn anymore; update onscreen
-            for todo in [menus_todo, mi_todo, pawn_todo,
-                         spot_todo, col_todo, cel_todo]:
-                for widget in todo:
-                    try:
-                        widget.sprite.delete()
-                    except AttributeError:
-                        pass
-                    newstate = widget.get_state_tup()
-                    if widget.visible:
-                        self.onscreen.add(newstate)
-                    else:
-                        self.onscreen.discard(widget.oldstate)
-                    widget.oldstate = widget.newstate
-                    widget.newstate = newstate
             # draw the edges, representing portals
             e = []
             for portal in portal_todo:
@@ -150,11 +125,23 @@ class GameWindow:
                 destspot = portal.dest.spot
                 edge = (origspot.x, origspot.y, destspot.x, destspot.y)
                 e.extend(edge)
+            try:
+                self.drawn_edges.delete()
+            except AttributeError:
+                pass
             self.drawn_edges = self.batch.add(
                 len(e) / 2, pyglet.graphics.GL_LINES,
                 self.edgegroup, ('v2i', e))
             # draw the spots, representing places
             for spot in spot_todo:
+                self.onscreen.discard(spot.oldstate)
+                newstate = spot.get_state_tup()
+                self.onscreen.add(newstate)
+                spot.oldstate = newstate
+                try:
+                    spot.sprite.delete()
+                except AttributeError:
+                    pass
                 if spot.visible:
                     (x, y) = spot.getcoords()
                     spot.sprite = pyglet.sprite.Sprite(
@@ -162,6 +149,14 @@ class GameWindow:
                         group=self.spotgroup)
             # draw the pawns, representing things
             for pawn in pawn_todo:
+                newstate = pawn.get_state_tup()
+                self.onscreen.discard(pawn.oldstate)
+                self.onscreen.add(newstate)
+                pawn.oldstate = newstate
+                try:
+                    pawn.sprite.delete()
+                except AttributeError:
+                    pass
                 if pawn.visible:
                     (x, y) = pawn.getcoords()
                     pawn.sprite = pyglet.sprite.Sprite(
@@ -169,40 +164,81 @@ class GameWindow:
                         group=self.pawngroup)
             # draw the menus, really just their backgrounds for the moment
             for menu in menus_todo:
-                image = menu.inactive_pattern.create_image(menu.getwidth(), menu.getheight())
-                menu.sprite = pyglet.sprite.Sprite(
-                    image, menu.getleft(), menu.getbot(),
-                    batch=self.batch, group=self.menugroup)
-            # draw the menu items proper
-            for mitem in mi_todo:
-                sty = mitem.menu.style
-                if self.hovered == mitem:
-                    color = sty.fg_active
-                else:
-                    color = sty.fg_inactive
-                mitem.label = pyglet.text.Label(
-                    mitem.text, sty.fontface, sty.fontsize,
-                    color=color.tup, x=mitem.getleft(), y=mitem.getbot(),
-                    batch=self.batch, group=self.labelgroup)
+                newstate = menu.get_state_tup()
+                self.onscreen.discard(menu.oldstate)
+                self.onscreen.add(newstate)
+                menu.oldstate = newstate
+                try:
+                    menu.sprite.delete()
+                except AttributeError:
+                    pass
+                for mi in menu.items:
+                    try:
+                        mi.label.delete()
+                    except AttributeError:
+                        pass
+                if menu.visible:
+                    image = (
+                        menu.inactive_pattern.create_image(
+                            menu.getwidth(),
+                            menu.getheight()))
+                    menu.sprite = pyglet.sprite.Sprite(
+                        image, menu.getleft(), menu.getbot(),
+                        batch=self.batch, group=self.menugroup)
+                    sty = menu.style
+                    for mi in menu.items:
+                        if mi.visible:
+                            if self.hovered == mi:
+                                color = sty.fg_active.tup
+                            else:
+                                color = sty.fg_inactive.tup
+                            mi.label = pyglet.text.Label(
+                                mi.text,
+                                sty.fontface,
+                                sty.fontsize,
+                                color=color,
+                                x=mi.getleft(),
+                                y=mi.getbot(),
+                                batch=self.batch,
+                                group=self.labelgroup)
             # draw the calendars
             for col in col_todo:
-                image = col.inactive_pattern.create_image(col.getwidth(), col.getheight())
-                col.sprite = pyglet.sprite.Sprite(
-                    image, col.getleft(), col.getbot(),
-                    batch=self.batch, group=self.calendargroup)
-                # It would be a lot nicer if I only adjusted when the
-                # calendar scrolled, rather than whenever it's rendered.
                 col.adjust()
-            # draw the cells in the calendars
-            for cel in cel_todo:
-                if self.hovered is cel:
-                    pattern = cel.active_pattern
-                else:
-                    pattern = cel.inactive_pattern
-                image = pattern.create_image(cel.getwidth(), cel.getheight())
-                cel.sprite = pyglet.sprite.Sprite(
-                    image, cel.getleft(), cel.getbot(),
-                    batch=self.batch, group=self.cellgroup)
+                newstate = col.get_state_tup()
+                self.onscreen.discard(col.oldstate)
+                self.onscreen.add(newstate)
+                col.oldstate = newstate
+                try:
+                    col.sprite.delete()
+                except AttributeError:
+                    pass
+                for cel in col.cells:
+                    try:
+                        cel.sprite.delete()
+                    except AttributeError:
+                        pass
+                    try:
+                        cel.label.delete()
+                    except AttributeError:
+                        pass
+                if col.visible:
+                    image = (
+                        col.inactive_pattern.create_image(
+                            col.getwidth(), col.getheight()))
+                    col.sprite = pyglet.sprite.Sprite(
+                        image, col.getleft(), col.getbot(),
+                        batch=self.batch, group=self.calendargroup)
+                    for cel in col.cells:
+                        if cel.visible:
+                            if self.hovered == cel:
+                                pat = cel.active_pattern
+                            else:
+                                pat = cel.inactive_pattern
+                            image = pat.create_image(
+                                cel.getwidth(), cel.getheight())
+                            cel.sprite = pyglet.sprite.Sprite(
+                                image, cel.getleft(), cel.getbot(),
+                                batch=self.batch, group=self.cellgroup)
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.
             self.batch.draw()

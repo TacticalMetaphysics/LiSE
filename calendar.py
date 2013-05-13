@@ -46,6 +46,9 @@ is happening.
             self.end == other.end and
             self.text == other.text)
 
+    def __len__(self):
+        return self.end - self.start
+
     def get_state_tup(self):
         return (
             hash(self.calendar.get_state_tup()),
@@ -53,6 +56,24 @@ is happening.
             self.end,
             self.empty,
             self.text)
+
+    def gettop(self):
+        return self.top
+
+    def getbot(self):
+        return self.bot
+
+    def getleft(self):
+        return self.calendar.celleft
+
+    def getright(self):
+        return self.calendar.celright
+
+    def getwidth(self):
+        return self.calendar.celwidth
+
+    def getheight(self):
+        return self.height
 
 
 class CalendarCol:
@@ -100,8 +121,8 @@ cells.
         self.top = top
         self.bot = bot
         self.right = right
-        self.height = 1.0 - self.top - self.bot
-        self.width = 1.0 - self.right - self.left
+        self.height = self.top - self.bot
+        self.width = self.right - self.left
         self.style = style
         self.oldstate = None
         self.newstate = None
@@ -141,24 +162,49 @@ cells.
             assert(self.item.schedule == self.schedule)
 
     def set_gw(self, gw):
-        self.top_abs = self.top * gw.height
-        self.bot_abs = self.bot * gw.height
-        self.height_abs = self.height * gw.height
-        self.left_abs = self.left * gw.width
-        self.right_abs = self.right * gw.width
-        self.width_abs = self.width * gw.width
+        self.top_abs = int(self.top * gw.height)
+        self.bot_abs = int(self.bot * gw.height)
+        self.height_abs = int(self.height * gw.height)
+        self.left_abs = int(self.left * gw.width)
+        self.right_abs = int(self.right * gw.width)
+        self.width_abs = int(self.width * gw.width)
         self.gw = gw
         self.adjust()
+
+    def gettop(self):
+        return self.top_abs
+
+    def getbot(self):
+        return self.bot_abs
+
+    def getleft(self):
+        return self.left_abs
+
+    def getright(self):
+        return self.right_abs
+
+    def getwidth(self):
+        return self.width_abs
+
+    def getheight(self):
+        return self.height_abs
 
     def adjust(self):
         self.cells = []
         calstart = self.scrolled_to
         calend = calstart + self.rows_on_screen
+        rowheight = self.getheight() / self.rows_on_screen
         evl = sorted(list(self.schedule.timeframe(calstart, calend)))
+        top = self.gettop()
+        self.celleft = self.getleft() + self.style.spacing
+        self.celright = self.getright() - self.style.spacing
+        self.celwidth = self.celright - self.celleft
         if evl == []:
-            self.cells = [
-                CalendarCell(self, i, i+1, True)
-                for i in xrange(self.scrolled_to, self.rows_on_screen - 1)]
+            for i in xrange(self.scrolled_to, self.rows_on_screen - 1):
+                c = CalendarCell(self, i, i+1, True)
+                c.top = top
+                top -= rowheight
+                c.bot = top
             return
         celll = [
             CalendarCell(
@@ -174,9 +220,16 @@ cells.
         while celll != []:
             cell = celll.pop()
             while i < cell.start:
-                self.cells.append(CalendarCell(self, i, i+1, True))
+                c = CalendarCell(self, i, i+1, True)
+                c.top = top
+                top -= rowheight
+                c.bot = top
+                self.cells.append(c)
                 i += 1
-            i = cell.end
+            cell.top = top
+            top -= len(cell) * rowheight
+            cell.bot = top
+            i += len(cell)
             self.cells.append(cell)
         # There are now cells in self.cells to fill me up. There are
         # also some that overrun my bounds. I'll have to take that

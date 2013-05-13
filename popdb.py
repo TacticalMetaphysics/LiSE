@@ -273,7 +273,15 @@ spottups = [
     ('Physical', 'momsroom', 'orb', 250, 100, True, True),
     ('Physical', 'momsbathroom', 'orb', 250, 200, True, True),
     ('Physical', 'outside', 'orb', 300, 100, True, True)]
-spots = [dictify_row(row, Spot.colns) for row in spottups]
+spots = [
+    {"dimension": tup[0],
+     "place": tup[1],
+     "img": tup[2],
+     "x": tup[3],
+     "y": tup[4],
+     "visible": tup[5],
+     "interactive": tup[6]}
+    for tup in spottups]
 parms.spots = spots
 
 

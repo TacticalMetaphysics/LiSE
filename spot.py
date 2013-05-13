@@ -121,13 +121,13 @@ class Spot:
 
     def get_state_tup(self):
         return (
-            copy(self.img.name),
-            copy(self.x),
-            copy(self.y),
-            copy(self.visible),
-            copy(self.interactive),
-            copy(self.grabpoint),
-            copy(self.hovered))
+            self.img.name,
+            self.x,
+            self.y,
+            self.visible,
+            self.interactive,
+            self.grabpoint,
+            self.hovered)
 
 
 spot_dimension_qryfmt = (
