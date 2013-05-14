@@ -35,10 +35,10 @@ thing_menu_items = {'Custom Thing': 'new_thing(custom)',
                     'Decoration': 'new_thing(decoration)',
                     'Clothing': 'new_thing(clothing)',
                     'Tool': 'new_thing(tool)'}
-main_menu_items = {'Game': 'toggle_menu_visibility(Game)',
-                   'Editor': 'toggle_menu_visibility(Editor)',
-                   'Place': 'toggle_menu_visibility(Place)',
-                   'Thing': 'toggle_menu_visibility(Thing)'}
+main_menu_items = {'Game': 'toggle_menu(Game)',
+                   'Editor': 'toggle_menu(Editor)',
+                   'Place': 'toggle_menu(Place)',
+                   'Thing': 'toggle_menu(Thing)'}
 
 miproto = [('Game', game_menu_items), ('Editor', editor_menu_items),
            ('Place', place_menu_items),
@@ -302,7 +302,8 @@ menutups = [
     ('Game', 0.1, 0.3, 1.0, 0.2, 'Small', False, False),
     ('Editor', 0.1, 0.3, 1.0, 0.2, 'Small', False, False),
     ('Place', 0.1, 0.3, 1.0, 0.2, 'Small', False, False),
-    ('Main', 0.0, 0.1, 1.0, 0.12, 'Big', True, True)]
+    ('Main', 0.0, 0.1, 1.0, 0.12, 'Big', True, True),
+    ('Thing', 0.1, 0.3, 1.0, 0.2, 'Small', False, False)]
 menus = [
     {
         "name": tup[0],

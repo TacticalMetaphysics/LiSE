@@ -141,9 +141,17 @@ cells.
                 db.calendardict[dimname] = {}
             db.calendardict[dimname][itname] = self
 
-    def toggle(self):
+    def toggle_visibility(self):
         self.visible = not self.visible
         self.toggles += 1
+
+    def hide(self):
+        if self.visible:
+            self.toggle_visibility()
+
+    def show(self):
+        if not self.visible:
+            self.toggle_visibility()
 
     def unravel(self, db):
         if stringlike(self.dimension):

@@ -37,6 +37,9 @@ class Effect:
         return self.func(self.arg)
 
 
+NULL_EFFECT = Effect("null", "noop", "nope")
+
+
 class EffectDeck:
     tables = [
         ("effect_deck_link",
@@ -145,3 +148,141 @@ def unravel_effect_decks(db, efd):
 
 def load_effect_decks(db, names):
     return unravel_effect_decks(db, read_effect_decks(db, names))
+
+
+def make_toggle_menu_effect(boardname, menuname, db):
+    menuspec = boardname + "." + menuname
+    return make_toggle_menu_effect_from_menuspec(menuspec, db)
+
+
+def make_toggle_menu_effect_from_menuspec(menuspec, db):
+    togglername = "toggle_menu_visibility({0})".format(menuspec)
+    toggler = Effect(togglername, "toggle_menu_visibility", menuspec, db)
+    toggler.unravel(db)
+    return toggler
+
+
+def make_toggle_calendar_effect(dimname, itname, db):
+    calspec = dimname + "." + itname
+    return make_calendar_toggle_effect_from_calspec(calspec, db)
+
+
+def make_toggle_calendar_effect_from_calspec(calspec, db):
+    togglername = "toggle_calendar_visibility({0})".format(calspec)
+    toggler = Effect(togglername, "toggle_calendar_visibility", calspec, db)
+    toggler.unravel(db)
+    return toggler
+
+
+def make_hide_menu_effect(boardname, menuname, db):
+    menuspec = boardname + "." + menuname
+    return make_hide_menu_effect_from_menuspec(menuspec, db)
+
+
+def make_hide_menu_effect_from_menuspec(menuspec, db):
+    hidername = "hide_menu({0})".format(menuspec)
+    hider = Effect(hidername, "hide_menu", menuspec, db)
+    hider.unravel(db)
+    return hider
+
+
+def make_show_menu_effect(boardname, menuname, db):
+    menuspec = boardname + "." + menuname
+    return make_show_menu_effect_from_menuspec(menuspec, db)
+
+
+def make_show_menu_effect_from_menuspec(menuspec, db):
+    showername = "show_menu({0})".format(menuspec)
+    shower = Effect(showername, "show_menu", menuspec, db)
+    shower.unravel(db)
+    return shower
+
+
+def make_hide_calendar_effect(dimname, itname, db):
+    calspec = dimname + "." + itname
+    return make_hide_calendar_effect_from_calspec(calspec, db)
+
+
+def make_hide_calendar_effect_from_calspec(calspec, db):
+    hidername = "hide_calendar({0})".format(calspec)
+    hider = Effect(hidername, "hide_calendar", calspec, db)
+    hider.unravel(db)
+    return hider
+
+
+def make_show_calendar_effect(dimname, itname, db):
+    calspec = dimname + "." + itname
+    return make_show_calendar_effect_from_calspec(calspec, db)
+
+
+def make_show_calendar_effect_from_calspec(calspec, db):
+    showername = "show_calendar({0})".format(calspec)
+    shower = Effect(showername, "show_calendar", calspec, db)
+    shower.unravel(db)
+    return shower
+
+
+def make_hide_all_menus_effect(boardname, db):
+    # WON'T hide the main_for_window menu
+    hidername = "hide_menus_in_board({0})".format(boardname)
+    hider = Effect(hidername, "hide_menus_in_board", boardname, db)
+    hider.unravel(db)
+    return hider
+
+
+def make_hide_other_menus_effect(boardn, menun, db):
+    menuspec = boardn + "." + menun
+    hidername = "hide_other_menus_in_board({0})".format(menuspec)
+    hider = Effect(hidername, "hide_other_menus_in_board", menuspec, db)
+    hider.unravel(db)
+    return hider
+
+
+def make_hide_all_calendars_effect(dimname, db):
+    hidername = "hide_calendars_in_board({0})".format(dimname)
+    hider = Effect(hidername, "hide_calendars_in_board", dimname, db)
+    hider.unravel(db)
+    return hider
+
+
+def make_hide_other_calendars_effect(dimname, itname, db):
+    calspec = dimname + "." + itname
+    hidername = "hide_other_calendars_in_board({0})".format(calspec)
+    hider = Effect(hidername, "hide_other_calendars_in_board", calspec, db)
+    hider.unravel(db)
+    return hider
+
+
+def make_show_only_menu_effect_deck(boardname, menuname, db):
+    hider = make_hide_all_menus_effect(boardname, db)
+    shower = make_show_menu_effect(boardname, menuname, db)
+    deckname = "show_only_menu({0}.{1})".format(boardname, menuname)
+    deck = EffectDeck(deckname, [hider, shower], db)
+    deck.unravel(db)
+    return deck
+
+
+def make_show_only_calendar_effect_deck(dimname, itname, db):
+    hider = make_hide_all_calendars_effect(dimname, db)
+    shower = make_show_calendar_effect(dimname, itname, db)
+    deckname = "show_only_calendar({0}.{1})".format(dimname, itname)
+    deck = EffectDeck(deckname, [hider, shower], db)
+    deck.unravel(db)
+    return deck
+
+
+def make_menu_toggler(boardname, menuname, db):
+    hide_effect = make_hide_other_menus_effect(boardname, menuname, db)
+    toggle_effect = make_toggle_menu_effect(boardname, menuname, db)
+    deckname = "toggle_menu_visibility({0}.{1})".format(boardname, menuname)
+    deck = EffectDeck(deckname, [hide_effect, toggle_effect], db)
+    deck.unravel(db)
+    return deck
+
+
+def make_calendar_toggler(dimname, itname, db):
+    hide_effect = make_hide_all_calendars_effect(dimname, db)
+    deckname = "toggle_calendar_visibility({0}.{1})".format(dimname, itname)
+    deck = EffectDeck(deckname, [hide_effect, toggle_effect], db)
+    deck.unravel(db)
+    return deck

@@ -1,13 +1,20 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 from effect import read_effect_decks
 from style import read_styles
-from effect import Effect, EffectDeck
+from effect import (
+    EffectDeck,
+    make_menu_toggler,
+    make_calendar_toggler)
 from copy import copy
 import re
 import pyglet
 
 
 __metaclass__ = SaveableMetaclass
+
+
+MENU_TOGGLER_RE = re.compile("toggle_menu\((.*)\)")
+CALENDAR_TOGGLER_RE = re.compile("toggle_calendar\((.*)\)")
 
 
 class MenuItem:
@@ -56,36 +63,13 @@ class MenuItem:
     def unravel(self, db):
         if stringlike(self.menu):
             self.menu = db.menudict[self.menu]
-        if stringlike(self.effect_deck):
-            menu_tog_match = re.match(
-                'toggle_menu_visibility\((.*)\)', self.effect_deck)
-            if menu_tog_match is not None:
-                menuspec = menu_tog_match.groups()[0]
-                self.make_toggler(menuspec, db)
-            else:
-                self.effect_deck = db.effectdeckdict[self.effect_deck]
+        self.parse_effect_deck(db)
         while len(self.menu.items) < self.idx:
             self.menu.items.append(None)
         self.menu.items[self.idx] = self
 
     def onclick(self, button, modifiers):
         self.effect_deck.do()
-
-    def make_toggler(self, menuspec, db):
-        boardname = None
-        if stringlike(self.menu.board):
-            boardname = self.menu.board
-        else:
-            boardname = self.menu.board.name
-        menuspec = "{0}.{1}".format(boardname, menuspec)
-        togglername = "toggle_menu_visibility({0})".format(menuspec),
-        toggler = Effect(togglername, "toggle_menu_visibility", menuspec, db)
-        togdeck = EffectDeck(togglername, [toggler], db)
-        toggler.unravel(db)
-        togdeck.unravel(db)
-        db.effectdict[togglername] = toggler
-        db.effectdeckdict[togglername] = togdeck
-        self.effect_deck = togdeck
 
     def __eq__(self, other):
         return (
@@ -159,20 +143,69 @@ class MenuItem:
     def toggle_visibility(self):
         self.visible = not self.visible
         self.toggles += 1
-        for item in self.items:
-            item.toggle_visibility()
+
+    def hide(self):
+        if self.visible:
+            self.toggle_visibility()
+
+    def show(self):
+        if not self.visible:
+            self.toggle_visibility()
 
     def get_state_tup(self):
         return (
-            self.menu.get_state_tup(),
-            copy(self.idx),
-            copy(self.text),
-            copy(self.visible),
-            copy(self.interactive),
-            copy(self.grabpoint),
-            copy(self.hovered),
-            copy(self.pressed),
-            copy(self.toggles))
+            hash(self.menu.get_state_tup()),
+            self.idx,
+            self.text,
+            self.visible,
+            self.interactive,
+            self.grabpoint,
+            self.hovered,
+            self.pressed,
+            self.toggles)
+
+
+    def parse_effect_deck(self, db):
+        efd = self.effect_deck
+        if isinstance(efd, EffectDeck) or db is None:
+            self.effect_deck = efd
+            return
+        menutogmatch = re.match(MENU_TOGGLER_RE, efd)
+        if menutogmatch is not None:
+            menuspec = menutogmatch.groups()[0]
+            menuspec_split = menuspec.split(".")
+            if len(menuspec_split) == 2:
+                (b, m) = menuspec_split
+                self.effect_deck = make_menu_toggler(b, m, db)
+            else:
+                if stringlike(self.menu.board):
+                    boardname = self.menu.board
+                else:
+                    if stringlike(self.menu.board.dimension):
+                        boardname = self.menu.board.dimension
+                    else:
+                        boardname = self.menu.board.dimension.name
+                self.effect_deck = make_menu_toggler(boardname, menuspec, db)
+                return
+        caltogmatch = re.match(CALENDAR_TOGGLER_RE, efd)
+        if caltogmatch is not None:
+            calspec = caltogmatch.groups()[0]
+            calspec_split = calspec.split(".")
+            if len(calspec_split) == 2:
+                (dimn, itn) = calspec_split
+                self.effect_deck = make_calendar_toggler(dimn, itn, db)
+            else:
+                if stringlike(self.menu.board):
+                    dimname = self.menu.board
+                else:
+                    if stringlike(self.menu.board.dimension):
+                        dimname = self.menu.board.dimension
+                    else:
+                        dimname = self.menu.board.dimension.name
+                self.effect_deck = make_calendar_toggler(dimname, calspec, db)
+            return
+        if efd in db.effectdeckdict:
+            self.effect_deck = db.effectdeckdict[efd]
 
 
 def pull_items_in_menus(db, menunames):
@@ -235,6 +268,17 @@ class Menu:
         self.toggles = 0
         if db is not None:
             db.menudict[self.name] = self
+            if self.board is not None:
+                if stringlike(self.board):
+                    boardname = self.board
+                else:
+                    if stringlike(self.board.dimension):
+                        boardname = self.board.dimension
+                    else:
+                        boardname = self.board.dimension.name
+                if boardname not in db.boardmenudict:
+                    db.boardmenudict[boardname] = {}
+                db.boardmenudict[boardname][self.name] = self
 
     def unravel(self, db):
         if stringlike(self.style):
@@ -246,6 +290,7 @@ class Menu:
         self.active_pattern = pyglet.image.SolidColorImagePattern(bga)
         self.items = db.menuitemdict[self.name]
         for item in self.items:
+            print "unraveling item {0} in menu {1}".format(item.idx, self.name)
             item.unravel(db)
         if self.board is not None:
             if stringlike(self.board):
@@ -310,6 +355,14 @@ class Menu:
         self.visible = not self.visible
         self.toggles += 1
 
+    def show(self):
+        if not self.visible:
+            self.toggle_visibility()
+
+    def hide(self):
+        if self.visible:
+            self.toggle_visibility()
+
     def get_state_tup(self):
         return (
             self,
@@ -347,7 +400,8 @@ def read_items_in_menus(db, menus):
         rowdict["db"] = db
         numi = MenuItem(**rowdict)
         r[rowdict["menu"]][rowdict["idx"]] = numi
-        decknames.add(numi.effect_deck)
+        if stringlike(numi.effect_deck):
+            decknames.add(numi.effect_deck)
     read_effect_decks(db, list(decknames))
     return r
 
@@ -416,3 +470,31 @@ def unravel_menus_in_boards(db, bmd):
 
 def load_menus_in_boards(db, boards):
     return unravel_menus_in_boards(db, read_menus_in_boards(db, boards))
+
+def make_menu_toggler_menu_item(
+        target_menu, menu_of_residence, idx, txt,
+        closer, visible, interactive, db):
+    if stringlike(menu_of_residence.board):
+        boardname = menu_of_residence.board
+    else:
+        boardname = menu_of_residence.board.dimension.name
+    if stringlike(target_menu):
+        menuname = target_menu
+    else:
+        menuname = target_menu.name
+    print "attempting to make menu toggler for menu {0} in board {1}".format(menuname, boardname)
+    togdeck = make_menu_toggler(boardname, menuname, db)
+    return MenuItem(menu_of_residence, idx, txt, togdeck,
+                    closer, visible, interactive, db)
+
+
+def make_calendar_toggler_menu_item(
+        menu, item, txt, idx, closer, visible, interactive, db):
+    if stringlike(item.dimension):
+        dimname = item.dimension
+    else:
+        dimname = item.dimension.name
+    itname = item.name
+    togdeck = make_calendar_toggler(dimname, itname, db)
+    return MenuItem(menu, idx, txt, togdeck,
+                    closer, visible, interactive, db)
