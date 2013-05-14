@@ -39,6 +39,7 @@ class Spot:
         self.oldstate = None
         self.newstate = None
         self.hovered = False
+        self.tweaks = 0
         if db is not None:
             dimname = None
             placename = None
@@ -108,12 +109,15 @@ class Spot:
     def onclick(self, button, modifiers):
         pass
 
-    def set_hovered(self, relx, rely):
-        self.grabpoint = (relx, rely)
-        self.hovered = True
+    def set_hovered(self):
+        if not self.hovered:
+            self.hovered = True
+            self.tweaks += 1
 
     def unset_hovered(self):
-        self.hovered = False
+        if self.hovered:
+            self.hovered = False
+            self.tweaks += 1
 
     def dropped(self, x, y, button, modifiers):
         self.grabpoint = None
@@ -137,7 +141,8 @@ class Spot:
             self.visible,
             self.interactive,
             self.grabpoint,
-            self.hovered)
+            self.hovered,
+            self.tweaks)
 
 
 spot_dimension_qryfmt = (

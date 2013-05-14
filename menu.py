@@ -46,7 +46,7 @@ class MenuItem:
         self.oldstate = None
         self.newstate = None
         self.pressed = False
-        self.toggles = 0
+        self.tweaks = 0
         if db is not None:
             menun = None
             if isinstance(self.menu, Menu):
@@ -69,6 +69,16 @@ class MenuItem:
 
     def onclick(self, button, modifiers):
         self.effect_deck.do()
+
+    def set_hovered(self):
+        if not self.hovered:
+            self.hovered = True
+            self.tweaks += 1
+
+    def unset_hovered(self):
+        if self.hovered:
+            self.hovered = False
+            self.tweaks += 1
 
     def __eq__(self, other):
         return (
@@ -136,7 +146,7 @@ class MenuItem:
 
     def toggle_visibility(self):
         self.visible = not self.visible
-        self.toggles += 1
+        self.tweaks += 1
 
     def hide(self):
         if self.visible:
@@ -156,7 +166,7 @@ class MenuItem:
             self.grabpoint,
             self.hovered,
             self.pressed,
-            self.toggles)
+            self.tweaks)
 
     def parse_effect_deck(self, db):
         efd = self.effect_deck
@@ -258,7 +268,7 @@ class Menu:
         self.oldstate = None
         self.newstate = None
         self.pressed = False
-        self.toggles = 0
+        self.tweaks = 0
         if db is not None:
             db.menudict[self.name] = self
             if self.board is not None:
@@ -366,7 +376,7 @@ class Menu:
     def toggle_visibility(self):
         print "toggling visibility of menu {0}".format(self.name)
         self.visible = not self.visible
-        self.toggles += 1
+        self.tweaks += 1
 
     def show(self):
         if not self.visible:
@@ -375,22 +385,6 @@ class Menu:
     def hide(self):
         if self.visible:
             self.toggle_visibility()
-
-    def set_hovered(self, relx, rely):
-        dist_from_top = self.ry_abs - rely
-        print "rely: {0}, dist_from_top: {1}".format(rely, dist_from_top)
-        for item in self.items:
-            print "compare to {0}-{1}".format(item.top_from_top, item.bot_from_top)
-            if (
-                    item.top_from_top <= dist_from_top and
-                    item.bot_from_top > dist_from_top):
-                print "hovering item {0} in menu {1}".format(item.idx, self.name)
-                self.hovered = item
-                item.hovered = True
-                return
-
-    def unset_hovered(self):
-        self.hovered = None
 
     def onclick(self, button, modifiers):
         if self.hovered is not None:
@@ -409,7 +403,7 @@ class Menu:
             self.hovered,
             self.grabpoint,
             self.pressed,
-            self.toggles)
+            self.tweaks)
 
 
 item_menu_qryfmt = (

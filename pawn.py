@@ -45,6 +45,7 @@ class Pawn:
         self.oldstate = None
         self.newstate = None
         self.hovered = False
+        self.tweaks = 0
         if db is not None:
             dimname = None
             thingname = None
@@ -163,12 +164,15 @@ class Pawn:
         if hasattr(self, 'calendar'):
             self.calendar.toggle_visibility()
 
-    def set_hovered(self, relx, rely):
-        self.grabpoint = (relx, rely)
-        self.hovered = True
+    def set_hovered(self):
+        if not self.hovered:
+            self.hovered = True
+            self.tweaks += 1
 
     def unset_hovered(self):
-        self.hovered = False
+        if self.hovered:
+            self.hovered = False
+            self.tweaks += 1
 
     def get_state_tup(self):
         (x, y) = self.getcoords()
@@ -179,7 +183,8 @@ class Pawn:
             self.grabpoint,
             self.hovered,
             x,
-            y)
+            y,
+            self.tweaks)
 
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])

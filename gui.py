@@ -109,6 +109,11 @@ class GameWindow:
                 menus_todo = [
                     menu for menu in self.menus if
                     menu.get_state_tup() not in self.onscreen]
+                mi_todo = []
+                for menu in self.menus:
+                    mi_todo.extend([
+                        it for it in menu.items if
+                        it.get_state_tup() not in self.onscreen])
                 pawn_todo = [
                     pawn for pawn in self.pawns if
                     pawn.get_state_tup() not in self.onscreen]
@@ -118,6 +123,11 @@ class GameWindow:
                 col_todo = [
                     calcol for calcol in self.calendars if
                     calcol.get_state_tup() not in self.onscreen]
+                cel_todo = []
+                for col in self.calendars:
+                    cel_todo.extend([
+                        cel for cel in col.cells if
+                        cel.get_state_tup() not in self.onscreen])
             # draw the edges, representing portals
             e = []
             for portal in portal_todo:
@@ -172,11 +182,6 @@ class GameWindow:
                     menu.sprite.delete()
                 except AttributeError:
                     pass
-                for mi in menu.items:
-                    try:
-                        mi.label.delete()
-                    except AttributeError:
-                        pass
                 if menu.visible:
                     image = (
                         menu.inactive_pattern.create_image(
@@ -185,22 +190,30 @@ class GameWindow:
                     menu.sprite = pyglet.sprite.Sprite(
                         image, menu.getleft(), menu.getbot(),
                         batch=self.batch, group=self.menugroup)
-                    sty = menu.style
-                    for mi in menu.items:
-                        if mi.visible:
-                            if mi.hovered:
-                                color = sty.fg_active.tup
-                            else:
-                                color = sty.fg_inactive.tup
-                            mi.label = pyglet.text.Label(
-                                mi.text,
-                                sty.fontface,
-                                sty.fontsize,
-                                color=color,
-                                x=mi.getleft(),
-                                y=mi.getbot(),
-                                batch=self.batch,
-                                group=self.labelgroup)
+            for mi in mi_todo:
+                newstate = mi.get_state_tup()
+                self.onscreen.discard(mi.oldstate)
+                self.onscreen.add(newstate)
+                mi.oldstate = newstate
+                try:
+                    mi.label.delete()
+                except AttributeError:
+                    pass
+                if mi.menu.visible and mi.visible:
+                    sty = mi.menu.style
+                    if mi.hovered:
+                        color = sty.fg_active.tup
+                    else:
+                        color = sty.fg_inactive.tup
+                    mi.label = pyglet.text.Label(
+                        mi.text,
+                        sty.fontface,
+                        sty.fontsize,
+                        color=color,
+                        x=mi.getleft(),
+                        y=mi.getbot(),
+                        batch=self.batch,
+                        group=self.labelgroup)
             # draw the calendars
             for col in col_todo:
                 col.adjust()
@@ -228,17 +241,30 @@ class GameWindow:
                     col.sprite = pyglet.sprite.Sprite(
                         image, col.getleft(), col.getbot(),
                         batch=self.batch, group=self.calendargroup)
-                    for cel in col.cells:
-                        if cel.visible:
-                            if self.hovered == cel:
-                                pat = cel.active_pattern
-                            else:
-                                pat = cel.inactive_pattern
-                            image = pat.create_image(
-                                cel.getwidth(), cel.getheight())
-                            cel.sprite = pyglet.sprite.Sprite(
-                                image, cel.getleft(), cel.getbot(),
-                                batch=self.batch, group=self.cellgroup)
+            # draw the cells in the calendars
+            for cel in cel_todo:
+                newstate = cel.get_state_tup()
+                self.onscreen.discard(cel.oldstate)
+                self.onscreen.add(newstate)
+                cel.oldstate = newstate
+                try:
+                    cel.sprite.delete()
+                except AttributeError:
+                    pass
+                try:
+                    cel.label.delete()
+                except AttributeError:
+                    pass
+                if cel.visible:
+                    if self.hovered == cel:
+                        pat = cel.active_pattern
+                    else:
+                        pat = cel.inactive_pattern
+                    image = pat.create_image(
+                        cel.getwidth(), cel.getheight())
+                    cel.sprite = pyglet.sprite.Sprite(
+                        image, cel.getleft(), cel.getbot(),
+                        batch=self.batch, group=self.cellgroup)
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.
             self.batch.draw()
@@ -256,17 +282,19 @@ class GameWindow:
                     relx = x - mx
                     rely = y - my
                     if abs(relx) < menu.rx_abs and abs(rely) < menu.ry_abs:
-                        print "gonna check menu " + menu.name
-                        self.hovered = menu
-                        menu.set_hovered(relx, rely)
-                        return
+                        for item in menu.items:
+                            if item.label is not None and y > item.label.y \
+                               and y < item.label.y + item.label.content_height:
+                                item.set_hovered()
+                                self.hovered = item
+                                return
                 for spot in self.spots:
                     (sx, sy) = spot.getcenter()
                     relx = x - sx
                     rely = y - sy
                     if abs(relx) < spot.rx and abs(rely) < spot.ry:
                         self.hovered = spot
-                        spot.set_hovered(relx, rely)
+                        spot.set_hovered()
                         return
                 for pawn in self.pawns:
                     (px, py) = pawn.getcenter()
@@ -274,7 +302,7 @@ class GameWindow:
                     rely = y - py
                     if abs(relx) < pawn.rx and abs(rely) < pawn.ry:
                         self.hovered = pawn
-                        pawn.set_hovered(relx, rely)
+                        pawn.set_hovered()
                         return
             else:
                 if not point_is_in(x, y, self.hovered):
