@@ -269,39 +269,44 @@ class GameWindow:
         def on_mouse_motion(x, y, dx, dy):
             if self.hovered is None:
                 for menu in self.menus:
-                    (mx, my) = menu.getcenter()
-                    relx = x - mx
-                    rely = y - my
-                    if abs(relx) < menu.getrx() and abs(rely) < menu.getry():
+                    if (
+                            x > menu.getleft() and
+                            x < menu.getright() and
+                            y > menu.getbot() and
+                            y < menu.gettop()):
                         for item in menu.items:
-                            (ix, iy) = item.getcenter()
-                            relx = x - ix
-                            rely = y - iy
-                            if abs(relx) < item.getrx() and abs(rely) < item.getry():
+                            if (
+                                    x > item.getleft() and
+                                    x < item.getright() and
+                                    y > item.getbot() and
+                                    y < item.gettop()):
                                 item.set_hovered()
                                 self.hovered = item
                                 return
                 for spot in self.spots:
-                    (sx, sy) = spot.getcenter()
-                    relx = x - sx
-                    rely = y - sy
-                    if abs(relx) < spot.getrx() and abs(rely) < spot.getry():
+                    if (
+                            x > spot.getleft() and
+                            x < spot.getright() and
+                            y > spot.getbot() and
+                            y < spot.gettop()):
                         self.hovered = spot
                         spot.set_hovered()
                         return
                 for pawn in self.pawns:
-                    (px, py) = pawn.getcenter()
-                    relx = x - px
-                    rely = y - py
-                    if abs(relx) < pawn.getrx() and abs(rely) < pawn.getry():
+                    if (
+                            x > pawn.getleft() and
+                            x < pawn.getright() and
+                            y > pawn.getbot() and
+                            y < pawn.gettop()):
                         self.hovered = pawn
                         pawn.set_hovered()
                         return
             else:
-                (hx, hy) = self.hovered.getcenter()
-                relx = x - hx
-                rely = y - hy
-                if abs(relx) > self.hovered.getrx() or abs(rely) > self.hovered.getry():
+                if (
+                        x < self.hovered.getleft() or
+                        x > self.hovered.getright() or
+                        y < self.hovered.getbot() or
+                        y > self.hovered.gettop()): 
                     self.hovered.unset_hovered()
                     self.hovered = None
 
