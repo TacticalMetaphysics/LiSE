@@ -1,5 +1,4 @@
 from util import SaveableMetaclass, dictify_row, stringlike
-from copy import copy
 
 
 __metaclass__ = SaveableMetaclass
@@ -12,19 +11,19 @@ class Spot:
     place; at the given x and y coordinates on the screen; in the
     given graph of Spots. The Spot will be magically connected to the other
     Spots in the same way that the underlying Places are connected."""
-    tablenames = ["spot"]
-    coldecls = {"spot":
-                {"dimension": "text",
-                 "place": "text",
-                 "img": "text",
-                 "x": "integer",
-                 "y": "integer",
-                 "visible": "boolean",
-                 "interactive": "boolean"}}
-    primarykeys = {"spot": ("dimension", "place")}
-    foreignkeys = {"spot":
-                   {"dimension, place": ("place", "dimension, name"),
-                    "img": ("img", "name")}}
+    tables = [
+        ("spot",
+         {"dimension": "text",
+          "place": "text",
+          "img": "text",
+          "x": "integer",
+          "y": "integer",
+          "visible": "boolean",
+          "interactive": "boolean"},
+         ("dimension", "place"),
+         {"dimension, place": ("place", "dimension, name"),
+          "img": ("img", "name")},
+         [])]
 
     def __init__(self, dimension, place, img, x, y,
                  visible, interactive, db=None):
@@ -38,7 +37,9 @@ class Spot:
         self.grabpoint = None
         self.sprite = None
         self.oldstate = None
+        self.newstate = None
         self.hovered = False
+        self.tweaks = 0
         if db is not None:
             dimname = None
             placename = None
@@ -70,28 +71,34 @@ class Spot:
             self.place = db.itemdict[self.dimension.name][self.place]
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
-            self.rx = self.img.getwidth() / 2
-            self.ry = self.img.getheight() / 2
-            if self.rx >= self.ry:
-                self.r = self.rx
-            else:
-                self.r = self.ry
+        self.rx = self.img.getwidth() / 2
+        self.ry = self.img.getheight() / 2
+        self.left = self.x - self.rx
+        self.right = self.x + self.rx
+        self.top = self.y + self.ry
+        self.bot = self.y - self.ry
         self.place.spot = self
 
     def getleft(self):
-        return self.x - self.r
+        return self.left
 
     def getbot(self):
-        return self.y - self.r
+        return self.bot
 
     def gettop(self):
-        return self.y + self.r
+        return self.top
 
     def getright(self):
-        return self.x + self.r
+        return self.right
 
     def getcenter(self):
         return (self.x, self.y)
+
+    def getrx(self):
+        return self.rx
+
+    def getry(self):
+        return self.ry
 
     def gettup(self):
         return (self.img, self.getleft(), self.getbot())
@@ -108,6 +115,16 @@ class Spot:
     def onclick(self, button, modifiers):
         pass
 
+    def set_hovered(self):
+        if not self.hovered:
+            self.hovered = True
+            self.tweaks += 1
+
+    def unset_hovered(self):
+        if self.hovered:
+            self.hovered = False
+            self.tweaks += 1
+
     def dropped(self, x, y, button, modifiers):
         self.grabpoint = None
 
@@ -116,17 +133,22 @@ class Spot:
             self.grabpoint = (x - self.x, y - self.y)
         (grabx, graby) = self.grabpoint
         self.x = x - grabx + dx
+        self.left = self.x - self.rx
+        self.right = self.x + self.rx
         self.y = y - graby + dy
+        self.top = self.y + self.ry
+        self.bot = self.y - self.ry
 
     def get_state_tup(self):
         return (
-            copy(self.img.name),
-            copy(self.x),
-            copy(self.y),
-            copy(self.visible),
-            copy(self.interactive),
-            copy(self.grabpoint),
-            copy(self.hovered))
+            self.img.name,
+            self.x,
+            self.y,
+            self.visible,
+            self.interactive,
+            self.grabpoint,
+            self.hovered,
+            self.tweaks)
 
 
 spot_dimension_qryfmt = (

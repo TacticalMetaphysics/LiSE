@@ -1,8 +1,7 @@
 import database
+import os
 from dimension import Dimension
-from schedule import Schedule
-from item import Item, Thing, Place, Portal
-from journey import Journey
+from item import Item, Thing, Place, Portal, Schedule, Journey
 from effect import Effect, EffectDeck
 from event import Event, EventDeck
 from style import Color, Style
@@ -35,11 +34,19 @@ tabclasses = [
     Pawn,
     Board]
 
-db = database.Database('empty.sqlite')
+DB_NAME = 'empty.sqlite'
+
+try:
+    os.remove(DB_NAME)
+except IOError:
+    pass
+
+db = database.Database(DB_NAME)
 
 for clas in tabclasses:
     for tab in clas.schemata:
         print tab
         db.c.execute(tab)
 
-del db
+db.c.close()
+db.conn.commit()

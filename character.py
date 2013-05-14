@@ -42,71 +42,48 @@ key is composed of the dimension an item of this character is in, the
 item's name, and the name of the attribute.
 
 """
-    tablename = "character"
-    coldecls = {
-        "character":
-        {"name": "text"},
-        "character_item_link":
-        {"character": "text",
-         "dimension": "text",
-         "item": "text"},
-        "attribute":
-        {"name": "text",
-         "type": "text"},
-        "attribution":
-        {"character": "text",
-         "attribute": "text",
-         "value": "text"}}
-    primarykeys = {
-        "character": ("name",),
-        "character_item_link": ("character", "dimension", "item"),
-        "attribute": ("name",),
-        "attribution": ("character", "attribute")}
-    foreignkeys = {
-        "character_item_link":
-        {"character": ("character", "name"),
-         "dimension, item": ("item", "dimension, name")},
-        "attribution":
-        {"character": ("character", "name"),
-         "attribute": ("attribute", "name")}}
+    tables = [
+        ("character_item_link",
+         {"character": "text",
+          "dimension": "text",
+          "item": "text"},
+         ("character", "dimension", "item"),
+         {"dimension, item": ("item", "dimension, name")},
+         []),
+        ("character_skill_link",
+         {"character": "text",
+          "skill": "text",
+          "effect_deck": "text"},
+         ("character", "skill"),
+         {"effect_deck": ("effect_deck", "name")},
+         []),
+        ("attribution",
+         {"character": "text",
+          "attribute": "text",
+          "value": "text"},
+         ("character", "attribute"),
+         [],
+         [])]
 
+    def __init__(self, name, db=None):
+        self.name = name
+        self.character_item_link = set()
+        self.character_skill_link = set()
+        self.attribution = set()
+        if db is not None:
+            db.characterdict[self.name] = self
 
-class CharacterThing:
-    # dictionary generatin' stuff for associating characters with things
-
-    # I feel like it might be a good idea to model the particular
-    # relevance a thing has to a character but I have no idea how, for
-    # the moment...
-    tablename = "characterthing"
-    keydecldict = {"character": "text",
-                   "dimension": "text",
-                   "thing": "text"}
-    valdecldict = {}
-    fkeydict = {"character": ("character", "name")}
-
-
-class CharacterStat:
-    # generic stats. There are more columns than you might expect
-    # because it's easier this way.
-    tablename = "characterstat"
-    keydecldict = {"character": "text",
-                   "stat_name": "text"}
-    valdecldict = {"stat_type": "text",
-                   "bool_val": "boolean",
-                   "int_val": "integer",
-                   "float_val": "float",
-                   "text_val": "text"}
-    fkeydict = {"character": ("character", "name")}
-    checks = ["stat_type in ('boolean', 'integer', 'float', 'text')"]
-
-
-class CharacterAttemptDeck:
-    # Associating characters with decks representing those things the
-    # character can attempt irrespective of their skills or tools or
-    # situation. Most of the time the links will be more indirect than
-    # this, through Actions for instance.
-    tablename = "charattempt"
-    keydecldict = {"character": "text",
-                   "deck": "text"}
-    valdecldict = {}
-    fkeydict = {"character": ("character", "name")}
+    def unravel(self, db):
+        # Assumes that everything it relies on has been pre-unraveled
+        self.itemdict = db.characteritemdict[self.name]
+        self.skilldict = db.skilldict[self.name]
+        self.attributiondict = db.attributiondict[self.name]
+        for item in self.itemdict.iteritems():
+            (dimname, it) = item
+            self.character_item_link.add((self.name, dimname, it.name))
+        for item in self.skilldict.iteritems():
+            (skill, ed) = item
+            self.character_skill_link.add((self.name, skill, ed.name))
+        for item in self.attributiondict.iteritems():
+            (trib, val) = item
+            self.attribution.add((self.name, trib, val))

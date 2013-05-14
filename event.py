@@ -1,4 +1,21 @@
 from util import SaveableMetaclass, dictify_row
+from effect import load_effect_decks
+
+
+class SenselessEvent(Exception):
+    pass
+
+
+class ImpossibleEvent(Exception):
+    pass
+
+
+class IrrelevantEvent(Exception):
+    pass
+
+
+class ImpracticalEvent(Exception):
+    pass
 
 
 __metaclass__ = SaveableMetaclass
@@ -25,56 +42,26 @@ outcome occurs. This may be used, for instance, to model that kind of
 success that strains a person terribly and causes them injury.
 
     """
-    tablenames = ["event"]
-    coldecls = {
-        "event":
-        {"name": "text",
-         "ongoing": "boolean",
-         "commence_effects": "text",
-         "proceed_effects": "text",
-         "conclude_effects": "text"}}
-    primarykeys = {
-        "event": ("name",)}
-    foreignkeys = {
-        "event":
-        {"commence_effects": ("effect_deck", "name"),
-         "proceed_effects": ("effect_deck", "name"),
-         "conclude_effects": ("effect_deck", "name")}}
+    tables = [
+        ("event",
+         {"name": "text",
+          "ongoing": "boolean",
+          "commence_effects": "text",
+          "proceed_effects": "text",
+          "conclude_effects": "text"},
+         ("name",),
+         {"commence_effects": ("effect_deck", "name"),
+          "proceed_effects": ("effect_deck", "name"),
+          "conclude_effects": ("effect_deck", "name")},
+         [])]
 
-    def pull(self, db, keydicts):
-        names = [keydict["name"] for keydict in keydicts]
-        return self.pull_named(db, names)
-
-    def pull_named(self, db, names):
-        qryfmt = "SELECT {0} FROM event WHERE name IN ({0})"
-        qrystr = qryfmt.format(
-            self.colnames["event"],
-            ", ".join(["?"] * len(names)))
-        db.c.execute(qrystr, names)
-        return self.parse([
-            dictify_row(self.colnames["event"], row)
-            for row in db.c])
-
-    def parse(self, rows):
-        r = {}
-        for row in rows:
-            r[row["name"]] = row
-        return r
-
-    def combine(self, evdict, efdict):
-        for ev in evdict.itervalues():
-            ev["commence_effect"] = efdict[ev["commence_effect"]]
-            ev["proceed_effect"] = efdict[ev["proceed_effect"]]
-            ev["conclude_effect"] = efdict[ev["conclude_effect"]]
-        return evdict
-
-    def __init__(self, name, ongoing, commence_effect,
-                 proceed_effect, conclude_effect, db=None):
+    def __init__(self, name, ongoing, commence_effects,
+                 proceed_effects, conclude_effects, db=None):
         self.name = name
         self.ongoing = ongoing
-        self.commence_effect = commence_effect
-        self.proceed_effect = proceed_effect
-        self.conclude_effect = conclude_effect
+        self.commence_effects = commence_effects
+        self.proceed_effects = proceed_effects
+        self.conclude_effects = conclude_effects
         if db is not None:
             db.eventdict[name] = self
 
@@ -119,54 +106,73 @@ success that strains a person terribly and causes them injury.
         new.end = start + length
         return new
 
-    def begun(self):
-        r = True
-        for starttest in self.starttests:
-            if not starttest():
-                r = False
-        return r
-
     def commence(self):
-        if self.begun():
-            self.ongoing = True
-        else:
-            for effect in self.abort_effects:
-                effect[0](effect[1])
-        return self.status
+        self.commence_effects.do()
+        self.ongoing = True
 
     def proceed(self):
-        if self.interrupted():
-            for effect in self.interrupt_effects:
-                effect[0](effect[1])
-            self.ongoing = False
-        return self.status
+        self.proceed_effects.do()
 
     def conclude(self):
+        self.conclude_effects.do()
         self.ongoing = False
-        for effect in self.complete_effects:
-            effect[0](effect[1])
-        return self.status
+
+    def display_str(self):
+        # Sooner or later gonna get it so you can put arbitrary
+        # strings in some other table and this refers to that
+        return self.name
 
 
 class EventDeck:
-    tablenames = ["event_deck", "event_deck_link"]
-    coldecls = {
-        "event_deck": {
-            "name": "text"},
-        "event_deck_link": {
-            "deck": "text",
-            "idx": "integer",
-            "event": "text"}}
-    primarykeys = {
-        "event_deck": ("name",),
-        "event_deck_link": ("deck", "idx")}
-    foreignkeys = {
-        "event_deck_link": {
-            "deck": ("event_deck", "name"),
-            "event": ("event", "name")}}
+    tables = [
+        ("event_deck_link",
+         {"deck": "text",
+          "idx": "integer",
+          "event": "text"},
+         ("deck", "idx"),
+         {"event": ("event", "name")},
+         [])]
 
     def __init__(self, name, event_list, db=None):
         self.name = name
         self.events = event_list
         if db is not None:
             db.eventdeckdict[self.name] = self
+
+
+evdl_qcol = ["event_deck_link." + coln for coln in EventDeck.colns]
+ev_qval = ["event." + valn for valn in Event.valns]
+red_qcol = evdl_qcol + ev_qval
+red_col = EventDeck.colns + Event.valns
+read_event_decks_qryfmt = (
+    "SELECT {0} FROM event_deck_link, event "
+    "WHERE event_deck_link.event=event.name "
+    "AND event_deck_link.deck IN ({1})".format(
+        ", ".join(red_qcol), "{0}"))
+
+
+def load_event_decks(db, names):
+    qryfmt = read_event_decks_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
+    db.c.execute(qrystr, names)
+    r = {}
+    effect_deck_names = set()
+    for name in names:
+        r[name] = []
+    for row in db.c:
+        rowdict = dictify_row(row, red_col)
+        decklist = r[rowdict["name"]]
+        while len(decklist) < rowdict["idx"]:
+            decklist.append(None)
+        rowdict["db"] = db
+        effect_deck_names.add(rowdict["commence_effects"])
+        effect_deck_names.add(rowdict["proceed_effects"])
+        effect_deck_names.add(rowdict["conclude_effects"])
+        decklist[rowdict["idx"]] = Event(**rowdict)
+    for item in r.iteritems():
+        (name, l) = item
+        r[name] = EventDeck(name, l, db)
+    load_effect_decks(db, list(effect_deck_names))
+    for val in r.itervalues():
+        val.unravel(db)
+    return r

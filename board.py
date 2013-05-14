@@ -3,6 +3,7 @@ from menu import read_menus_in_boards
 from img import load_imgs
 from spot import read_spots_in_dimensions
 from pawn import read_pawns_in_dimensions
+from calendar import read_calendars_in_dimensions
 from dimension import read_dimensions
 
 
@@ -26,23 +27,23 @@ assumption that each board will be open in at most one window at a
 time.
 
 """
-    tablenames = ["board", "board_menu"]
-    coldecls = {"board":
-                {"dimension": "text",
-                 "width": "integer",
-                 "height": "integer",
-                 "wallpaper": "text"},
-                "board_menu":
-                {"board": "text",
-                 "menu": "text"}}
-    primarykeys = {"board": ("dimension",),
-                   "board_menu": tuple()}
-    foreignkeys = {"board":
-                   {"dimension": ("dimension", "name"),
-                    "wallpaper": ("image", "name")},
-                   "board_menu":
-                   {"board": ("board", "name"),
-                    "menu": ("menu", "name")}}
+    tables = [
+        ("board",
+         {"dimension": "text",
+          "width": "integer",
+          "height": "integer",
+          "wallpaper": "text"},
+         ("dimension",),
+         {"dimension": ("dimension", "name"),
+          "wallpaper": ("image", "name")},
+         []),
+        ("board_menu",
+         {"board": "text",
+          "menu": "text"},
+         [],
+         {"board": ("board", "name"),
+          "menu": ("menu", "name")},
+         [])]
 
     def __init__(self, dimension,
                  width, height, wallpaper, db=None):
@@ -83,12 +84,15 @@ and menus herein.
         self.pawndict = db.pawndict[self.dimension.name]
         self.spotdict = db.spotdict[self.dimension.name]
         self.menudict = db.boardmenudict[self.dimension.name]
+        self.calendardict = db.calendardict[self.dimension.name]
         for pwn in self.pawndict.itervalues():
             pwn.unravel(db)
         for spt in self.spotdict.itervalues():
             spt.unravel(db)
         for mnu in self.menudict.itervalues():
             mnu.unravel(db)
+        for cal in self.calendardict.itervalues():
+            cal.unravel(db)
 
     def __eq__(self, other):
         return (
@@ -123,7 +127,8 @@ load_all_boards_qrystr = (
 
 
 def load_boards(db, names):
-    """Make boards representing dimensions of the given names, returning a list."""
+    """Make boards representing dimensions of the given names, returning a
+list."""
     boarddict = {}
     imgs2load = set()
     if names is None or len(names) == 0:
@@ -138,6 +143,7 @@ def load_boards(db, names):
     read_dimensions(db, names)
     read_menus_in_boards(db, names)
     read_pawns_in_dimensions(db, names)
+    read_calendars_in_dimensions(db, names)
     for pwns in db.pawndict.itervalues():
         for pwn in pwns.itervalues():
             imgs2load.add(pwn.img)

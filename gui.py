@@ -1,15 +1,6 @@
 import pyglet
 
 
-def point_is_in(x, y, listener):
-    return x >= listener.getleft() and x <= listener.getright() \
-        and y >= listener.getbot() and y <= listener.gettop()
-
-
-def point_is_between(x, y, x1, y1, x2, y2):
-    return x >= x1 and x <= x2 and y >= y1 and y <= y2
-
-
 class GameWindow:
     arrowhead_angle = 45
     arrowhead_len = 10
@@ -28,8 +19,8 @@ class GameWindow:
         self.pawngroup = pyglet.graphics.OrderedGroup(3)
         self.menugroup = pyglet.graphics.OrderedGroup(4)
         self.calendargroup = pyglet.graphics.OrderedGroup(4)
-        self.brickgroup = pyglet.graphics.OrderedGroup(5)
-        self.labelgroup = pyglet.graphics.OrderedGroup(6)
+        self.cellgroup = pyglet.graphics.OrderedGroup(5)
+        self.labelgroup = pyglet.graphics.OrderedGroup(5)
 
         self.pressed = None
         self.hovered = None
@@ -42,6 +33,8 @@ class GameWindow:
         self.mouse_buttons = 0
         self.mouse_mods = 0
         self.view_left = 0
+        self.prev_view_left = 0
+        self.prev_view_bot = 0
         self.view_bot = 0
 
         self.to_mouse = (
@@ -55,83 +48,77 @@ class GameWindow:
             batch = pyglet.graphics.Batch()
 
         self.window = window
+        self.width = self.window.width
+        self.height = self.window.height
         self.batch = batch
         self.menus = self.board.menudict.values()
         self.spots = self.board.spotdict.values()
         self.pawns = self.board.pawndict.values()
         self.portals = self.board.dimension.portaldict.values()
-        self.drawn_menus = dict()
-        self.drawn_mis = dict()
-        self.drawn_spots = dict()
-        self.drawn_pawns = dict()
+        self.calendars = self.board.calendardict.values()
+        for cal in self.calendars:
+            cal.set_gw(self)
+        for menu in self.menus:
+            menu.set_gw(self)
         self.drawn_board = None
         self.drawn_edges = None
-        for menu in self.menus:
-            menu.window = self.window
-            if menu.main_for_window:
-                self.mainmenu = menu
-            self.drawn_menus[menu.name] = None
-            self.drawn_mis[menu.name] = [None] * len(menu.items)
-        for spot in self.spots:
-            self.drawn_spots[spot.place.name] = None
-        for pawn in self.pawns:
-            self.drawn_pawns[pawn.thing.name] = None
 
         self.onscreen = set()
 
         @window.event
         def on_draw():
-            menus_todo = [
-                menu for menu in self.menus if
-                menu.get_state_tup() not in self.onscreen]
-            mi_todo = []
-            for menu in menus_todo:
-                mi_todo.extend(
-                    [item for item in menu.items if
-                     item.get_state_tup() not in self.onscreen])
-            pawn_todo = [
-                pawn for pawn in self.pawns if
-                pawn.get_state_tup() not in self.onscreen]
-            spot_todo = [
-                spot for spot in self.spots if
-                spot.get_state_tup() not in self.onscreen]
-            portal_todo = self.portals
-            # delete stuff not being drawn anymore
-            try:
-                self.drawn_board.delete()
-            except AttributeError:
-                pass
-            try:
-                self.drawn_edges.delete()
-            except AttributeError:
-                pass
-            for menu in menus_todo:
-                try:
-                    menu.sprite.delete()
-                except AttributeError:
-                    pass
-            for menuitem in mi_todo:
-                try:
-                    menuitem.label.delete()
-                except AttributeError:
-                    pass
-            for pawn in pawn_todo:
-                try:
-                    pawn.sprite.delete()
-                except AttributeError:
-                    pass
-            for spot in spot_todo:
-                try:
-                    spot.sprite.delete()
-                except AttributeError:
-                    pass
             # draw the background image
             x = -1 * self.view_left
             y = -1 * self.view_bot
             s = pyglet.sprite.Sprite(
                 self.board.wallpaper, x, y,
                 batch=self.batch, group=self.boardgroup)
+            try:
+                self.drawn_board.delete()
+            except AttributeError:
+                pass
             self.drawn_board = s
+            # if the background image has moved since last frame, then
+            # so has everything else
+            redraw_all = (self.view_left != self.prev_view_left or
+                          self.view_bot != self.prev_view_bot)
+            self.view_left = self.prev_view_left
+            self.view_bot = self.prev_view_bot
+            portal_todo = self.portals
+            if redraw_all:
+                menus_todo = self.menus
+                mi_todo = []
+                for menu in menus_todo:
+                    mi_todo.extend(menu.items)
+                pawn_todo = self.pawns
+                spot_todo = self.spots
+                col_todo = self.calendars
+                cel_todo = []
+                for col in col_todo:
+                    cel_todo.extend(col.cells)
+            else:
+                menus_todo = [
+                    menu for menu in self.menus if
+                    menu.get_state_tup() not in self.onscreen]
+                mi_todo = []
+                for menu in self.menus:
+                    mi_todo.extend([
+                        it for it in menu.items if
+                        it.get_state_tup() not in self.onscreen])
+                pawn_todo = [
+                    pawn for pawn in self.pawns if
+                    pawn.get_state_tup() not in self.onscreen]
+                spot_todo = [
+                    spot for spot in self.spots if
+                    spot.get_state_tup() not in self.onscreen]
+                col_todo = [
+                    calcol for calcol in self.calendars if
+                    calcol.get_state_tup() not in self.onscreen]
+                cel_todo = []
+                for col in self.calendars:
+                    cel_todo.extend([
+                        cel for cel in col.cells if
+                        cel.get_state_tup() not in self.onscreen])
             # draw the edges, representing portals
             e = []
             for portal in portal_todo:
@@ -139,65 +126,140 @@ class GameWindow:
                 destspot = portal.dest.spot
                 edge = (origspot.x, origspot.y, destspot.x, destspot.y)
                 e.extend(edge)
+            try:
+                self.drawn_edges.delete()
+            except AttributeError:
+                pass
             self.drawn_edges = self.batch.add(
                 len(e) / 2, pyglet.graphics.GL_LINES,
                 self.edgegroup, ('v2i', e))
             # draw the spots, representing places
             for spot in spot_todo:
+                self.onscreen.discard(spot.oldstate)
+                newstate = spot.get_state_tup()
+                self.onscreen.add(newstate)
+                spot.oldstate = newstate
+                try:
+                    spot.sprite.delete()
+                except AttributeError:
+                    pass
                 if spot.visible:
                     (x, y) = spot.getcoords()
                     spot.sprite = pyglet.sprite.Sprite(
                         spot.img, x, y, batch=self.batch,
                         group=self.spotgroup)
-                    self.onscreen.discard(spot.oldstate)
-                    newstate = spot.get_state_tup()
-                    self.onscreen.add(newstate)
-                    spot.oldstate = newstate
             # draw the pawns, representing things
             for pawn in pawn_todo:
+                newstate = pawn.get_state_tup()
+                self.onscreen.discard(pawn.oldstate)
+                self.onscreen.add(newstate)
+                pawn.oldstate = newstate
+                try:
+                    pawn.sprite.delete()
+                except AttributeError:
+                    pass
                 if pawn.visible:
                     (x, y) = pawn.getcoords()
                     pawn.sprite = pyglet.sprite.Sprite(
                         pawn.img, x, y, batch=self.batch,
                         group=self.pawngroup)
-                    self.onscreen.discard(pawn.oldstate)
-                    newstate = pawn.get_state_tup()
-                    self.onscreen.add(newstate)
-                    pawn.oldstate = newstate
             # draw the menus, really just their backgrounds for the moment
             for menu in menus_todo:
+                newstate = menu.get_state_tup()
+                self.onscreen.discard(menu.oldstate)
+                self.onscreen.add(newstate)
+                menu.oldstate = newstate
+                try:
+                    menu.sprite.delete()
+                except AttributeError:
+                    pass
                 if menu.visible:
-                    w = menu.getwidth()
-                    h = menu.getheight()
-                    image = menu.pattern.create_image(w, h)
+                    image = (
+                        menu.inactive_pattern.create_image(
+                            menu.getwidth(),
+                            menu.getheight()))
                     menu.sprite = pyglet.sprite.Sprite(
                         image, menu.getleft(), menu.getbot(),
                         batch=self.batch, group=self.menugroup)
-                    self.onscreen.discard(menu.oldstate)
-                    newstate = menu.get_state_tup()
-                    self.onscreen.add(newstate)
-                    menu.oldstate = newstate
-            # draw the menu items proper
-            for mitem in mi_todo:
-                if mitem.visible and mitem.menu.visible:
-                    sty = mitem.menu.style
-                    if self.hovered == mitem:
-                        color = sty.fg_active
+            for mi in mi_todo:
+                newstate = mi.get_state_tup()
+                self.onscreen.discard(mi.oldstate)
+                self.onscreen.add(newstate)
+                mi.oldstate = newstate
+                try:
+                    mi.label.delete()
+                except AttributeError:
+                    pass
+                if mi.menu.visible and mi.visible:
+                    sty = mi.menu.style
+                    if mi.hovered:
+                        color = sty.fg_active.tup
                     else:
-                        color = sty.fg_inactive
-                    left = mitem.getleft()
-                    bot = mitem.getbot()
-                    mitem.label = pyglet.text.Label(
-                        mitem.text, sty.fontface, sty.fontsize,
-                        color=color.tup, x=left, y=bot,
-                        batch=self.batch, group=self.labelgroup)
-                    self.onscreen.discard(mitem.oldstate)
-                    newstate = mitem.get_state_tup()
-                    self.onscreen.add(newstate)
-                    mitem.oldstate = newstate
+                        color = sty.fg_inactive.tup
+                    mi.label = pyglet.text.Label(
+                        mi.text,
+                        sty.fontface,
+                        sty.fontsize,
+                        color=color,
+                        x=mi.getleft(),
+                        y=mi.getbot(),
+                        batch=self.batch,
+                        group=self.labelgroup)
+            # draw the calendars
+            for col in col_todo:
+                col.adjust()
+                newstate = col.get_state_tup()
+                self.onscreen.discard(col.oldstate)
+                self.onscreen.add(newstate)
+                col.oldstate = newstate
+                try:
+                    col.sprite.delete()
+                except AttributeError:
+                    pass
+                for cel in col.cells:
+                    try:
+                        cel.sprite.delete()
+                    except AttributeError:
+                        pass
+                    try:
+                        cel.label.delete()
+                    except AttributeError:
+                        pass
+                if col.visible:
+                    image = (
+                        col.inactive_pattern.create_image(
+                            col.getwidth(), col.getheight()))
+                    col.sprite = pyglet.sprite.Sprite(
+                        image, col.getleft(), col.getbot(),
+                        batch=self.batch, group=self.calendargroup)
+            # draw the cells in the calendars
+            for cel in cel_todo:
+                newstate = cel.get_state_tup()
+                self.onscreen.discard(cel.oldstate)
+                self.onscreen.add(newstate)
+                cel.oldstate = newstate
+                try:
+                    cel.sprite.delete()
+                except AttributeError:
+                    pass
+                try:
+                    cel.label.delete()
+                except AttributeError:
+                    pass
+                if cel.visible:
+                    if self.hovered == cel:
+                        pat = cel.active_pattern
+                    else:
+                        pat = cel.inactive_pattern
+                    image = pat.create_image(
+                        cel.getwidth(), cel.getheight())
+                    cel.sprite = pyglet.sprite.Sprite(
+                        image, cel.getleft(), cel.getbot(),
+                        batch=self.batch, group=self.cellgroup)
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.
             self.batch.draw()
+            self.resized = False
 
         @window.event
         def on_key_press(sym, mods):
@@ -206,17 +268,50 @@ class GameWindow:
         @window.event
         def on_mouse_motion(x, y, dx, dy):
             if self.hovered is None:
-                for moused in self.to_mouse:
+                for menu in self.menus:
                     if (
-                            moused is not None
-                            and moused.interactive
-                            and point_is_in(x, y, moused)):
-                        self.hovered = moused
-                        moused.hovered = True
-                        break
+                            x > menu.getleft() and
+                            x < menu.getright() and
+                            y > menu.getbot() and
+                            y < menu.gettop()):
+                        for item in menu.items:
+                            if (
+                                    x > item.getleft() and
+                                    x < item.getright() and
+                                    y > item.getbot() and
+                                    y < item.gettop()):
+                                if hasattr(item, 'set_hovered'):
+                                    item.set_hovered()
+                                self.hovered = item
+                                return
+                for spot in self.spots:
+                    if (
+                            x > spot.getleft() and
+                            x < spot.getright() and
+                            y > spot.getbot() and
+                            y < spot.gettop()):
+                        if hasattr(spot, 'set_hovered'):
+                            spot.set_hovered()
+                        self.hovered = spot
+                        return
+                for pawn in self.pawns:
+                    if (
+                            x > pawn.getleft() and
+                            x < pawn.getright() and
+                            y > pawn.getbot() and
+                            y < pawn.gettop()):
+                        if hasattr(pawn, 'set_hovered'):
+                            pawn.set_hovered()
+                        self.hovered = pawn
+                        return
             else:
-                if not point_is_in(x, y, self.hovered):
-                    self.hovered.hovered = False
+                if (
+                        x < self.hovered.getleft() or
+                        x > self.hovered.getright() or
+                        y < self.hovered.getbot() or
+                        y > self.hovered.gettop()):
+                    if hasattr(self.hovered, 'unset_hovered'):
+                        self.hovered.unset_hovered()
                     self.hovered = None
 
         @window.event
@@ -225,136 +320,46 @@ class GameWindow:
                 return
             else:
                 self.pressed = self.hovered
-                self.pressed.pressed = True
+                if hasattr(self.pressed, 'set_pressed'):
+                    self.pressed.set_pressed()
 
         @window.event
         def on_mouse_release(x, y, button, modifiers):
             if self.grabbed is not None:
-                self.grabbed.dropped(x, y, button, modifiers)
+                if hasattr(self.grabbed, 'dropped'):
+                    self.grabbed.dropped(x, y, button, modifiers)
                 self.grabbed = None
-            elif self.pressed is not None:
-                if (
-                        point_is_in(x, y, self.pressed) and
-                        hasattr(self.pressed, 'onclick')):
+            elif (self.pressed is not None and
+                  x > self.pressed.getleft() and
+                  x < self.pressed.getright() and
+                  y > self.pressed.getbot() and
+                  y < self.pressed.gettop() and
+                  hasattr(self.pressed, 'onclick')):
                     self.pressed.onclick(button, modifiers)
             if self.pressed is not None:
-                self.pressed.pressed = False
+                if hasattr(self.pressed, 'unset_pressed'):
+                    self.pressed.unset_pressed()
                 self.pressed = None
 
         @window.event
         def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
             if self.grabbed is not None:
                 self.grabbed.move_with_mouse(x, y, dx, dy, buttons, modifiers)
-            elif self.pressed is not None and point_is_in(x, y, self.pressed):
-                if hasattr(self.pressed, 'move_with_mouse'):
+            elif (self.pressed is not None and
+                  x > self.pressed.getleft() and
+                  x < self.pressed.getright() and
+                  y > self.pressed.getbot() and
+                  y < self.pressed.gettop() and
+                  hasattr(self.pressed, 'move_with_mouse')):
                     self.grabbed = self.pressed
             else:
                 if self.pressed is not None:
-                    self.pressed.pressed = False
+                    self.pressed.unset_pressed()
                     self.pressed = None
                 self.grabbed = None
 
-    def on_key_press(self, key, mods):
-        pass
-
-    def dumb_m2b(self):
-        for menu in self.menus:
-            if not menu.visible:
-                print "Not drawing invisible menu {0}".format(menu.name)
-                return
-            old = self.drawn_menus[menu.name]
-            self.drawn_menus[menu.name] = self.add_menu_to_batch(menu)
-            try:
-                old.delete()
-            except AttributeError:
-                pass
-
-    def add_menus_to_batch(self, dumb=False):
-        if dumb:
-            return self.dumb_m2b()
-        for menu in self.menus:
-            state = menu.get_state_tup()
-            statehash = hash(state)
-            if not menu.visible:
-                return
-            (mtup, sprite) = self.drawn_menus[menu.name]
-            # mtup holds the menu's state last time it was drawn.
-            # if the menu's state now is not the same,
-            # delete the old sprite, draw anew.
-            if mtup != statehash:
-                try:
-                    sprite.delete()
-                except AttributeError:
-                    pass
-                self.drawn_menus[menu.name] = (
-                    statehash, self.add_menu_to_batch(menu))
-
-    def add_menu_item_to_batch(self, mi):
-        sty = mi.menu.style
-        if self.hovered is mi:
-            color = sty.fg_active
-        else:
-            color = sty.fg_inactive
-        left = mi.getleft()
-        bot = mi.getbot()
-        l = pyglet.text.Label(mi.text, sty.fontface, sty.fontsize,
-                              color=color.tup, x=left, y=bot,
-                              batch=self.batch, group=self.labelgroup)
-        return l
-
-    def dumb_mis2b(self):
-        for menu in self.menus:
-            for item in menu.items:
-                if not item.visible:
-                    return
-                old = self.drawn_mis[menu.name][item.idx]
-                self.drawn_mis[menu.name][item.idx] = (
-                    self.add_menu_item_to_batch(item))
-                try:
-                    old.delete()
-                except AttributeError:
-                    pass
-
-    def add_menu_items_to_batch(self, dumb=False):
-        if dumb:
-            return self.dumb_mis2b()
-        for menu in self.menus:
-            for item in menu.items:
-                state = item.get_state_tup()
-                statehash = hash(state)
-                if not item.visible or not item.menu.visible:
-                    return
-                (itup, sprite) = self.drawn_mis[menu.name][item.idx]
-                if itup != statehash:
-                    try:
-                        sprite.delete()
-                    except AttributeError:
-                        pass
-                    self.drawn_mis[menu.name][item.idx] = (
-                        statehash, self.add_menu_item_to_batch(item))
-
-    def dumbpawns2b(self):
-        for pawn in self.pawns:
-            if not pawn.visible:
-                return
-            old = self.drawn_pawns[pawn.thing.name]
-            self.drawn_pawns[pawn.thing.name] = self.add_pawn_to_batch(pawn)
-            try:
-                old.delete()
-            except AttributeError:
-                pass
-
-    def add_pawns_to_batch(self, dumb=False):
-        if dumb:
-            return self.dumbpawns2b()
-        for pawn in self.pawns:
-            state = pawn.get_state_tup()
-            statehash = hash(state)
-            (ptup, sprite) = self.drawn_pawns[pawn.thing.name]
-            if ptup != statehash:
-                try:
-                    sprite.delete()
-                except AttributeError:
-                    pass
-                self.drawn_pawns[pawn.thing.name] = (
-                    statehash, self.add_pawn_to_batch(pawn))
+        @window.event
+        def on_resize(w, h):
+            self.width = w
+            self.height = h
+            self.resized = True

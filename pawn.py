@@ -1,5 +1,6 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 from copy import copy
+from calendar import CalendarCol
 
 
 __metaclass__ = SaveableMetaclass
@@ -20,17 +21,18 @@ class Pawn:
     nebulous dimension between Places.
 
     """
-    tablenames = ["pawn"]
-    coldecls = {"pawn":
-                {"dimension": "text",
-                 "thing": "text",
-                 "img": "text",
-                 "visible": "boolean",
-                 "interactive": "boolean"}}
-    primarykeys = {"pawn": ("dimension", "thing")}
-    fkeydict = {"pawn":
-                {"img": ("img", "name"),
-                 "dimension, thing": ("thing", "dimension, name")}}
+
+    tables = [
+        ("pawn",
+         {"dimension": "text",
+          "thing": "text",
+          "img": "text",
+          "visible": "boolean",
+          "interactive": "boolean"},
+         ("dimension", "thing"),
+         {"img": ("img", "name"),
+          "dimension, thing": ("thing", "dimension, name")},
+         [])]
 
     def __init__(self, dimension, thing, img, visible, interactive, db=None):
         self.dimension = dimension
@@ -41,7 +43,9 @@ class Pawn:
         self.grabpoint = None
         self.sprite = None
         self.oldstate = None
+        self.newstate = None
         self.hovered = False
+        self.tweaks = 0
         if db is not None:
             dimname = None
             thingname = None
@@ -68,19 +72,33 @@ class Pawn:
             self.grabpoint == other.grabpoint)
 
     def unravel(self, db):
+        # Invariant: things have already been unraveled
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.thing):
             self.thing = db.itemdict[self.dimension.name][self.thing]
         self.thing.pawn = self
+        if (self.dimension.name in db.calendardict
+            and self.thing.name in db.calendardict[self.dimension.name]):
+            self.calendar = db.calendardict[self.dimension.name][self.thing.name]
+        elif self.thing.schedule is not None:
+            self.calendar = CalendarCol(
+                self.dimension.name,
+                self.thing.name,
+                False,
+                True,
+                10,
+                0,
+                0.6,
+                0.9,
+                0.1,
+                0.9,
+                'SmallLight',
+                db)
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
         self.rx = self.img.getwidth() / 2
         self.ry = self.img.getheight() / 2
-        if self.rx >= self.ry:
-            self.r = self.rx
-        else:
-            self.r = self.ry
 
     def getcoords(self):
         # Assume I've been provided a spotdict. Use it to get the
@@ -103,7 +121,7 @@ class Pawn:
             end = port.dest.spot
             hdist = end.x - start.x
             vdist = end.y - start.y
-            p = j.progress
+            p = self.thing.journey_progress
             x = start.x + hdist * p
             y = start.y + vdist * p
             return (x, y)
@@ -113,13 +131,19 @@ class Pawn:
 
     def getcenter(self):
         (x, y) = self.getcoords()
-        return (x, y + self.ry)
+        return (x + self.rx, y + self.ry)
 
     def getleft(self):
-        return self.getcoords()[0] - self.rx
+        return self.getcoords()[0]
 
     def getright(self):
-        return self.getcoords()[0] + self.rx
+        return self.getcoords()[0] + self.img.getwidth()
+
+    def getrx(self):
+        return self.rx
+
+    def getry(self):
+        return self.ry
 
     def gettop(self):
         return self.getcoords()[1] + self.img.getheight()
@@ -134,18 +158,32 @@ class Pawn:
         return self.interactive
 
     def onclick(self, button, modifiers):
-        pass
+        # strictly a hack. replace with effectdeck as soon as reasonable
+        print "pawn for {0} clicked".format(self.thing.name)
+        if hasattr(self, 'calendar'):
+            self.calendar.toggle_visibility()
+
+    def set_hovered(self):
+        if not self.hovered:
+            self.hovered = True
+            self.tweaks += 1
+
+    def unset_hovered(self):
+        if self.hovered:
+            self.hovered = False
+            self.tweaks += 1
 
     def get_state_tup(self):
         (x, y) = self.getcoords()
         return (
-            copy(self.img),
-            copy(self.visible),
-            copy(self.interactive),
-            copy(self.grabpoint),
-            copy(self.hovered),
-            copy(x),
-            copy(y))
+            self.img.name,
+            self.visible,
+            self.interactive,
+            self.grabpoint,
+            self.hovered,
+            x,
+            y,
+            self.tweaks)
 
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])

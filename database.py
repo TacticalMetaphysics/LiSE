@@ -69,6 +69,15 @@ arguments.
         self.effectdict = {}
         self.effectdeckdict = {}
         self.func = {'toggle_menu_visibility': self.toggle_menu_visibility,
+                     'toggle_calendar_visibility': self.toggle_calendar_visibility,
+                     'hide_menu': self.hide_menu,
+                     'hide_calendar': self.hide_calendar,
+                     'show_menu': self.show_menu,
+                     'show_calendar': self.show_calendar,
+                     'hide_menus_in_board': self.hide_menus_in_board,
+                     'hide_calendars_in_board': self.hide_calendars_in_board,
+                     'hide_other_menus_in_board': self.hide_other_menus_in_board,
+                     'hide_other_calendars_in_board': self.hide_other_calendars_in_board,
                      'start_new_map': noop,
                      'open_map': noop,
                      'save_map': noop,
@@ -87,7 +96,8 @@ arguments.
         self.conn.close()
 
     def insert_rowdicts_table(self, rowdict, clas, tablename):
-        """Insert the given rowdicts into the table of the given name, as defined by the given class.
+        """Insert the given rowdicts into the table of the given name, as
+defined by the given class.
 
 For more information, consult SaveableMetaclass in util.py.
 
@@ -135,7 +145,7 @@ For more information, consult SaveableMetaclass in util.py.
 Optional argument name is the one the effect needs to use to access
 the function.
 
-        """  
+        """
         if name is None:
             self.func[func.__name__] = func
         else:
@@ -184,7 +194,8 @@ sync."""
 
     def sync(self):
 
-        """Write all remembered objects to disk. Delete all forgotten objects from disk.
+        """Write all remembered objects to disk. Delete all forgotten objects
+from disk.
 
         """
         # Handle additions and changes first.
@@ -273,7 +284,7 @@ sync."""
             inslst = [obj.key + obj.val for obj in objs]
             insertions_by_table[table] = inslst
         newl = [
-            (item[0], list(item[1])) for item in unknownobjs.iteritems]
+            (item[0], list(item[1])) for item in unknownobjs.iteritems()]
         for pair in newl:
             (table, objs) = pair
             inslst = [obj.key + obj.val for obj in objs]
@@ -342,7 +353,9 @@ in the portal between two places.
 
     def inverse_portal(self, portal):
         """Return the portal whose origin is the given portal's destination
-and vice-versa."""
+and vice-versa.
+
+        """
         orign = portal.orig.name
         destn = portal.dest.name
         pdod = self.portaldestorigdict[portal.dimension]
@@ -353,7 +366,55 @@ and vice-versa."""
 
     def toggle_menu_visibility(self, menuspec):
         """Given a string consisting of a board name, a dot, and a menu name,
-toggle the visibility of that menu."""
-        spoke = menuspec.split('.')
-        (boardn, menun) = spoke
-        self.boardmenudict[boardn][menun].toggle_visibility()
+toggle the visibility of that menu.
+
+        """
+        (boardn, itn) = menuspec.split('.')
+        self.boardmenudict[boardn][itn].toggle_visibility()
+
+    def toggle_calendar_visibility(self, calspec):
+        """Given a string consisting of a dimension name, a dot, and an item
+name, toggle the visibility of the calendar representing the schedule
+for that item.
+
+        """
+        (boardn, itn) = calspec.split('.')
+        self.calendardict[boardn][itn].toggle_visibility()
+
+    def hide_menu(self, menuspec):
+        (boardn, itn) = menuspec.split('.')
+        self.boardmenudict[boardn][menun].hide()
+
+    def hide_calendar(self, calspec):
+        (boardn, itn) = calspec.split('.')
+        self.calendardict[boardn][itn].hide()
+
+    def show_menu(self, menuspec):
+        (boardn, menun) = menuspec.split('.')
+        self.boardmenudict[boardn][menun].show()
+
+    def show_calendar(self, calspec):
+        (boardn, itn) = calspec.split('.')
+        self.calendardict[boardn][itn].show()
+
+    def hide_menus_in_board(self, boardn):
+        for menu in self.boardmenudict[boardn].itervalues():
+            if not menu.main_for_window:
+                menu.hide()
+
+    def hide_other_menus_in_board(self, menuspec):
+        (boardn, menun) = menuspec.split('.')
+        for menu in self.boardmenudict[boardn].itervalues():
+            if not menu.main_for_window and menu.name != menun:
+                menu.hide()
+
+    def hide_calendars_in_board(self, boardn):
+        for calendar in self.calendardict[boardn].itervalues():
+            calendar.hide()
+
+    def hide_other_calendars_in_board(self, calspec):
+        (boardn, itn) = calspec.split('.')
+        for calendar in self.calendardict[boardn].iteritems():
+            (itname, cal) = calendar
+            if itname != itn:
+                cal.hide()

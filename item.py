@@ -1,33 +1,46 @@
 from util import (
-    SaveableMetaclass, dictify_row,
-    LocationException, ContainmentException,
+    SaveableMetaclass,
+    dictify_row,
     stringlike)
-from event import Event
-from effect import Effect
+from event import (
+    Event,
+    SenselessEvent,
+    ImpossibleEvent,
+    IrrelevantEvent,
+    ImpracticalEvent)
+from effect import Effect, EffectDeck
+import re
 
 
 __metaclass__ = SaveableMetaclass
 
 
+class LocationException(Exception):
+    pass
+
+
+class ContainmentException(Exception):
+    pass
+
+
 class Item:
-    tablenames = ["item"]
-    coldecls = {
-        "item":
-        {"dimension": "text",
-         "name": "text"}}
-    primarykeys = {
-        "item": ("dimension", "name")}
-    foreignkeys = {
-        "item": {
-            "dimension": ("dimension", "name")}}
+    tables = [
+        ("item",
+         {"dimension": "text",
+          "name": "text"},
+         ("dimension", "name"),
+         {},
+         [])]
 
 
 class Place(Item):
-    tablenames = ["place"]
-    coldecls = {"place":
-                {"dimension": "text",
-                 "name": "text"}}
-    primarykeys = {"place": ("dimension", "name")}
+    tables = [
+        ("place",
+         {"dimension": "text",
+          "name": "text"},
+         ("dimension", "name"),
+         {},
+         [])]
 
     def __init__(self, dimension, name, db):
         self.dimension = dimension
@@ -65,49 +78,30 @@ class Place(Item):
 
 
 class Thing(Item):
-    tablenames = ["thing", "thing_kind"]
-    coldecls = {
-        "thing":
-        {"dimension": "text",
-         "name": "text",
-         "location": "text not null",
-         "container": "text default null",
-         "portal": "text default null",
-         "progress": "float default 0.0",
-         "age": "integer default 0"},
-        "thing_kind":
-        {"dimension": "text",
-         "thing": "text",
-         "kind": "text"},
-        "journey_step":
-        {"dimension": "text",
-         "thing": "text",
-         "idx": "integer",
-         "portal": "text"}}
-    primarykeys = {
-        "thing": ("dimension", "name"),
-        "journey_step": ("dimension", "thing", "idx"),
-        "thing_kind": ("dimension", "thing", "kind")}
-    foreignkeys = {
-        "thing":
-        {"dimension": ("dimension", "name"),
-         "dimension, container": ("thing", "dimension, name")},
-        "thing_kind":
-        {"dimension": ("dimension", "name"),
-         "thing": ("thing", "name"),
-         "kind": ("thing_kind", "name")},
-        "journey_step":
-        {"dimension, thing": ("thing", "dimension, name"),
-         "dimension, portal": ("portal", "dimension, name")}}
+    tables = [
+        ("thing",
+         {"dimension": "text",
+          "name": "text",
+          "location": "text not null",
+          "container": "text default null",
+          "portal": "text default null",
+          "journey_progress": "float default 0.0",
+          "journey_step": "integer default 0",
+          "age": "integer default 0"},
+         ("dimension", "name"),
+         {"dimension, container": ("thing", "dimension, name")},
+         [])]
 
     def __init__(self, dimension, name, location, container,
-                 portal=None, progress=0.0, age=0, schedule=None, db=None):
+                 portal=None, journey_step=0, journey_progress=0.0, age=0,
+                 schedule=None, db=None):
         self.dimension = dimension
         self.name = name
         self.location = location
         self.container = container
         self.portal = portal
-        self.progress = progress
+        self.journey_step = journey_step
+        self.journey_progress = journey_progress
         self.age = age
         self.schedule = schedule
         self.contents = set()
@@ -136,10 +130,15 @@ class Thing(Item):
             self.portal = db.itemdict[self.dimension.name][self.portal]
         if stringlike(self.schedule):
             self.schedule = db.scheduledict[self.dimension.name][self.name]
+            self.schedule.unravel(db)
         if (
                 self.dimension.name in db.journeydict and
                 self.name in db.journeydict[self.dimension.name]):
             self.journey = db.journeydict[self.dimension.name][self.name]
+            self.journey.unravel(db)
+            if self.schedule is None:
+                self.schedule = self.journey.schedule()
+                self.schedule.unravel(db)
         if self.container is not None:
             self.container.add(self)
         self.location.add(self)
@@ -260,19 +259,16 @@ class Journey:
     a Portal at a time, but Journey handles that case anyhow.
 
     """
-    tablenames = ["journey_step"]
-    coldecls = {
-        "journey_step": {
-            "dimension": "text",
-            "thing": "text",
-            "idx": "integer",
-            "portal": "text"}}
-    primarykeys = {
-        "journey_step": ("dimension", "thing", "idx")}
-    foreignkeys = {
-        "journey_step": {
-            "dimension, thing": ("thing", "dimension, name"),
-            "dimension, portal": ("portal", "dimension, name")}}
+    tables = [
+        ("journey_step",
+         {"dimension": "text",
+          "thing": "text",
+          "idx": "integer",
+          "portal": "text"},
+         ("dimension", "thing", "idx"),
+         {"dimension, thing": ("thing", "dimension, name"),
+          "dimension, portal": ("portal", "dimension, name")},
+         [])]
 
     def __init__(self, dimension, thing, steps, db=None):
         self.dimension = dimension
@@ -289,38 +285,38 @@ class Journey:
                 thingname = self.thing
             else:
                 thingname = self.thing.name
+            if dimname not in db.journeydict:
+                db.journeydict[dimname] = {}
             db.journeydict[dimname][thingname] = self
 
     def unravel(self, db):
-        if isinstance(self.dimension, str):
+        if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
-        if isinstance(self.thing, str):
+        if stringlike(self.thing):
             self.thing = db.itemdict[self.dimension.name][self.thing]
-        for step in self.steps:
-            if isinstance(step, str):
-                step = db.itemdict[self.dimension.name][step]
+        i = 0
+        while i < len(self.steps):
+            if stringlike(self.steps[i]):
+                self.steps[i] = db.portaldict[self.dimension.name][self.steps[i]]
+            i += 1
 
     def steps(self):
         """Get the number of steps in the Journey.
-
-        steps() => int
 
         Returns the number of Portals the traveller ever passed
         through or ever will on this Journey.
 
         """
-        return len(self.steplist)
+        return len(self.steps)
 
     def stepsleft(self):
         """Get the number of steps remaining until the end of the Journey.
-
-        stepsleft() => int
 
         Returns the number of Portals left to be travelled through,
         including the one the traveller is in right now.
 
         """
-        return len(self.steplist) - self.curstep
+        return len(self.steps) - self.thing.journey_step
 
     def getstep(self, i):
         """Get the ith next Portal in the journey.
@@ -335,7 +331,7 @@ class Journey:
         If i is out of range, returns None.
 
         """
-        return self.steplist[i+self.curstep]
+        return self.steps[i+self.thing.journey_step]
 
     def speed_at_step(self, i):
         """Get the thing's speed at step i.
@@ -365,14 +361,14 @@ method of the thing that operates on the portal.
         returns None.
 
         """
-        self.thing.progress += prop
-        while self.thing.progress >= 1.0:
-            self.thing.curstep += 1
-            self.thing.progress -= 1.0
-        while self.thing.progress < 0.0:
-            self.thing.curstep -= 1
-            self.thing.progress += 1.0
-        if self.thing.curstep > len(self.steplist):
+        self.thin.journey_progress += prop
+        while self.thin.journey_progress >= 1.0:
+            self.thing.journey_step += 1
+            self.thin.journey_progress -= 1.0
+        while self.thin.journey_progress < 0.0:
+            self.thing.journey_step -= 1
+            self.thin.journey_progress += 1.0
+        if self.thing.journey_step > len(self.steplist):
             return None
         else:
             return self.getstep(0)
@@ -382,7 +378,7 @@ method of the thing that operates on the portal.
             self.steplist.append(None)
         self.steplist[idx] = port
 
-    def gen_event(self, step, db):
+    def gen_event(self, step, db=None):
         """Make an Event representing every tick of travel through the given
 portal.
 
@@ -393,44 +389,70 @@ The Event will not have a start or a length.
         # just because a thing is scheduled to travel doesn't mean it
         # always will--which makes it convenient to have
         # events to resolve all the steps, ne?
-        commence_arg = step.name
+        if stringlike(step):
+            commence_arg = step
+            proceed_arg = step
+            conclude_arg = re.match(
+                "portal\[.*?->(.*?)\]", step).groups()[0]
+        elif isinstance(step, dict):
+            commence_arg = step["portal"]
+            proceed_arg = step["portal"]
+            conclude_arg = re.match(
+                "portal\[.*?->(.*?)\]", step["portal"]).groups()[0]
+        else:
+            commence_arg = step.name
+            proceed_arg = step.name
+            conclude_arg = step.dest.name
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        elif isinstance(self.dimension, dict):
+            dimname = self.dimension["name"]
+        else:
+            dimname = self.dimension.name
+        if stringlike(self.thing):
+            thingname = self.thing
+        elif isinstance(self.thing, dict):
+            thingname = self.thing["name"]
+        else:
+            thingname = self.thing.name
         commence_s = "{0}.{1}.enter({2})".format(
-            self.dimension.name, self.thing.name, commence_arg)
+            dimname, thingname, commence_arg)
         effd = {
             "name": commence_s,
-            "func": "%s.%s.enter" % (self.dimension.name, self.thing.name),
+            "func": "%s.%s.enter" % (dimname, thingname),
             "arg": commence_arg,
             "dict_hint": "dimension.thing",
             "db": db}
         commence = Effect(**effd)
-        proceed_arg = step.name
+        commence_deck = EffectDeck(commence_s, [commence], db)
         proceed_s = "%s.%s.remain(%s)" % (
-            self.dimension.name, self.thing.name, proceed_arg)
+            dimname, thingname, proceed_arg)
         effd = {
             "name": proceed_s,
-            "func": "%s.%s.remain" % (self.dimension.name, self.thing.name),
+            "func": "%s.%s.remain" % (dimname, thingname),
             "arg": proceed_arg,
             "dict_hint": "dimension.thing",
             "db": db}
         proceed = Effect(**effd)
-        conclude_arg = step.dest.name
+        proceed_deck = EffectDeck(proceed_s, [proceed], db)
         conclude_s = "%s.%s.enter(%s)" % (
-            self.dimension.name, self.thing.name, conclude_arg)
+            dimname, thingname, conclude_arg)
         effd = {
             "name": conclude_s,
-            "func": "%s.%s.enter" % (self.dimension.name, self.thing.name),
+            "func": "%s.%s.enter" % (dimname, thingname),
             "arg": conclude_arg,
             "dict_hint": "dimension.thing",
             "db": db}
         conclude = Effect(**effd)
+        conclude_deck = EffectDeck(conclude_s, [conclude], db)
         event_name = "%s:%s-thru-%s" % (
-            self.dimension.name, self.thing.name, step.name),
+            dimname, thingname, commence_arg),
         event_d = {
             "name": event_name,
             "ongoing": False,
-            "commence_effect": commence,
-            "proceed_effect": proceed,
-            "conclude_effect": conclude,
+            "commence_effects": commence_deck,
+            "proceed_effects": proceed_deck,
+            "conclude_effects": conclude_deck,
             "db": db}
         event = Event(**event_d)
         return event
@@ -443,48 +465,35 @@ Journey.
 
         """
         stepevents = []
-        for step in self.steplist:
+        for step in self.steps:
             ev = self.gen_event(step)
             ev.start = start
-            start += ev.length
-        tabdict = {
-            "schedule": {
-                "name": self.__name__ + ".schedule",
-                "age": 0},
-            "scheduled_event": stepevents}
-        s = Schedule(tabdict)
+            ev.length = self.thing.speed_thru(step)
+        s = Schedule(self.dimension, self.thing)
+        for ev in stepevents:
+            s.add(ev)
         return s
 
 
 class Schedule:
-    tablenames = ["scheduled_event"]
-    coldecls = {
-        "scheduled_event":
-        {"dimension": "text",
-         "item": "text",
-         "start": "integer",
-         "event": "text not null",
-         "length": "integer"}}
-    primarykeys = {
-        "scheduled_event": ("dimension", "item")}
-    foreignkeys = {
-        "scheduled_event": {
-            "dimension, item": ("item", "dimension, name"),
-            "event": ("event", "name")}}
+    tables = [
+        ("scheduled_event",
+         {"dimension": "text",
+          "item": "text",
+          "start": "integer",
+          "event": "text not null",
+          "length": "integer"},
+         ("dimension", "item"),
+         {"dimension, item": ("item", "dimension, name"),
+          "event": ("event", "name")},
+         [])]
 
-    def __init__(self, dimension, item, events, db=None):
+    def __init__(self, dimension, item, db=None):
         self.dimension = dimension
         self.item = item
-        if isinstance(events, dict):
-            self.starting_events = events
-        elif isinstance(events[0], dict):
-            self.starting_events = {}
-            for ev in events:
-                self.starting_events[ev["start"]] = ev
-        else:
-            self.starting_events = {}
-            for ev in iter(events):
-                self.starting_events[ev.start] = ev
+        self.events_starting = dict()
+        self.events_ending = dict()
+        self.ongoing = set()
         if db is not None:
             dimname = None
             itemname = None
@@ -505,41 +514,85 @@ class Schedule:
             self.dimension = db.dimensiondict[self.dimension]
         if isinstance(self.item, str):
             self.item = db.itemdict[self.dimension.name][self.item]
-        for item in self.events_starting.iteritems():
-            (starttime, evt) = item
-            if isinstance(evt, Event):
-                continue
-            else:
-                self.events_starting[starttime] = Event(**evt)
-
-    def __getitem__(self, n):
-        return self.startevs[n]
 
     def advance(self, n):
         # advance time by n ticks
         prior_age = self.age
         new_age = prior_age + n
-        starts = [self.startevs[i] for i in xrange(prior_age, new_age)]
-        for start in starts:
-            start.start()
-        ends = [self.endevs[i] for i in xrange(prior_age, new_age)]
-        for end in ends:
-            end.end()
+        starts = []
+        ends = []
+        for i in xrange(prior_age, new_age):
+            startevs = iter(self.events_starting[i])
+            endevs = iter(self.events_ending[i])
+            starts.extend(startevs)
+            ends.extend(endevs)
+        for ev in starts:
+            try:
+                ev.commence()
+            except SenselessEvent:
+                # Actually, the various event exceptions ought to
+                # provide info on the kind of failure that I could
+                # parse and show to the user as applicable.
+                continue
+            except ImpossibleEvent:
+                continue
+            except IrrelevantEvent:
+                continue
+            except ImpracticalEvent:
+                pass
+            self.ongoing.add(ev)
+        for ev in ends:
+            ev.conclude()
+            self.ongoing.remove(ev)
+        for ev in iter(self.ongoing):
+            ev.proceed()
         self.age = new_age
+
+    def add(self, ev):
+        if not hasattr(ev, 'end'):
+            ev.end = ev.start + ev.length
+        if ev.start not in self.events_starting:
+            self.events_starting[ev.start] = set()
+        if ev.end not in self.events_ending:
+            self.events_ending[ev.end] = set()
+        self.events_starting[ev.start].add(ev)
+        self.events_ending[ev.end].add[ev]
+
+    def timeframe(self, start, end):
+        """Return a set of events starting or ending within the given
+timeframe.
+
+Events are assumed never to overlap. This is for ease of use only. You
+can make something do many things at once by turning it into a
+container, and putting things inside, each with one of the schedules
+you want the container to follow.
+
+        """
+        r = set()
+        for i in xrange(start, end):
+            try:
+                r.add(self.events_starting[i])
+            except KeyError:
+                pass
+            try:
+                r.add(self.events_ending[i])
+            except KeyError:
+                pass
+        return r
 
 
 class Portal(Item):
-    tablenames = ["portal"]
-    coldecls = {"portal":
-                {"dimension": "text",
-                 "name": "text",
-                 "from_place": "text",
-                 "to_place": "text"}}
-    primarykeys = {"portal": ("dimension", "name")}
-    foreignkeys = {"portal":
-                   {"dimension, name": ("item", "dimension, name"),
-                    "dimension, from_place": ("place", "dimension, name"),
-                    "dimension, to_place": ("place", "dimension, name")}}
+    tables = [
+        ("portal",
+         {"dimension": "text",
+          "name": "text",
+          "from_place": "text",
+          "to_place": "text"},
+         ("dimension", "name"),
+         {"dimension, name": ("item", "dimension, name"),
+          "dimension, from_place": ("place", "dimension, name"),
+          "dimension, to_place": ("place", "dimension, name")},
+         [])]
 
     def __init__(self, dimension, name, from_place, to_place, db=None):
         self.dimension = dimension
@@ -709,7 +762,7 @@ def load_schedules_in_dimensions(db, dimnames):
 journey_dimension_qryfmt = (
     "SELECT {0} FROM journey_step WHERE dimension IN "
     "({1})".format(
-        ", ".join(Thing.colnames["journey_step"]), "{0}"))
+        ", ".join(Journey.colnames["journey_step"]), "{0}"))
 
 
 def read_journeys_in_dimensions(db, dimnames):
@@ -720,15 +773,15 @@ def read_journeys_in_dimensions(db, dimnames):
     for name in dimnames:
         r[name] = {}
     for row in db.c:
-        rowdict = dictify_row(row, Thing.colnames["journey_step"])
+        rowdict = dictify_row(row, Journey.colnames["journey_step"])
         if rowdict["thing"] not in r[rowdict["dimension"]]:
-            r[rowdict["thing"]][rowdict["dimension"]] = {
+            r[rowdict["dimension"]][rowdict["thing"]] = {
                 "db": db,
                 "dimension": rowdict["dimension"],
                 "thing": rowdict["thing"],
                 "steps": []}
         stepl = r[rowdict["dimension"]][rowdict["thing"]]["steps"]
-        while len(stepl) < rowdict["idx"]:
+        while len(stepl) <= rowdict["idx"]:
             stepl.append(None)
         stepl[rowdict["idx"]] = rowdict["portal"]
     for item in r.iteritems():
