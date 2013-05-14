@@ -5,7 +5,6 @@ from effect import (
     EffectDeck,
     make_menu_toggler,
     make_calendar_toggler)
-from copy import copy
 import re
 import pyglet
 
@@ -120,14 +119,9 @@ class MenuItem:
         return self.right
 
     def gettop(self):
-        if not hasattr(self, 'top'):
-            self.top = (self.menu.gettop() - self.menu.style.spacing -
-                        (self.idx * self.getheight()))
         return self.top
 
     def getbot(self):
-        if not hasattr(self, 'bot'):
-            self.bot = self.gettop() - self.menu.style.fontsize
         return self.bot
 
     def getwidth(self):
@@ -163,7 +157,6 @@ class MenuItem:
             self.hovered,
             self.pressed,
             self.toggles)
-
 
     def parse_effect_deck(self, db):
         efd = self.effect_deck
@@ -284,13 +277,13 @@ class Menu:
         if stringlike(self.style):
             self.style = db.styledict[self.style]
         self.style.unravel(db)
+        self.rowheight = self.style.fontsize + self.style.spacing
         bgi = self.style.bg_inactive.tup
         bga = self.style.bg_active.tup
         self.inactive_pattern = pyglet.image.SolidColorImagePattern(bgi)
         self.active_pattern = pyglet.image.SolidColorImagePattern(bga)
         self.items = db.menuitemdict[self.name]
         for item in self.items:
-            print "unraveling item {0} in menu {1}".format(item.idx, self.name)
             item.unravel(db)
         if self.board is not None:
             if stringlike(self.board):
@@ -301,13 +294,28 @@ class Menu:
             db.boardmenudict[boardname][self.name] = self
 
     def set_gw(self, gw):
-        self.left_abs = gw.width * self.left
-        self.right_abs = gw.width * self.right
-        self.width_abs = gw.width * self.width
-        self.top_abs = gw.height * self.top
-        self.bot_abs = gw.height * self.bot
-        self.height_abs = gw.height * self.height
         self.gw = gw
+        self.adjust()
+
+    def adjust(self):
+        self.left_abs = int(self.gw.width * self.left)
+        self.right_abs = int(self.gw.width * self.right)
+        self.width_abs = int(self.gw.width * self.width)
+        self.top_abs = int(self.gw.height * self.top)
+        self.bot_abs = int(self.gw.height * self.bot)
+        self.height_abs = int(self.gw.height * self.height)
+        self.rx_abs = (self.right_abs - self.left_abs) / 2
+        self.ry_abs = (self.top_abs - self.bot_abs) / 2
+        self.center_abs = (self.rx_abs + self.left_abs,
+                           self.ry_abs + self.bot_abs)
+        i = 0
+        for item in self.items:
+            item.top_from_top = i * self.rowheight
+            item.bot_from_top = item.top_from_top + self.rowheight
+            print "{0}+{1}={2}".format(item.top_from_top, self.rowheight, item.bot_from_top)
+            item.top = self.top_abs - item.top_from_top
+            item.bot = item.top - self.rowheight
+            i += 1
 
     def __eq__(self, other):
         return (
@@ -327,22 +335,27 @@ class Menu:
         return self.style
 
     def getleft(self):
-        return int(self.left_abs)
+        return self.left_abs
 
     def getbot(self):
-        return int(self.bot_abs)
+        return self.bot_abs
 
     def gettop(self):
-        return int(self.top_abs)
+        return self.top_abs
 
     def getright(self):
-        return int(self.right_abs)
+        return self.right_abs
+
+    def getcenter(self):
+        fx = self.center_abs[0]
+        fy = self.center_abs[1]
+        return (fx, fy)
 
     def getwidth(self):
-        return int(self.width_abs)
+        return self.width_abs
 
     def getheight(self):
-        return int(self.height_abs)
+        return self.height_abs
 
     def is_visible(self):
         return self.visible
@@ -362,6 +375,26 @@ class Menu:
     def hide(self):
         if self.visible:
             self.toggle_visibility()
+
+    def set_hovered(self, relx, rely):
+        dist_from_top = self.ry_abs - rely
+        print "rely: {0}, dist_from_top: {1}".format(rely, dist_from_top)
+        for item in self.items:
+            print "compare to {0}-{1}".format(item.top_from_top, item.bot_from_top)
+            if (
+                    item.top_from_top <= dist_from_top and
+                    item.bot_from_top > dist_from_top):
+                print "hovering item {0} in menu {1}".format(item.idx, self.name)
+                self.hovered = item
+                item.hovered = True
+                return
+
+    def unset_hovered(self):
+        self.hovered = None
+
+    def onclick(self, button, modifiers):
+        if self.hovered is not None:
+            self.hovered.onclick(button, modifiers)
 
     def get_state_tup(self):
         return (
@@ -470,6 +503,7 @@ def unravel_menus_in_boards(db, bmd):
 
 def load_menus_in_boards(db, boards):
     return unravel_menus_in_boards(db, read_menus_in_boards(db, boards))
+
 
 def make_menu_toggler_menu_item(
         target_menu, menu_of_residence, idx, txt,

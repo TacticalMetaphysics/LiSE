@@ -1,5 +1,6 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 from copy import copy
+from calendar import CalendarCol
 
 
 __metaclass__ = SaveableMetaclass
@@ -70,11 +71,29 @@ class Pawn:
             self.grabpoint == other.grabpoint)
 
     def unravel(self, db):
+        # Invariant: things have already been unraveled
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.thing):
             self.thing = db.itemdict[self.dimension.name][self.thing]
         self.thing.pawn = self
+        if (self.dimension.name in db.calendardict
+            and self.thing.name in db.calendardict[self.dimension.name]):
+            self.calendar = db.calendardict[self.dimension.name][self.thing.name]
+        elif self.thing.schedule is not None:
+            self.calendar = CalendarCol(
+                self.dimension.name,
+                self.thing.name,
+                False,
+                True,
+                10,
+                0,
+                0.6,
+                0.9,
+                0.1,
+                0.9,
+                'SmallLight',
+                db)
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
         self.rx = self.img.getwidth() / 2
@@ -115,13 +134,16 @@ class Pawn:
 
     def getcenter(self):
         (x, y) = self.getcoords()
-        return (x, y + self.ry)
+        return (x + self.rx, y + self.ry)
 
     def getleft(self):
-        return self.getcoords()[0] - self.rx
+        return self.getcoords()[0]
 
     def getright(self):
-        return self.getcoords()[0] + self.rx
+        return self.getcoords()[0] + self.img.getwidth()
+
+    def getrad(self):
+        return self.r
 
     def gettop(self):
         return self.getcoords()[1] + self.img.getheight()
@@ -136,18 +158,28 @@ class Pawn:
         return self.interactive
 
     def onclick(self, button, modifiers):
-        pass
+        # strictly a hack. replace with effectdeck as soon as reasonable
+        print "pawn for {0} clicked".format(self.thing.name)
+        if hasattr(self, 'calendar'):
+            self.calendar.toggle_visibility()
+
+    def set_hovered(self, relx, rely):
+        self.grabpoint = (relx, rely)
+        self.hovered = True
+
+    def unset_hovered(self):
+        self.hovered = False
 
     def get_state_tup(self):
         (x, y) = self.getcoords()
         return (
-            copy(self.img),
-            copy(self.visible),
-            copy(self.interactive),
-            copy(self.grabpoint),
-            copy(self.hovered),
-            copy(x),
-            copy(y))
+            self.img.name,
+            self.visible,
+            self.interactive,
+            self.grabpoint,
+            self.hovered,
+            x,
+            y)
 
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])

@@ -1,5 +1,6 @@
 from util import SaveableMetaclass, stringlike, dictify_row
 from pyglet.image import SolidColorImagePattern as color_pattern
+from style import read_styles
 
 
 """User's view on a given item's schedule."""
@@ -270,10 +271,13 @@ def read_calendars_in_dimensions(db, names):
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
     r = {}
+    stylenames = set()
     for name in names:
         r[name] = {}
     for row in db.c:
         rowdict = dictify_row(row, CalendarCol.colns)
         rowdict["db"] = db
         r[rowdict["dimension"]][rowdict["item"]] = CalendarCol(**rowdict)
+        stylenames.add(rowdict["style"])
+    read_styles(db, list(stylenames))
     return r

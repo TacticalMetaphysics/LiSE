@@ -1,5 +1,4 @@
 from util import SaveableMetaclass, dictify_row, stringlike
-from copy import copy
 
 
 __metaclass__ = SaveableMetaclass
@@ -71,25 +70,25 @@ class Spot:
             self.place = db.itemdict[self.dimension.name][self.place]
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
-            self.rx = self.img.getwidth() / 2
-            self.ry = self.img.getheight() / 2
-            if self.rx >= self.ry:
-                self.r = self.rx
-            else:
-                self.r = self.ry
+        self.rx = self.img.getwidth() / 2
+        self.ry = self.img.getheight() / 2
+        self.left = self.x - self.rx
+        self.right = self.x + self.rx
+        self.top = self.y + self.ry
+        self.bot = self.y - self.ry
         self.place.spot = self
 
     def getleft(self):
-        return self.x - self.r
+        return self.left
 
     def getbot(self):
-        return self.y - self.r
+        return self.bot
 
     def gettop(self):
-        return self.y + self.r
+        return self.top
 
     def getright(self):
-        return self.x + self.r
+        return self.right
 
     def getcenter(self):
         return (self.x, self.y)
@@ -109,6 +108,13 @@ class Spot:
     def onclick(self, button, modifiers):
         pass
 
+    def set_hovered(self, relx, rely):
+        self.grabpoint = (relx, rely)
+        self.hovered = True
+
+    def unset_hovered(self):
+        self.hovered = False
+
     def dropped(self, x, y, button, modifiers):
         self.grabpoint = None
 
@@ -117,7 +123,11 @@ class Spot:
             self.grabpoint = (x - self.x, y - self.y)
         (grabx, graby) = self.grabpoint
         self.x = x - grabx + dx
+        self.left = self.x - self.rx
+        self.right = self.x + self.rx
         self.y = y - graby + dy
+        self.top = self.y + self.ry
+        self.bot = self.y - self.ry
 
     def get_state_tup(self):
         return (

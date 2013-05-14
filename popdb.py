@@ -90,18 +90,30 @@ for it in solarized_colors.iteritems()]
 parms.colors = colors
 
 styletups = [
-    ('Big',
+    ('BigDark',
      'DejaVu Sans', 16, 6,
      'solarized-base03',
      'solarized-base2',
      'solarized-base1',
      'solarized-base01'),
-    ('Small',
+    ('SmallDark',
      'DejaVu Sans', 12, 3,
      'solarized-base03',
      'solarized-base2',
      'solarized-base1',
-     'solarized-base01')]
+     'solarized-base01'),
+    ('BigLight',
+     'DejaVu Serif', 16, 6,
+     'solarized-base3',
+     'solarized-base02',
+     'solarized-base01',
+     'solarized-base1'),
+    ('SmallLight',
+     'DejaVu Serif', 12, 3,
+     'solarized-base3',
+     'solarized-base02',
+     'solarized-base01',
+     'solarized-base1')]
 
 styles = [
     {'name': style[0],
@@ -299,11 +311,11 @@ parms.pawns = pawns
 
 
 menutups = [
-    ('Game', 0.1, 0.3, 1.0, 0.2, 'Small', False, False),
-    ('Editor', 0.1, 0.3, 1.0, 0.2, 'Small', False, False),
-    ('Place', 0.1, 0.3, 1.0, 0.2, 'Small', False, False),
-    ('Main', 0.0, 0.1, 1.0, 0.12, 'Big', True, True),
-    ('Thing', 0.1, 0.3, 1.0, 0.2, 'Small', False, False)]
+    ('Game', 0.1, 0.3, 1.0, 0.2, 'SmallDark', False, False),
+    ('Editor', 0.1, 0.3, 1.0, 0.2, 'SmallDark', False, False),
+    ('Place', 0.1, 0.3, 1.0, 0.2, 'SmallDark', False, False),
+    ('Main', 0.0, 0.1, 1.0, 0.12, 'BigDark', True, True),
+    ('Thing', 0.1, 0.3, 1.0, 0.2, 'SmallDark', False, False)]
 menus = [
     {
         "name": tup[0],
@@ -373,7 +385,7 @@ caltups = [
         0.9,
         0.1,
         0.9,
-        'Small')]
+        'SmallLight')]
 
 
 calendars = [

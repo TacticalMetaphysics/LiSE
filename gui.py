@@ -188,7 +188,7 @@ class GameWindow:
                     sty = menu.style
                     for mi in menu.items:
                         if mi.visible:
-                            if self.hovered == mi:
+                            if mi.hovered:
                                 color = sty.fg_active.tup
                             else:
                                 color = sty.fg_inactive.tup
@@ -251,17 +251,34 @@ class GameWindow:
         @window.event
         def on_mouse_motion(x, y, dx, dy):
             if self.hovered is None:
-                for moused in self.to_mouse:
-                    if (
-                            moused is not None
-                            and moused.interactive
-                            and point_is_in(x, y, moused)):
-                        self.hovered = moused
-                        moused.hovered = True
-                        break
+                for menu in self.menus:
+                    (mx, my) = menu.getcenter()
+                    relx = x - mx
+                    rely = y - my
+                    if abs(relx) < menu.rx_abs and abs(rely) < menu.ry_abs:
+                        print "gonna check menu " + menu.name
+                        self.hovered = menu
+                        menu.set_hovered(relx, rely)
+                        return
+                for spot in self.spots:
+                    (sx, sy) = spot.getcenter()
+                    relx = x - sx
+                    rely = y - sy
+                    if abs(relx) < spot.rx and abs(rely) < spot.ry:
+                        self.hovered = spot
+                        spot.set_hovered(relx, rely)
+                        return
+                for pawn in self.pawns:
+                    (px, py) = pawn.getcenter()
+                    relx = x - px
+                    rely = y - py
+                    if abs(relx) < pawn.rx and abs(rely) < pawn.ry:
+                        self.hovered = pawn
+                        pawn.set_hovered(relx, rely)
+                        return
             else:
                 if not point_is_in(x, y, self.hovered):
-                    self.hovered.hovered = False
+                    self.hovered.unset_hovered()
                     self.hovered = None
 
         @window.event
