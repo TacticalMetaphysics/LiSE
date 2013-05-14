@@ -110,23 +110,19 @@ class MenuItem:
         return self.text
 
     def getcenter(self):
-        width = self.getwidth()
-        height = self.getheight()
-        rx = width / 2
-        ry = height / 2
-        x = self.getleft()
-        y = self.getbot()
-        return (x + rx, y + ry)
+        return (self.get_center_x(), self.get_center_y())
+
+    def get_center_x(self):
+        return self.getleft() + self.getrx()
+
+    def get_center_y(self):
+        return self.getbot() + self.getry()
 
     def getleft(self):
-        if not hasattr(self, 'left'):
-            self.left = self.menu.getleft() + self.menu.style.spacing
-        return self.left
+        return self.menu.getleft() + self.menu.style.spacing
 
     def getright(self):
-        if not hasattr(self, 'right'):
-            self.right = self.menu.getright() - self.menu.style.spacing
-        return self.right
+        return self.menu.getright() - self.menu.style.spacing
 
     def gettop(self):
         return self.top
@@ -135,14 +131,16 @@ class MenuItem:
         return self.bot
 
     def getwidth(self):
-        if not hasattr(self, 'width'):
-            self.width = self.getright() - self.getleft()
-        return self.width
+        return self.getright() - self.getleft()
 
     def getheight(self):
-        if not hasattr(self, 'height'):
-            self.height = self.menu.style.fontsize + self.menu.style.spacing
-        return self.height
+        return self.menu.style.fontsize + self.menu.style.spacing
+
+    def getrx(self):
+        return self.getwidth() / 2
+
+    def getry(self):
+        return self.getheight() / 2
 
     def toggle_visibility(self):
         self.visible = not self.visible
@@ -366,6 +364,12 @@ class Menu:
 
     def getheight(self):
         return self.height_abs
+
+    def getrx(self):
+        return self.rx_abs
+
+    def getry(self):
+        return self.ry_abs
 
     def is_visible(self):
         return self.visible

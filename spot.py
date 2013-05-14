@@ -94,6 +94,12 @@ class Spot:
     def getcenter(self):
         return (self.x, self.y)
 
+    def getrx(self):
+        return self.rx
+
+    def getry(self):
+        return self.ry
+
     def gettup(self):
         return (self.img, self.getleft(), self.getbot())
 

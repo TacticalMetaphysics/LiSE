@@ -1,15 +1,6 @@
 import pyglet
 
 
-def point_is_in(x, y, listener):
-    return x >= listener.getleft() and x <= listener.getright() \
-        and y >= listener.getbot() and y <= listener.gettop()
-
-
-def point_is_between(x, y, x1, y1, x2, y2):
-    return x >= x1 and x <= x2 and y >= y1 and y <= y2
-
-
 class GameWindow:
     arrowhead_angle = 45
     arrowhead_len = 10
@@ -281,10 +272,12 @@ class GameWindow:
                     (mx, my) = menu.getcenter()
                     relx = x - mx
                     rely = y - my
-                    if abs(relx) < menu.rx_abs and abs(rely) < menu.ry_abs:
+                    if abs(relx) < menu.getrx() and abs(rely) < menu.getry():
                         for item in menu.items:
-                            if item.label is not None and y > item.label.y \
-                               and y < item.label.y + item.label.content_height:
+                            (ix, iy) = item.getcenter()
+                            relx = x - ix
+                            rely = y - iy
+                            if abs(relx) < item.getrx() and abs(rely) < item.getry():
                                 item.set_hovered()
                                 self.hovered = item
                                 return
@@ -292,7 +285,7 @@ class GameWindow:
                     (sx, sy) = spot.getcenter()
                     relx = x - sx
                     rely = y - sy
-                    if abs(relx) < spot.rx and abs(rely) < spot.ry:
+                    if abs(relx) < spot.getrx() and abs(rely) < spot.getry():
                         self.hovered = spot
                         spot.set_hovered()
                         return
@@ -300,12 +293,15 @@ class GameWindow:
                     (px, py) = pawn.getcenter()
                     relx = x - px
                     rely = y - py
-                    if abs(relx) < pawn.rx and abs(rely) < pawn.ry:
+                    if abs(relx) < pawn.getrx() and abs(rely) < pawn.getry():
                         self.hovered = pawn
                         pawn.set_hovered()
                         return
             else:
-                if not point_is_in(x, y, self.hovered):
+                (hx, hy) = self.hovered.getcenter()
+                relx = x - hx
+                rely = y - hy
+                if abs(relx) > self.hovered.getrx() or abs(rely) > self.hovered.getry():
                     self.hovered.unset_hovered()
                     self.hovered = None
 
@@ -323,9 +319,10 @@ class GameWindow:
                 self.grabbed.dropped(x, y, button, modifiers)
                 self.grabbed = None
             elif self.pressed is not None:
-                if (
-                        point_is_in(x, y, self.pressed) and
-                        hasattr(self.pressed, 'onclick')):
+                (px, py) = self.pressed.getcenter()
+                relx = x - px
+                rely = y - py
+                if abs(rely) < self.pressed.getry() and abs(relx) < self.pressed.getrx():
                     self.pressed.onclick(button, modifiers)
             if self.pressed is not None:
                 self.pressed.pressed = False

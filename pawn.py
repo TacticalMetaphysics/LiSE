@@ -99,10 +99,6 @@ class Pawn:
             self.img = db.imgdict[self.img]
         self.rx = self.img.getwidth() / 2
         self.ry = self.img.getheight() / 2
-        if self.rx >= self.ry:
-            self.r = self.rx
-        else:
-            self.r = self.ry
 
     def getcoords(self):
         # Assume I've been provided a spotdict. Use it to get the
@@ -143,8 +139,11 @@ class Pawn:
     def getright(self):
         return self.getcoords()[0] + self.img.getwidth()
 
-    def getrad(self):
-        return self.r
+    def getrx(self):
+        return self.rx
+
+    def getry(self):
+        return self.ry
 
     def gettop(self):
         return self.getcoords()[1] + self.img.getheight()
