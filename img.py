@@ -41,6 +41,13 @@ class Img:
     def getheight(self):
         return self.tex.height
 
+    def tabdict(self):
+        return {
+            "img": {
+                "name": self.name,
+                "path": self.path,
+                "rltile": self.rltile}}
+
 
 def load_rltile(db, name, path):
     badimg = image(path)

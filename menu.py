@@ -25,6 +25,17 @@ class MenuItem:
           "effect_deck": ("effect_deck_link", "deck")},
          [])]
 
+    def tabdict(self):
+        return {
+            "menu_item": {
+                "menu": self.menu.name,
+                "idx": self.idx,
+                "text": self.text,
+                "effect_deck": self.effect_deck.name,
+                "closer": self.closer,
+                "visible": self.visible,
+                "interactive": self.interactive}}
+
     def __init__(self, menu, idx, text, effect_deck, closer,
                  visible, interactive, db=None):
         self.menu = menu
@@ -210,6 +221,18 @@ class Menu:
          {},
          [])]
     interactive = True
+
+    def tabdict(self):
+        return {
+            "menu": {
+                "name": self.name,
+                "left": self.left,
+                "bottom": self.bottom,
+                "top": self.top,
+                "right": self.right,
+                "style": self.style.name,
+                "main_for_window": self.main_for_window,
+                "visible": self.visible}}
 
     def __init__(self, name, left, bottom, top, right, style,
                  main_for_window, visible, db=None, board=None):

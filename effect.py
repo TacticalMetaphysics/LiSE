@@ -30,10 +30,19 @@ class Effect:
 
     def unravel(self, db):
         if stringlike(self.func):
-            self.func = db.func[self.func]
+            funcn = self.func
+            self.func = db.func[funcn]
+            self.func.name = funcn
 
     def do(self):
         return self.func(self.arg)
+
+    def tabdict(self):
+        return {
+            "effect":
+            {"name": self.name,
+             "func": self.func.name,
+             "arg": self.arg}}
 
 
 class EffectDeck:
@@ -59,6 +68,17 @@ class EffectDeck:
 
     def do(self):
         return [effect.do() for effect in self.effects]
+
+    def tabdict(self):
+        effects = []
+        i = 0
+        while i < len(self.effects):
+            effects.append({
+                "deck": self.name,
+                "idx": i,
+                "effect": self.effects[i].name})
+            i += 1
+        return {"effect_deck_link": effects}
 
 
 load_effect_qryfmt = (

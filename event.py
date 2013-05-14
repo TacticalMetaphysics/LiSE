@@ -122,6 +122,15 @@ success that strains a person terribly and causes them injury.
         # strings in some other table and this refers to that
         return self.name
 
+    def tabdict(self):
+        return {
+            "event": {
+                "name": self.name,
+                "ongoing": self.ongoing,
+                "commence_effects": self.commence_effects.name,
+                "proceed_effects": self.proceed_effects.name,
+                "conclude_effects": self.conclude_effects.name}}
+
 
 class EventDeck:
     tables = [
@@ -138,6 +147,17 @@ class EventDeck:
         self.events = event_list
         if db is not None:
             db.eventdeckdict[self.name] = self
+
+    def tabdict(self):
+        events = []
+        i = 0
+        while i < len(self.events):
+            events.append({
+                "deck": self.name,
+                "idx": i,
+                "event": self.events[i].name})
+            i += 1
+        return {"event_deck_link": events}
 
 
 evdl_qcol = ["event_deck_link." + coln for coln in EventDeck.colns]

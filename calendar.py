@@ -163,6 +163,21 @@ cells.
         # also some that overrun my bounds. I'll have to take that
         # into account when drawing.
 
+    def tabdict(self):
+        return {
+            "calendar_col": {
+                "dimension": self.dimension.name,
+                "item": self.item.name,
+                "visible": self.visible,
+                "interactive": self.interactive,
+                "rows_on_screen": self.rows_on_screen,
+                "scrolled_to": self.scrolled_to,
+                "left": self.left,
+                "top": self.top,
+                "bot": self.bot,
+                "right": self.right,
+                "style": self.style}}
+
     def __eq__(self, other):
         return (
             isinstance(other, CalendarCol) and

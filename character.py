@@ -47,7 +47,7 @@ item's name, and the name of the attribute.
          {"character": "text",
           "dimension": "text",
           "item": "text"},
-         ("character", "dimension", "item"),
+         tuple(),
          {"dimension, item": ("item", "dimension, name")},
          []),
         ("character_skill_link",
@@ -87,3 +87,24 @@ item's name, and the name of the attribute.
         for item in self.attributiondict.iteritems():
             (trib, val) = item
             self.attribution.add((self.name, trib, val))
+
+    def tabdict(self):
+        items = [
+            {"character": self.name,
+             "dimension": tup[1],
+             "item": tup[2]}
+            for tup in iter(self.character_item_link)]
+        skills = [
+            {"character": self.name,
+             "skill": tup[1],
+             "effect_deck": tup[2]}
+            for tup in iter(self.character_skill_link)]
+        atts = [
+            {"character": self.name,
+             "attribute": tup[1],
+             "value": tup[2]}
+            for tup in iter(self.attribution)]
+        return {
+            "character_item_link": items,
+            "character_skill_link": skills,
+            "attribution": atts}

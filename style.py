@@ -26,6 +26,15 @@ tuples that Pyglet uses to identify colors.
           "blue between 0 and 255",
           "alpha between 0 and 255"])]
 
+    def tabdict(self):
+        return {
+            "color": {
+                "name": self.name,
+                "red": self.red,
+                "green": self.green,
+                "blue": self.blue,
+                "alpha": self.alpha}}
+
     def __init__(self, name, red, green, blue, alpha, db=None):
         self.name = name
         self.red = red

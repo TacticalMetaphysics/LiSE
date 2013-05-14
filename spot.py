@@ -26,6 +26,17 @@ class Spot:
           "img": ("img", "name")},
          [])]
 
+    def tabdict(self):
+        return {
+            "spot": {
+                "dimension": self.dimension.name,
+                "place": self.place.name,
+                "img": self.img.name,
+                "x": self.x,
+                "y": self.y,
+                "visible": self.visible,
+                "interactive": self.interactive}}
+
     def __init__(self, dimension, place, img, x, y,
                  visible, interactive, db=None):
         self.dimension = dimension

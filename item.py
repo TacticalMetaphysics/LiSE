@@ -41,6 +41,15 @@ class Place(Item):
          {},
          [])]
 
+    def tabdict(self):
+        return {
+            "item": {
+                "dimension": self.dimension,
+                "name": self.name},
+            "place": {
+                "dimension": self.dimension.name,
+                "name": self.name}}
+
     def __init__(self, dimension, name, db):
         self.dimension = dimension
         self.name = name
@@ -59,7 +68,7 @@ class Place(Item):
             db.placedict[dimname][self.name] = self
 
     def unravel(self, db):
-        if isinstance(self.dimension, str):
+        if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
 
     def __eq__(self, other):
@@ -89,6 +98,20 @@ class Thing(Item):
          ("dimension", "name"),
          {"dimension, container": ("thing", "dimension, name")},
          [])]
+
+    def tabdict(self):
+        return {
+            "item": {
+                "dimension": self.dimension.name,
+                "name": self.name},
+            "thing": {
+                "dimension": self.dimension.name,
+                "name": self.name,
+                "location": self.location.name,
+                "container": self.container.name,
+                "portal": self.portal.name,
+                "progress": self.progress,
+                "age": self.age}}
 
     def __init__(self, dimension, name, location, container,
                  portal=None, progress=0.0, age=0, schedule=None, db=None):
@@ -260,6 +283,18 @@ class Journey:
          {"dimension, thing": ("thing", "dimension, name"),
           "dimension, portal": ("portal", "dimension, name")},
          [])]
+
+    def tabdict(self):
+        steps = []
+        i = 0
+        while i < len(self.steps):
+            steps.append({
+                "dimension": self.dimension.name,
+                "thing": self.thing.name,
+                "idx": i,
+                "portal": self.steps[i].name})
+            i += 1
+        return steps
 
     def __init__(self, dimension, thing, steps, db=None):
         self.dimension = dimension
@@ -456,6 +491,16 @@ class Schedule:
           "event": ("event", "name")},
          [])]
 
+    def tabdict(self):
+        return {
+            "scheduled_event": [{
+                "dimension": self.dimension.name,
+                "item": self.item.name,
+                "start": ev.start,
+                "event": ev.name,
+                "length": ev.length}
+                                for ev in self.events_starting.itervalues()]}
+
     def __init__(self, dimension, item, db=None):
         self.dimension = dimension
         self.item = item
@@ -478,9 +523,9 @@ class Schedule:
             db.scheduledict[dimname][itemname] = self
 
     def unravel(self, db):
-        if isinstance(self.dimension, str):
+        if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
-        if isinstance(self.item, str):
+        if stringlike(self.item):
             self.item = db.itemdict[self.dimension.name][self.item]
 
     def advance(self, n):
@@ -561,6 +606,14 @@ class Portal(Item):
           "dimension, from_place": ("place", "dimension, name"),
           "dimension, to_place": ("place", "dimension, name")},
          [])]
+
+    def tabdict(self):
+        return {
+            "portal": {
+                "dimension": self.dimension.name,
+                "name": self.name,
+                "from_place": self.orig.name,
+                "to_place": self.dest.name}}
 
     def __init__(self, dimension, name, from_place, to_place, db=None):
         self.dimension = dimension

@@ -33,6 +33,15 @@ class Pawn:
           "dimension, thing": ("thing", "dimension, name")},
          [])]
 
+    def tabdict(self):
+        return {
+            "pawn": {
+                "dimension": self.dimension.name,
+                "thing": self.thing.name,
+                "img": self.img.name,
+                "visible": self.visible,
+                "interactive": self.interactive}}
+
     def __init__(self, dimension, thing, img, visible, interactive, db=None):
         self.dimension = dimension
         self.thing = thing

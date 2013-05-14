@@ -108,11 +108,39 @@ and menus herein.
         """Return the height assigned at instantiation."""
         return self.height
 
+    def tabdict(self):
+        """Return a dictionary representing me in the way that the metaclass
+understands."""
+        boardmenu = [
+            {"board": self.name, "menu": menu.name}
+            for menu in self.menudict.itervalues()]
+        return {
+            "board":
+            {"dimension": self.dimension.name,
+             "width": self.width,
+             "height": self.height,
+             "wallpaper": self.wallpaper.name},
+            "board_menu": boardmenu}
+
+    def insert(self, db=None):
+        """Return an SQL statement to the effect of inserting this object into
+the database.
+
+Supply a database and I'll execute that statement too.
+
+        """
+        pass
+
     def __repr__(self):
         return "A board, %d pixels wide by %d tall, representing the "\
             "dimension %s, containing %d spots, %d pawns, and %d menus."\
             % (self.width, self.height, self.dimension, len(self.spotdict),
                len(self.pawndict), len(self.menudict))
+
+    def __dict__(self):
+        return {
+            "board": self,
+            "board_menu": self.menudict}
 
 
 load_some_boards_qryfmt = (
