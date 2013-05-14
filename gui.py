@@ -280,7 +280,8 @@ class GameWindow:
                                     x < item.getright() and
                                     y > item.getbot() and
                                     y < item.gettop()):
-                                item.set_hovered()
+                                if hasattr(item, 'set_hovered'):
+                                    item.set_hovered()
                                 self.hovered = item
                                 return
                 for spot in self.spots:
@@ -289,8 +290,9 @@ class GameWindow:
                             x < spot.getright() and
                             y > spot.getbot() and
                             y < spot.gettop()):
+                        if hasattr(spot, 'set_hovered'):
+                            spot.set_hovered()
                         self.hovered = spot
-                        spot.set_hovered()
                         return
                 for pawn in self.pawns:
                     if (
@@ -298,16 +300,18 @@ class GameWindow:
                             x < pawn.getright() and
                             y > pawn.getbot() and
                             y < pawn.gettop()):
+                        if hasattr(pawn, 'set_hovered'):
+                            pawn.set_hovered()
                         self.hovered = pawn
-                        pawn.set_hovered()
                         return
             else:
                 if (
                         x < self.hovered.getleft() or
                         x > self.hovered.getright() or
                         y < self.hovered.getbot() or
-                        y > self.hovered.gettop()): 
-                    self.hovered.unset_hovered()
+                        y > self.hovered.gettop()):
+                    if hasattr(self.hovered, 'unset_hovered'):
+                        self.hovered.unset_hovered()
                     self.hovered = None
 
         @window.event
@@ -316,33 +320,41 @@ class GameWindow:
                 return
             else:
                 self.pressed = self.hovered
-                self.pressed.pressed = True
+                if hasattr(self.pressed, 'set_pressed'):
+                    self.pressed.set_pressed()
 
         @window.event
         def on_mouse_release(x, y, button, modifiers):
             if self.grabbed is not None:
-                self.grabbed.dropped(x, y, button, modifiers)
+                if hasattr(self.grabbed, 'dropped'):
+                    self.grabbed.dropped(x, y, button, modifiers)
                 self.grabbed = None
-            elif self.pressed is not None:
-                (px, py) = self.pressed.getcenter()
-                relx = x - px
-                rely = y - py
-                if abs(rely) < self.pressed.getry() and abs(relx) < self.pressed.getrx():
+            elif (self.pressed is not None and
+                  x > self.pressed.getleft() and
+                  x < self.pressed.getright() and
+                  y > self.pressed.getbot() and
+                  y < self.pressed.gettop() and
+                  hasattr(self.pressed, 'onclick')):
                     self.pressed.onclick(button, modifiers)
             if self.pressed is not None:
-                self.pressed.pressed = False
+                if hasattr(self.pressed, 'unset_pressed'):
+                    self.pressed.unset_pressed()
                 self.pressed = None
 
         @window.event
         def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
             if self.grabbed is not None:
                 self.grabbed.move_with_mouse(x, y, dx, dy, buttons, modifiers)
-            elif self.pressed is not None and point_is_in(x, y, self.pressed):
-                if hasattr(self.pressed, 'move_with_mouse'):
+            elif (self.pressed is not None and
+                  x > self.pressed.getleft() and
+                  x < self.pressed.getright() and
+                  y > self.pressed.getbot() and
+                  y < self.pressed.gettop() and
+                  hasattr(self.pressed, 'move_with_mouse')):
                     self.grabbed = self.pressed
             else:
                 if self.pressed is not None:
-                    self.pressed.pressed = False
+                    self.pressed.unset_pressed()
                     self.pressed = None
                 self.grabbed = None
 
