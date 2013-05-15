@@ -20,7 +20,7 @@ places, or portals with any other dimension, but possibly sharing
 characters."""
 
     tables = [("dimension",
-               {"name": "text"},
+               {"name": "text"}
                ("name",),
                {},
                [])]
@@ -87,6 +87,11 @@ this dimension."""
         """Return a Graph layout, of the kind that igraph uses, representing
 this dimension, and laid out nicely."""
         return self.get_igraph_graph().layout(layout=layout_type)
+
+    def pass_time_window(self, start, end):
+        for item in self.itemdict:
+            if hasattr(item, 'schedule'):
+                
 
 
 def read_dimensions(db, names):

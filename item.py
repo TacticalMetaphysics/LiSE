@@ -493,7 +493,7 @@ class Schedule:
         self.item = item
         self.events_starting = dict()
         self.events_ending = dict()
-        self.ongoing = set()
+        self.events_ongoing = dict()
         if db is not None:
             dimname = None
             itemname = None
@@ -515,70 +515,44 @@ class Schedule:
         if isinstance(self.item, str):
             self.item = db.itemdict[self.dimension.name][self.item]
 
-    def advance(self, n):
-        # advance time by n ticks
-        prior_age = self.age
-        new_age = prior_age + n
-        starts = []
-        ends = []
-        for i in xrange(prior_age, new_age):
-            startevs = iter(self.events_starting[i])
-            endevs = iter(self.events_ending[i])
-            starts.extend(startevs)
-            ends.extend(endevs)
-        for ev in starts:
-            try:
-                ev.commence()
-            except SenselessEvent:
-                # Actually, the various event exceptions ought to
-                # provide info on the kind of failure that I could
-                # parse and show to the user as applicable.
-                continue
-            except ImpossibleEvent:
-                continue
-            except IrrelevantEvent:
-                continue
-            except ImpracticalEvent:
-                pass
-            self.ongoing.add(ev)
-        for ev in ends:
-            ev.conclude()
-            self.ongoing.remove(ev)
-        for ev in iter(self.ongoing):
-            ev.proceed()
-        self.age = new_age
-
     def add(self, ev):
-        if not hasattr(ev, 'end'):
-            ev.end = ev.start + ev.length
+        ev_end = ev.start + ev.length
         if ev.start not in self.events_starting:
             self.events_starting[ev.start] = set()
-        if ev.end not in self.events_ending:
-            self.events_ending[ev.end] = set()
+        if ev_end not in self.events_ending:
+            self.events_ending[ev_end] = set()
+        for i in xrange(ev.start+1, ev_end-1):
+            if i not in self.events_ongoing:
+                self.events_ongoing[i] = set()
+            self.events_ongoing[i].add(ev)
         self.events_starting[ev.start].add(ev)
-        self.events_ending[ev.end].add[ev]
+        self.events_ending[ev_end].add[ev]
 
-    def timeframe(self, start, end):
-        """Return a set of events starting or ending within the given
-timeframe.
-
-Events are assumed never to overlap. This is for ease of use only. You
-can make something do many things at once by turning it into a
-container, and putting things inside, each with one of the schedules
-you want the container to follow.
-
-        """
-        r = set()
+    def starts_in_window(self, start, end):
+        r = {}
         for i in xrange(start, end):
-            try:
-                r.add(self.events_starting[i])
-            except KeyError:
-                pass
-            try:
-                r.add(self.events_ending[i])
-            except KeyError:
-                pass
+            if i in self.events_starting:
+                r[i] = self.events_starting[i]
         return r
+
+    def continues_in_window(self, start, end):
+        r = {}
+        for i in xrange(start, end):
+            if i in self.events_ongoing:
+                r[i] = self.events_ongoing[i]
+        return r
+
+    def ends_in_window(self, start, end):
+        r = {}
+        for i in xrange(start, end):
+            if i in self.events_ending:
+                r[i] = self.events_ending[i]
+        return r
+
+    def starts_continues_ends(self, start, end):
+        return (self.starts_in_window(start, end),
+                self.continues_in_window(start, end),
+                self.ends_in_window(start, end))
 
 
 class Portal(Item):

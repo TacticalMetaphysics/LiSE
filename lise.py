@@ -7,6 +7,6 @@ from board import load_board
 
 db = Database("default.sqlite")
 b = load_board(db, "Physical")
-s = GameState({"Physical": b})
+s = GameState([b.dimension])
 gw = GameWindow(db, s, "Physical")
 pyglet.app.run()
