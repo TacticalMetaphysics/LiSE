@@ -8,7 +8,7 @@ class GameWindow:
     def __init__(self, gamestate, boardname, batch=None):
         self.db = gamestate.db
         self.gamestate = gamestate
-        self.board = db.boarddict[boardname]
+        self.board = self.db.boarddict[boardname]
 
         self.boardgroup = pyglet.graphics.OrderedGroup(0)
         self.edgegroup = pyglet.graphics.OrderedGroup(1)
