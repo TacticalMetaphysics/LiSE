@@ -4,14 +4,11 @@ import pyglet
 class GameWindow:
     arrowhead_angle = 45
     arrowhead_len = 10
-    # One window, batch, and WidgetFactory per board.
 
-    def __init__(self, db, gamestate, boardname, batch=None):
-        self.db = db
+    def __init__(self, gamestate, boardname, batch=None):
+        self.db = gamestate.db
         self.gamestate = gamestate
-        self.board = gamestate.boarddict[boardname]
-        if self.board is None:
-            raise Exception("No board by the name %s" % (boardname,))
+        self.board = db.boarddict[boardname]
 
         self.boardgroup = pyglet.graphics.OrderedGroup(0)
         self.edgegroup = pyglet.graphics.OrderedGroup(1)

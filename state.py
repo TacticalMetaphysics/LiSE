@@ -1,3 +1,4 @@
+from event import get_all_starting_ongoing_ending as gasoe
 # do I want to handle the timer here? that might be good
 
 class GameState:
@@ -5,9 +6,9 @@ class GameState:
 state of the interface.
 
     """
-    def __init__(self, dimensions):
-        self.dimensions = set(dimensions)
-        self.age = None
+    def __init__(self, db):
+        self.db = db
+        self.age = db.get_age()
                 
     def __iter__(self):
         return iter(self.dimensions)
@@ -25,7 +26,7 @@ state of the interface.
         for dimension in self.dimensions:
             for item in dimension.itemdict.itervalues():
                 if hasattr(item, 'schedule'):
-                    (s, c, e) = item.schedule.starts_continues_ends(self.age, newage)
+                    (s, c, e) = gasoe(self.db, self.age, newage)
                     starts.update(s)
                     conts.update(c)
                     ends.update(e)

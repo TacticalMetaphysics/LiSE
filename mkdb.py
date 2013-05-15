@@ -48,5 +48,7 @@ for clas in tabclasses:
         print tab
         db.c.execute(tab)
 
+db.c.execute("CREATE TABLE game (age INTEGER);")
+
 db.c.close()
 db.conn.commit()

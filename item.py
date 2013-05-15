@@ -508,11 +508,20 @@ class Schedule:
             if dimname not in db.scheduledict:
                 db.scheduledict[dimname] = {}
             db.scheduledict[dimname][itemname] = self
+            if dimname not in db.schedevdict:
+                db.startevdict[dimname] = {}
+            db.startevdict[dimname][itemname] = self.events_starting
+            if dimname not in db.contevdict:
+                db.contevdict[dimname] = {}
+            db.contevdict[dimname][itname] = self.events_ongoing
+            if dimname not in db.endevdict:
+                db.endevdict[dimname] = {}
+            db.endevdict[dimname][itname] = self.events_ending
 
     def unravel(self, db):
-        if isinstance(self.dimension, str):
+        if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
-        if isinstance(self.item, str):
+        if stringlike(self.item):
             self.item = db.itemdict[self.dimension.name][self.item]
 
     def add(self, ev):
@@ -528,31 +537,12 @@ class Schedule:
         self.events_starting[ev.start].add(ev)
         self.events_ending[ev_end].add[ev]
 
-    def starts_in_window(self, start, end):
-        r = {}
-        for i in xrange(start, end):
-            if i in self.events_starting:
-                r[i] = self.events_starting[i]
-        return r
-
-    def continues_in_window(self, start, end):
-        r = {}
-        for i in xrange(start, end):
-            if i in self.events_ongoing:
-                r[i] = self.events_ongoing[i]
-        return r
-
-    def ends_in_window(self, start, end):
-        r = {}
-        for i in xrange(start, end):
-            if i in self.events_ending:
-                r[i] = self.events_ending[i]
-        return r
-
-    def starts_continues_ends(self, start, end):
-        return (self.starts_in_window(start, end),
-                self.continues_in_window(start, end),
-                self.ends_in_window(start, end))
+    def discard(self, ev):
+        ev_end = ev.start + ev.length
+        self.events_starting[ev.start].discard(ev)
+        self.events_ending[ev_end].discard(ev)
+        for i in xrange(ev.start+1, ev_end-1):
+            self.events_ongoing[i].discard(ev)
 
 
 class Portal(Item):

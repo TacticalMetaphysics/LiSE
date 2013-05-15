@@ -498,6 +498,7 @@ def populate_database(db, data):
     populate_schedules(db, data.schedules)
     populate_gfx(db, data.imgs, data.pawns, data.spots, data.boards,
                  data.board_menu, data.calendars)
+    db.c.execute("INSERT INTO game VALUES (0);")
 
 
 db = Database(TARGET_DB_FILE)

@@ -47,6 +47,9 @@ arguments.
         self.dimensiondict = {}
         self.calendardict = {}
         self.scheduledict = {}
+        self.startevdict = {}
+        self.contevdict = {}
+        self.endevdict = {}
         self.itemdict = {}
         self.placedict = {}
         self.portaldict = {}
@@ -418,3 +421,9 @@ for that item.
             (itname, cal) = calendar
             if itname != itn:
                 cal.hide()
+
+    def get_age(self):
+        if not hasattr(self, 'age'):
+            self.c.execute("SELECT age FROM game;")
+            self.age = self.c.fetchone()[0]
+        return self.age

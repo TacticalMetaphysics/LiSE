@@ -176,3 +176,38 @@ def load_event_decks(db, names):
     for val in r.itervalues():
         val.unravel(db)
     return r
+
+
+def lookup_between(startdict, start, end):
+    r = {}
+    for i in xrange(start, end):
+        if i in startdict:
+            r[i] = startdict[i]
+    return r
+
+
+def get_all_starting_between(db, start, end):
+    r = {}
+    for item in db.startevdict.itervalues():
+        r.update(lookup_between(item, start, end))
+    return r
+
+
+def get_all_ongoing_between(db, start, end):
+    r = {}
+    for item in db.contevdict.itervalues():
+        r.update(lookup_between(item, start, end))
+    return r
+
+
+def get_all_ending_between(db, start, end):
+    r = {}
+    for item in db.endevdict.itervalues():
+        r.update(lookup_between(item, start, end))
+    return r
+
+
+def get_all_starting_ongoing_ending(db, start, end):
+    return (get_all_starting_between(db, start, end),
+            get_all_ongoing_between(db, start, end),
+            get_all_ending_between(db, start, end))
