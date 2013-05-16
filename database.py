@@ -47,6 +47,7 @@ arguments.
         self.dimensiondict = {}
         self.calendardict = {}
         self.scheduledict = {}
+        self.eventdict = {}
         self.startevdict = {}
         self.contevdict = {}
         self.endevdict = {}

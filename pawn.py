@@ -173,6 +173,12 @@ class Pawn:
             self.hovered = False
             self.tweaks += 1
 
+    def set_pressed(self):
+        pass
+
+    def unset_pressed(self):
+        pass
+
     def get_state_tup(self):
         (x, y) = self.getcoords()
         return (

@@ -6,6 +6,12 @@ from style import read_styles
 """User's view on a given item's schedule."""
 
 
+class Dummy:
+    pass
+
+
+cells = set()
+
 class CalendarCell:
     """A block of time in a calendar.
 
@@ -23,11 +29,14 @@ is happening.
     def __init__(self, calendar, event, style, text=""):
         self.calendar = calendar
         self.event = event
+        self.style = style
         self.text = text
         self.oldstate = None
-        self.newstate = None
         self.visible = True
         self.interactive = True
+        self.tweaks = 0
+        self.start = 0
+        self.end = 0
         self.inactive_pattern = color_pattern(style.bg_inactive.tup)
         if event is None:
             self.active_pattern = self.inactive_pattern
@@ -42,16 +51,31 @@ is happening.
             self.end == other.end and
             self.text == other.text)
 
+    def __hash__(self):
+        return hash((
+            self.calendar.dimension,
+            self.calendar.item,
+            self.event))
+
     def __len__(self):
-        return self.end - self.start
+        if hasattr(self, 'event'):
+            return self.event.length
+        elif hasattr(self, 'length'):
+            return self.length
+        elif hasattr(self, 'start') and hasattr(self, 'end'):
+            return self.end - self.start
+        else:
+            return None
 
     def get_state_tup(self):
         return (
             hash(self.calendar.get_state_tup()),
-            self.start,
-            self.end,
-            self.empty,
-            self.text)
+            self.gettop(),
+            self.getbot(),
+            self.text,
+            self.visible,
+            self.interactive,
+            self.tweaks)
 
     def gettop(self):
         return self.top
@@ -69,8 +93,40 @@ is happening.
         return self.calendar.celwidth
 
     def getheight(self):
-        return self.height
+        return self.top - self.bot
 
+    def label_bot(self):
+        return self.top - self.style.fontsize - self.style.spacing
+
+    def getstart(self):
+        if hasattr(self, 'event'):
+            return self.event.start
+        elif hasattr(self, 'start'):
+            return self.start
+        else:
+            return None
+
+    def getend(self):
+        if self.event is not None:
+            return self.event.start + self.event.length
+        elif hasattr(self, 'start') and hasattr(self, 'length'):
+            return self.start + self.length
+        elif hasattr(self, 'end'):
+            return self.end
+        else:
+            return None
+
+    def toggle_visibility(self):
+        self.visible = not self.visible
+        self.tweaks += 1
+
+    def show(self):
+        if not self.visible:
+            self.toggle_visibility()
+
+    def hide(self):
+        if self.visible:
+            self.toggle_visibility()
 
 class CalendarCol:
     """A single-column visual representation of a schedule.
@@ -111,7 +167,7 @@ cells.
         self.dimension = dimension
         self.item = item
         self.visible = visible
-        self.toggles = 0
+        self.tweaks = 0
         self.interactive = interactive
         self.rows_on_screen = rows_on_screen
         self.scrolled_to = scrolled_to
@@ -142,7 +198,7 @@ cells.
 
     def toggle_visibility(self):
         self.visible = not self.visible
-        self.toggles += 1
+        self.tweaks += 1
 
     def hide(self):
         if self.visible:
@@ -199,15 +255,24 @@ cells.
     def getheight(self):
         return self.height_abs
 
+    def rowheight(self):
+        return self.getheight() / self.rows_on_screen
+
     def adjust(self):
         self.cells = []
         calstart = self.scrolled_to
         calend = calstart + self.rows_on_screen
-        rowheight = self.getheight() / self.rows_on_screen
+        rowheight = self.rowheight()
         (s, c, e) = self.schedule.events_between(calstart, calend)
-        start_set = set(s.viewvalues())
-        continue_set = set(c.viewvalues())
-        end_set = set(e.viewvalues())
+        start_set = set()
+        for val in s.itervalues():
+            start_set.update(val)
+        continue_set = set()
+        for val in c.itervalues():
+            continue_set.update(val)
+        end_set = set()
+        for val in e.itervalues():
+            end_set.update(val)
         top = self.gettop()
         self.celleft = self.getleft() + self.style.spacing
         self.celright = self.getright() - self.style.spacing
@@ -228,6 +293,8 @@ cells.
         if len(overrun_both) == 1:
             ev = overrun_both.pop()
             cel = CalendarCell(self, ev.start, ev.start + ev.length, False, ev.name)
+            cel.top = self.gettop() + self.style.spacing
+            cel.bot = self.getbot() - self.style.spacing
             self.cells = [cel]
             return self.cells
         enclosed = set.intersection(start_set, continue_set, end_set)
@@ -236,23 +303,27 @@ cells.
         overrun_after = set.intersection(start_set, continue_set) - end_set
         assert(len(overrun_after)) <= 1
         # The events that overrun the calendar should be drawn that way--just a little.
+        last_cel = None
         if len(overrun_before) == 1:
             ob_event = overrun_before.pop()
             ob_cel = CalendarCell(self, ob_event, self.cel_style, ob_event.name)
             ob_cel.top = self.gettop() + self.style.spacing  # overrun
             cel_rows_on_screen = ob_event.start + ob_event.length - self.scrolled_to
             ob_cel.bot = self.gettop() - cel_rows_on_screen * rowheight
-            ob_cel.height = ob_cel.top - ob_cel.bot
             last_cel = ob_cel
         else:
-            last_cel = None
+            # This won't be drawn
+            last_cel = CalendarCell(self, None, self.cel_style)
+            last_cel.end = self.scrolled_to
+            last_cel.top = self.gettop()
+            last_cel.bot = self.gettop()
         el = sorted(list(enclosed))
         for event in el:
             cel = CalendarCell(self, event, self.cel_style, event.name)
             cel.top = self.gettop() - event.start * rowheight
             cel.bot = cel.top - event.length * rowheight
             cel.height = cel.top - cel.bot
-            if last_cel is not None and last_cel.bot > cel.bot:
+            if last_cel.bot > cel.bot:
                 last_end = last_cel.event.start + last_cel.event.length
                 last_bot = last_cel.bot
                 ticks_between = event.start - last_end
@@ -267,11 +338,8 @@ cells.
             last_cel = cel
         if len(overrun_after) == 1:
             oa = overrun_after.pop()
-            last_start = last_cel.event.start
-            last_end = last_start + last_cel.event.length
-            ticks_between = (oa.start + oa.length) - last_end
+            ticks_between = oa.start - last_cel.getend()
             last_bot = last_cel.bot
-            ticks_between = oa.start - last_end
             while ticks_between > 0:
                 empty = CalendarCell(self, None, self.cel_style)
                 empty.top = last_bot
@@ -280,6 +348,8 @@ cells.
                 last_bot = empty.bot
                 ticks_between -= 1
             cel = CalendarCell(self, oa, self.cel_style, oa.name)
+            cel.top = last_bot
+            cel.bot = self.getbot() - self.style.spacing
             self.cells.append(cel)
 
     def __eq__(self, other):
@@ -296,7 +366,7 @@ cells.
             self.interactive,
             self.rows_on_screen,
             self.scrolled_to,
-            self.toggles)
+            self.tweaks)
 
 
 cal_dim_qryfmt = (

@@ -3,12 +3,13 @@ from util import (
     dictify_row,
     stringlike)
 from event import (
+    lookup_between,
     Event,
     SenselessEvent,
     ImpossibleEvent,
     IrrelevantEvent,
     ImpracticalEvent)
-from effect import Effect, EffectDeck, lookup_between
+from effect import Effect, EffectDeck
 import re
 
 
@@ -137,7 +138,7 @@ class Thing(Item):
             self.journey = db.journeydict[self.dimension.name][self.name]
             self.journey.unravel(db)
             if self.schedule is None:
-                self.schedule = self.journey.schedule()
+                self.schedule = self.journey.schedule(db)
                 self.schedule.unravel(db)
         if self.container is not None:
             self.container.add(self)
@@ -225,14 +226,10 @@ inaccessible. Beware.
                                        (self.name, it.name))
 
     def speed_thru(self, port):
-        """Given a portal, return a float representing how fast I can pass
-through it.
+        """Given a portal, return an integer for the number of ticks it would
+take me to pass through it."""
 
-Speed is equal to the reciprocal of the number of ticks of the
-game-clock it takes to pass through the portal.
-
-        """
-        return 1/60.
+        return 60
 
 
 class Journey:
@@ -417,36 +414,59 @@ The Event will not have a start or a length.
             thingname = self.thing.name
         commence_s = "{0}.{1}.enter({2})".format(
             dimname, thingname, commence_arg)
-        effd = {
-            "name": commence_s,
-            "func": "%s.%s.enter" % (dimname, thingname),
-            "arg": commence_arg,
-            "dict_hint": "dimension.thing",
-            "db": db}
-        commence = Effect(**effd)
-        commence_deck = EffectDeck(commence_s, [commence], db)
+        if commence_s in db.effectdeckdict:
+            commence_deck = db.effectdeckdict[commence_s]
+        else:
+            effd = {
+                "name": commence_s,
+                "func": "%s.%s.enter" % (dimname, thingname),
+                "arg": commence_arg,
+                "dict_hint": "dimension.thing",
+                "db": db}
+            if effd["name"] in db.effectdict:
+                commence = db.effectdict[effd["name"]]
+                assert(commence.func == effd["func"])
+                assert(commence.arg == effd["arg"])
+            else:
+                commence = Effect(**effd)
+            commence_deck = EffectDeck(commence_s, [commence], db)
         proceed_s = "%s.%s.remain(%s)" % (
             dimname, thingname, proceed_arg)
-        effd = {
-            "name": proceed_s,
-            "func": "%s.%s.remain" % (dimname, thingname),
-            "arg": proceed_arg,
-            "dict_hint": "dimension.thing",
-            "db": db}
-        proceed = Effect(**effd)
-        proceed_deck = EffectDeck(proceed_s, [proceed], db)
+        if proceed_s in db.effectdeckdict:
+            proceed_deck = db.effectdeckdict[proceed_s]
+        else:
+            effd = {
+                "name": proceed_s,
+                "func": "%s.%s.remain" % (dimname, thingname),
+                "arg": proceed_arg,
+                "dict_hint": "dimension.thing",
+                "db": db}
+            if effd["name"] in db.effectdict:
+                proceed = db.effectdict[effd["name"]]
+                assert(proceed.func == effd["func"])
+                assert(proceed.arg == effd["arg"])
+            else:
+                proceed = Effect(**effd)
+            proceed_deck = EffectDeck(proceed_s, [proceed], db)
         conclude_s = "%s.%s.enter(%s)" % (
             dimname, thingname, conclude_arg)
-        effd = {
-            "name": conclude_s,
-            "func": "%s.%s.enter" % (dimname, thingname),
-            "arg": conclude_arg,
-            "dict_hint": "dimension.thing",
-            "db": db}
-        conclude = Effect(**effd)
-        conclude_deck = EffectDeck(conclude_s, [conclude], db)
+        if conclude_s in db.effectdeckdict:
+            conclude_deck = db.effectdeckdict[conclude_s]
+        else:
+            effd = {
+                "name": conclude_s,
+                "func": "%s.%s.enter" % (dimname, thingname),
+                "arg": conclude_arg,
+                "dict_hint": "dimension.thing",
+                "db": db}
+            if effd["name"] in db.effectdict:
+                conclude = db.effectdict[effd["name"]]
+            else:
+                conclude = Effect(**effd)
+            conclude_deck = EffectDeck(conclude_s, [conclude], db)
         event_name = "%s:%s-thru-%s" % (
-            dimname, thingname, commence_arg),
+            dimname, thingname, commence_arg)
+        assert(event_name not in db.eventdict)
         event_d = {
             "name": event_name,
             "ongoing": False,
@@ -457,7 +477,7 @@ The Event will not have a start or a length.
         event = Event(**event_d)
         return event
 
-    def schedule(self, start=0):
+    def schedule(self, db, start=0):
         """Make a Schedule filled with Events representing the steps in this
 Journey.
 
@@ -465,11 +485,14 @@ Journey.
 
         """
         stepevents = []
+        last_end = start
         for step in self.steps:
-            ev = self.gen_event(step)
-            ev.start = start
+            ev = self.gen_event(step, db)
+            ev.start = last_end
             ev.length = self.thing.speed_thru(step)
-        s = Schedule(self.dimension, self.thing)
+            stepevents.append(ev)
+            last_end = ev.start + ev.length
+        s = Schedule(self.dimension, self.thing, db)
         for ev in stepevents:
             s.add(ev)
         return s
@@ -491,6 +514,7 @@ class Schedule:
     def __init__(self, dimension, item, db=None):
         self.dimension = dimension
         self.item = item
+        self.events = set()
         self.events_starting = dict()
         self.events_ending = dict()
         self.events_ongoing = dict()
@@ -508,15 +532,15 @@ class Schedule:
             if dimname not in db.scheduledict:
                 db.scheduledict[dimname] = {}
             db.scheduledict[dimname][itemname] = self
-            if dimname not in db.schedevdict:
+            if dimname not in db.startevdict:
                 db.startevdict[dimname] = {}
             db.startevdict[dimname][itemname] = self.events_starting
             if dimname not in db.contevdict:
                 db.contevdict[dimname] = {}
-            db.contevdict[dimname][itname] = self.events_ongoing
+            db.contevdict[dimname][itemname] = self.events_ongoing
             if dimname not in db.endevdict:
                 db.endevdict[dimname] = {}
-            db.endevdict[dimname][itname] = self.events_ending
+            db.endevdict[dimname][itemname] = self.events_ending
 
     def unravel(self, db):
         if stringlike(self.dimension):
@@ -525,6 +549,7 @@ class Schedule:
             self.item = db.itemdict[self.dimension.name][self.item]
 
     def add(self, ev):
+        self.events.add(ev)
         ev_end = ev.start + ev.length
         if ev.start not in self.events_starting:
             self.events_starting[ev.start] = set()
@@ -535,7 +560,7 @@ class Schedule:
                 self.events_ongoing[i] = set()
             self.events_ongoing[i].add(ev)
         self.events_starting[ev.start].add(ev)
-        self.events_ending[ev_end].add[ev]
+        self.events_ending[ev_end].add(ev)
 
     def discard(self, ev):
         ev_end = ev.start + ev.length

@@ -17,7 +17,7 @@ class GameWindow:
         self.menugroup = pyglet.graphics.OrderedGroup(4)
         self.calendargroup = pyglet.graphics.OrderedGroup(4)
         self.cellgroup = pyglet.graphics.OrderedGroup(5)
-        self.labelgroup = pyglet.graphics.OrderedGroup(5)
+        self.labelgroup = pyglet.graphics.OrderedGroup(6)
 
         self.pressed = None
         self.hovered = None
@@ -53,12 +53,13 @@ class GameWindow:
         self.pawns = self.board.pawndict.values()
         self.portals = self.board.dimension.portaldict.values()
         self.calendars = self.board.calendardict.values()
-        for cal in self.calendars:
-            cal.set_gw(self)
         for menu in self.menus:
             menu.set_gw(self)
+        for calendar in self.calendars:
+            calendar.set_gw(self)
         self.drawn_board = None
         self.drawn_edges = None
+        self.cels_drawn = {}
 
         self.onscreen = set()
 
@@ -209,23 +210,14 @@ class GameWindow:
                 self.onscreen.discard(col.oldstate)
                 self.onscreen.add(newstate)
                 col.oldstate = newstate
-                try:
-                    col.sprite.delete()
-                except AttributeError:
-                    pass
-                for cel in col.cells:
+                if hasattr(col, 'sprite') and col.sprite is not None:
                     try:
-                        cel.sprite.delete()
+                        col.sprite.delete()
                     except AttributeError:
                         pass
-                    try:
-                        cel.label.delete()
-                    except AttributeError:
-                        pass
+                image = col.inactive_pattern.create_image(
+                    col.getwidth(), col.getheight())
                 if col.visible:
-                    image = (
-                        col.inactive_pattern.create_image(
-                            col.getwidth(), col.getheight()))
                     col.sprite = pyglet.sprite.Sprite(
                         image, col.getleft(), col.getbot(),
                         batch=self.batch, group=self.calendargroup)
@@ -236,23 +228,36 @@ class GameWindow:
                 self.onscreen.add(newstate)
                 cel.oldstate = newstate
                 try:
-                    cel.sprite.delete()
+                    ptr = self.cels_drawn[hash(cel)]
+                    ptr[0].delete()
+                    ptr[1].delete()
+                except KeyError:
+                    pass
                 except AttributeError:
                     pass
-                try:
-                    cel.label.delete()
-                except AttributeError:
-                    pass
-                if cel.visible:
+                if cel.visible and cel.calendar.visible:
+                    print "Cel and col are visible. Drawing."
                     if self.hovered == cel:
                         pat = cel.active_pattern
+                        color = cel.style.fg_active.tup
                     else:
                         pat = cel.inactive_pattern
+                        color = cel.style.fg_inactive.tup
                     image = pat.create_image(
                         cel.getwidth(), cel.getheight())
-                    cel.sprite = pyglet.sprite.Sprite(
+                    sprite = pyglet.sprite.Sprite(
                         image, cel.getleft(), cel.getbot(),
                         batch=self.batch, group=self.cellgroup)
+                    label = pyglet.text.Label(
+                        cel.text,
+                        cel.style.fontface,
+                        cel.style.fontsize,
+                        color=color,
+                        x=cel.getleft(),
+                        y=cel.label_bot(),
+                        batch=self.batch,
+                        group=self.labelgroup)
+                    self.cels_drawn[hash(cel)] = (sprite, label)
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.
             self.batch.draw()

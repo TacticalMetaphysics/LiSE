@@ -9,6 +9,7 @@ state of the interface.
     def __init__(self, db):
         self.db = db
         self.age = db.get_age()
+        self.since = 0
                 
     def __iter__(self):
         return iter(self.dimensions)
@@ -16,14 +17,17 @@ state of the interface.
     def update(self, ts, st):
         # assuming for now that time only goes forward, at a rate of
         # one tick every st seconds
+        self.since += ts
         newage = self.age
-        while ts > st:
-            ts -= st
+        while self.since > st:
+            self.since -= st
             newage += 1
+        if newage == self.age:
+            return
         starts = {}
         conts = {}
         ends = {}
-        for dimension in self.dimensions:
+        for dimension in self.db.dimensiondict.itervalues():
             for item in dimension.itemdict.itervalues():
                 if hasattr(item, 'schedule'):
                     (s, c, e) = gasoe(self.db, self.age, newage)
@@ -31,15 +35,18 @@ state of the interface.
                     conts.update(c)
                     ends.update(e)
         for i in xrange(self.age, newage):
-            s = iter(starts[i])
-            c = iter(conts[i])
-            e = iter(ends[i])
-            for starter in s:
-                starter.commence()
-            for continuer in c:
-                continuer.proceed()
-            for ender in e:
-                ender.conclude()
+            if i in starts:
+                s = iter(starts[i])
+                for starter in s:
+                    starter.commence()
+            if i in conts:
+                c = iter(conts[i])
+                for continuer in c:
+                    continuer.proceed()
+            if i in ends:
+                e = iter(ends[i])
+                for ender in e:
+                    ender.conclude()
             self.age = i
 
     def add(self, dimension):

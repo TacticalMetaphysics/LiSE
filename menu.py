@@ -80,6 +80,12 @@ class MenuItem:
             self.hovered = False
             self.tweaks += 1
 
+    def set_pressed(self):
+        pass
+
+    def unset_pressed(self):
+        pass
+
     def __eq__(self, other):
         return (
             isinstance(other, MenuItem) and
@@ -393,6 +399,18 @@ class Menu:
     def onclick(self, button, modifiers):
         if self.hovered is not None:
             self.hovered.onclick(button, modifiers)
+
+    def set_hovered(self):
+        pass
+
+    def unset_hovered(self):
+        pass
+
+    def set_pressed(self):
+        pass
+
+    def unset_pressed(self):
+        pass
 
     def get_state_tup(self):
         return (
