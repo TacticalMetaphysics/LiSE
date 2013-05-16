@@ -20,19 +20,24 @@ is happening.
 
     """
 
-    def __init__(self, calendar, event, style, text=""):
+    def __init__(self, calendar, start, end, empty, text=""):
         self.calendar = calendar
-        self.event = event
+        self.start = start
+        self.end = end
+        self.empty = empty
         self.text = text
         self.oldstate = None
         self.newstate = None
         self.visible = True
         self.interactive = True
-        self.inactive_pattern = color_pattern(style.bg_inactive.tup)
-        if event is None:
-            self.active_pattern = self.inactive_pattern
-        else:
-            self.active_pattern = color_pattern(style.bg_active.tup)
+        self.inactive_pattern = color_pattern(calendar.style.bg_inactive.tup)
+        self.active_pattern = color_pattern(calendar.style.bg_active.tup)
+
+    def unravel(self, db):
+        if stringlike(self.calendar):
+            self.calendar = db.calendarcoldict[self.calendar]
+        if stringlike(self.color):
+            self.color = db.colordict[self.color]
 
     def __eq__(self, other):
         if not isinstance(other, CalendarCell):
@@ -95,18 +100,16 @@ cells.
           "top": "float",
           "bot": "float",
           "right": "float",
-          "style": "text",
-          "cel_style": "text"},
+          "style": "text"},
          ("dimension", "item"),
          {"dimension, item": ("item", "dimension, name"),
-          "style": ("style", "name"),
-          "cel_style": ("style", "name")},
+          "style": ("style", "name")},
          ["rows_on_screen>0", "scrolled_to>=0"]
          )]
 
     def __init__(self, dimension, item, visible, interactive,
                  rows_on_screen, scrolled_to,
-                 left, top, bot, right, style, cel_style,
+                 left, top, bot, right, style,
                  db=None):
         self.dimension = dimension
         self.item = item
@@ -122,9 +125,8 @@ cells.
         self.height = self.top - self.bot
         self.width = self.right - self.left
         self.style = style
-        self.cel_style = cel_style
         self.oldstate = None
-        self.cells = []
+        self.newstate = None
         if db is not None:
             dimname = None
             itname = None
@@ -161,9 +163,6 @@ cells.
         if stringlike(self.style):
             self.style = db.styledict[self.style]
         self.style.unravel(db)
-        if stringlike(self.cel_style):
-            self.cel_style = db.styledict[self.cel_style]
-        self.cel_style.unravel(db)
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         self.active_pattern = color_pattern(self.style.bg_active.tup)
         if not hasattr(self, 'schedule'):
@@ -204,83 +203,46 @@ cells.
         calstart = self.scrolled_to
         calend = calstart + self.rows_on_screen
         rowheight = self.getheight() / self.rows_on_screen
-        (s, c, e) = self.schedule.events_between(calstart, calend)
-        start_set = set(s.viewvalues())
-        continue_set = set(c.viewvalues())
-        end_set = set(e.viewvalues())
+        evl = sorted(list(self.schedule.timeframe(calstart, calend)))
         top = self.gettop()
         self.celleft = self.getleft() + self.style.spacing
         self.celright = self.getright() - self.style.spacing
         self.celwidth = self.celright - self.celleft
-        # Events that start or end in the visible timeframe, but do
-        # not continue in it, aren't visible; don't collect those.
-        # Otherwise collect all events into four piles. One for those
-        # that start and end inside the visible timeframe. One for
-        # those that end in it, but start earlier. One for those that
-        # begin in it, but end later. And one for those that overrun
-        # it in both directions.
-        # 
-        # If there's an event that overruns in both directions, it's
-        # the only one that gets drawn, due to an invariant: one event
-        # at a time for each item in the game world.
-        overrun_both = continue_set.difference(start_set, end_set)
-        assert(len(overrun_both) <= 1)
-        if len(overrun_both) == 1:
-            ev = overrun_both.pop()
-            cel = CalendarCell(self, ev.start, ev.start + ev.length, False, ev.name)
-            self.cells = [cel]
-            return self.cells
-        enclosed = set.intersection(start_set, continue_set, end_set)
-        overrun_before = set.intersection(continue_set, end_set) - start_set
-        assert(len(overrun_before)) <= 1
-        overrun_after = set.intersection(start_set, continue_set) - end_set
-        assert(len(overrun_after)) <= 1
-        # The events that overrun the calendar should be drawn that way--just a little.
-        if len(overrun_before) == 1:
-            ob_event = overrun_before.pop()
-            ob_cel = CalendarCell(self, ob_event, self.cel_style, ob_event.name)
-            ob_cel.top = self.gettop() + self.style.spacing  # overrun
-            cel_rows_on_screen = ob_event.start + ob_event.length - self.scrolled_to
-            ob_cel.bot = self.gettop() - cel_rows_on_screen * rowheight
-            ob_cel.height = ob_cel.top - ob_cel.bot
-            last_cel = ob_cel
-        else:
-            last_cel = None
-        el = sorted(list(enclosed))
-        for event in el:
-            cel = CalendarCell(self, event, self.cel_style, event.name)
-            cel.top = self.gettop() - event.start * rowheight
-            cel.bot = cel.top - event.length * rowheight
-            cel.height = cel.top - cel.bot
-            if last_cel is not None and last_cel.bot > cel.bot:
-                last_end = last_cel.event.start + last_cel.event.length
-                last_bot = last_cel.bot
-                ticks_between = event.start - last_end
-                while ticks_between > 0:
-                    empty = CalendarCell(self, None, self.cel_style)
-                    empty.top = last_bot
-                    empty.bot = empty.top - rowheight
-                    self.cells.append(empty)
-                    last_bot = empty.bot
-                    ticks_between -= 1
-            self.cells.append(cel)
-            last_cel = cel
-        if len(overrun_after) == 1:
-            oa = overrun_after.pop()
-            last_start = last_cel.event.start
-            last_end = last_start + last_cel.event.length
-            ticks_between = (oa.start + oa.length) - last_end
-            last_bot = last_cel.bot
-            ticks_between = oa.start - last_end
-            while ticks_between > 0:
-                empty = CalendarCell(self, None, self.cel_style)
-                empty.top = last_bot
-                empty.bot = empty.top - rowheight
-                self.cells.append(empty)
-                last_bot = empty.bot
-                ticks_between -= 1
-            cel = CalendarCell(self, oa, self.cel_style, oa.name)
-            self.cells.append(cel)
+        if evl == []:
+            for i in xrange(self.scrolled_to, self.rows_on_screen - 1):
+                c = CalendarCell(self, i, i+1, True)
+                c.top = top
+                top -= rowheight
+                c.bot = top
+            return
+        celll = [
+            CalendarCell(
+                self, ev.start, ev.end, False, ev.display_str())
+            for ev in evl]
+        # I now have CalendarCells to represent the events; but I also
+        # need CalendarCells to represent the spaces between
+        # them. Those will always be one tick long. I'm not sure this
+        # is a sustainable assumption; if CalendarCols get to showing
+        # a lot of stuff at once, there will be a whole bunch of
+        # sprites in them. Is that a problem? I'll see, I suppose.
+        i = calstart
+        while celll != []:
+            cell = celll.pop()
+            while i < cell.start:
+                c = CalendarCell(self, i, i+1, True)
+                c.top = top
+                top -= rowheight
+                c.bot = top
+                self.cells.append(c)
+                i += 1
+            cell.top = top
+            top -= len(cell) * rowheight
+            cell.bot = top
+            i += len(cell)
+            self.cells.append(cell)
+        # There are now cells in self.cells to fill me up. There are
+        # also some that overrun my bounds. I'll have to take that
+        # into account when drawing.
 
     def __eq__(self, other):
         return (

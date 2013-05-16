@@ -8,7 +8,7 @@ from event import (
     ImpossibleEvent,
     IrrelevantEvent,
     ImpracticalEvent)
-from effect import Effect, EffectDeck, lookup_between
+from effect import Effect, EffectDeck
 import re
 
 
@@ -543,20 +543,6 @@ class Schedule:
         self.events_ending[ev_end].discard(ev)
         for i in xrange(ev.start+1, ev_end-1):
             self.events_ongoing[i].discard(ev)
-
-    def commencements_between(self, start, end):
-        return lookup_between(self.events_starting, start, end)
-
-    def processions_between(self, start, end):
-        return lookup_between(self.events_ongoing, start, end)
-
-    def conclusions_between(self, start, end):
-        return lookup_between(self.events_ending, start, end)
-
-    def events_between(self, start, end):
-        return (self.commencements_between(start, end),
-                self.processions_between(start, end),
-                self.conclusions_between(start, end))
 
 
 class Portal(Item):

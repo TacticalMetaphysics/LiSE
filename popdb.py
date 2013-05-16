@@ -385,8 +385,7 @@ caltups = [
         0.9,
         0.1,
         0.9,
-        'BigLight',
-        'SmallDark')]
+        'SmallLight')]
 
 
 calendars = [
@@ -394,7 +393,7 @@ calendars = [
         zip(
             ("dimension", "item", "visible", "interactive",
              "rows_on_screen", "scrolled_to", "left", "top",
-             "bot", "right", "style", "cel_style"), row))
+             "bot", "right", "style"), row))
     for row in caltups]
 parms.calendars = calendars
 
