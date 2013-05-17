@@ -375,7 +375,7 @@ method of the thing that operates on the portal.
             self.steplist.append(None)
         self.steplist[idx] = port
 
-    def gen_event(self, step, db=None):
+    def gen_event(self, step, db):
         """Make an Event representing every tick of travel through the given
 portal.
 
@@ -412,6 +412,11 @@ The Event will not have a start or a length.
             thingname = self.thing["name"]
         else:
             thingname = self.thing.name
+        event_name = "%s:%s-thru-%s" % (
+            dimname, thingname, commence_arg)
+        if event_name in db.eventdict:
+            return db.eventdict[event_name]
+
         commence_s = "{0}.{1}.enter({2})".format(
             dimname, thingname, commence_arg)
         if commence_s in db.effectdeckdict:
@@ -464,11 +469,9 @@ The Event will not have a start or a length.
             else:
                 conclude = Effect(**effd)
             conclude_deck = EffectDeck(conclude_s, [conclude], db)
-        event_name = "%s:%s-thru-%s" % (
-            dimname, thingname, commence_arg)
-        assert(event_name not in db.eventdict)
         event_d = {
             "name": event_name,
+            "text": "Movement",
             "ongoing": False,
             "commence_effects": commence_deck,
             "proceed_effects": proceed_deck,

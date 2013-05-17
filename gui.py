@@ -205,7 +205,7 @@ class GameWindow:
                         group=self.labelgroup)
             # draw the calendars
             for col in col_todo:
-                col.adjust()
+                col.adjust(self.db)
                 newstate = col.get_state_tup()
                 self.onscreen.discard(col.oldstate)
                 self.onscreen.add(newstate)

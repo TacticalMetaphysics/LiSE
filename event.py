@@ -45,6 +45,7 @@ success that strains a person terribly and causes them injury.
     tables = [
         ("event",
          {"name": "text",
+          "text": "text",
           "ongoing": "boolean",
           "commence_effects": "text",
           "proceed_effects": "text",
@@ -55,9 +56,10 @@ success that strains a person terribly and causes them injury.
           "conclude_effects": ("effect_deck", "name")},
          [])]
 
-    def __init__(self, name, ongoing, commence_effects,
+    def __init__(self, name, text, ongoing, commence_effects,
                  proceed_effects, conclude_effects, db=None):
         self.name = name
+        self.text = text
         self.ongoing = ongoing
         self.commence_effects = commence_effects
         self.proceed_effects = proceed_effects

@@ -1,5 +1,4 @@
 from util import SaveableMetaclass, dictify_row, stringlike
-from copy import copy
 from calendar import CalendarCol
 
 

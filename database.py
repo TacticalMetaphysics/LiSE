@@ -72,26 +72,29 @@ arguments.
         self.portaldestorigdict = {}
         self.effectdict = {}
         self.effectdeckdict = {}
-        self.func = {'toggle_menu_visibility': self.toggle_menu_visibility,
-                     'toggle_calendar_visibility': self.toggle_calendar_visibility,
-                     'hide_menu': self.hide_menu,
-                     'hide_calendar': self.hide_calendar,
-                     'show_menu': self.show_menu,
-                     'show_calendar': self.show_calendar,
-                     'hide_menus_in_board': self.hide_menus_in_board,
-                     'hide_calendars_in_board': self.hide_calendars_in_board,
-                     'hide_other_menus_in_board': self.hide_other_menus_in_board,
-                     'hide_other_calendars_in_board': self.hide_other_calendars_in_board,
-                     'start_new_map': noop,
-                     'open_map': noop,
-                     'save_map': noop,
-                     'quit_map_editor': noop,
-                     'editor_select': noop,
-                     'editor_copy': noop,
-                     'editor_paste': noop,
-                     'editor_delete': noop,
-                     'new_place': noop,
-                     'new_thing': noop}
+        self.stringdict = {}
+        self.func = {
+            'toggle_menu_visibility': self.toggle_menu_visibility,
+            'toggle_calendar_visibility': self.toggle_calendar_visibility,
+            'hide_menu': self.hide_menu,
+            'hide_calendar': self.hide_calendar,
+            'show_menu': self.show_menu,
+            'show_calendar': self.show_calendar,
+            'hide_menus_in_board': self.hide_menus_in_board,
+            'hide_calendars_in_board': self.hide_calendars_in_board,
+            'hide_other_menus_in_board': self.hide_other_menus_in_board,
+            'hide_other_calendars_in_board':
+            self.hide_other_calendars_in_board,
+            'start_new_map': noop,
+            'open_map': noop,
+            'save_map': noop,
+            'quit_map_editor': noop,
+            'editor_select': noop,
+            'editor_copy': noop,
+            'editor_paste': noop,
+            'editor_delete': noop,
+            'new_place': noop,
+            'new_thing': noop}
         self.func.update(xfuncs)
 
     def __del__(self):
@@ -183,7 +186,7 @@ list.
 
     def load_board(self, dimname):
         """Load and return the board representing the named dimension."""
-        return self.load_boards([dimname])[0]
+        return self.load_boards([dimname])[dimname]
 
     def remember(self, obj):
         """Indicate that the object should be saved to disk on next sync."""
@@ -386,7 +389,7 @@ for that item.
         self.calendardict[boardn][itn].toggle_visibility()
 
     def hide_menu(self, menuspec):
-        (boardn, itn) = menuspec.split('.')
+        (boardn, menun) = menuspec.split('.')
         self.boardmenudict[boardn][menun].hide()
 
     def hide_calendar(self, calspec):
@@ -424,7 +427,31 @@ for that item.
                 cal.hide()
 
     def get_age(self):
-        if not hasattr(self, 'age'):
-            self.c.execute("SELECT age FROM game;")
-            self.age = self.c.fetchone()[0]
-        return self.age
+        if not hasattr(self, 'game'):
+            self.load_game()
+        return self.game[1]
+
+    def get_text(self, strname):
+        return self.stringdict[strname][self.lang]
+
+    def load_strings(self):
+        self.c.execute("SELECT * FROM strings;")
+        for row in self.c:
+            (atstringn, lang, string) = row
+            stringn = atstringn[1:]
+            if stringn not in self.stringdict:
+                self.stringdict[stringn] = {}
+            self.stringdict[stringn][lang] = string
+
+    def load_game(self, lang):
+        self.c.execute("SELECT * FROM game;")
+        self.game = self.c.fetchone()
+        self.lang = lang
+        self.load_strings()
+        self.load_board(self.game[0])
+
+
+def load_game(dbfilen, language):
+    db = Database(dbfilen)
+    db.load_game(language)
+    return db

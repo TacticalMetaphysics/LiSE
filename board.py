@@ -36,13 +36,6 @@ time.
          ("dimension",),
          {"dimension": ("dimension", "name"),
           "wallpaper": ("image", "name")},
-         []),
-        ("board_menu",
-         {"board": "text",
-          "menu": "text"},
-         [],
-         {"board": ("board", "name"),
-          "menu": ("menu", "name")},
          [])]
 
     def __init__(self, dimension,
