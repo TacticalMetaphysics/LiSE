@@ -6,12 +6,6 @@ from style import read_styles
 """User's view on a given item's schedule."""
 
 
-class Dummy:
-    pass
-
-
-cells = set()
-
 class CalendarCell:
     """A block of time in a calendar.
 
@@ -128,6 +122,7 @@ is happening.
         if self.visible:
             self.toggle_visibility()
 
+
 class CalendarCol:
     """A single-column visual representation of a schedule.
 
@@ -235,7 +230,7 @@ cells.
         self.right_abs = int(self.right * gw.width)
         self.width_abs = int(self.width * gw.width)
         self.gw = gw
-        self.adjust()
+        self.adjust(gw.db)
 
     def gettop(self):
         return self.top_abs
@@ -258,7 +253,7 @@ cells.
     def rowheight(self):
         return self.getheight() / self.rows_on_screen
 
-    def adjust(self):
+    def adjust(self, db):
         self.cells = []
         calstart = self.scrolled_to
         calend = calstart + self.rows_on_screen
@@ -273,7 +268,6 @@ cells.
         end_set = set()
         for val in e.itervalues():
             end_set.update(val)
-        top = self.gettop()
         self.celleft = self.getleft() + self.style.spacing
         self.celright = self.getright() - self.style.spacing
         self.celwidth = self.celright - self.celleft
@@ -284,7 +278,7 @@ cells.
         # those that end in it, but start earlier. One for those that
         # begin in it, but end later. And one for those that overrun
         # it in both directions.
-        # 
+        #
         # If there's an event that overruns in both directions, it's
         # the only one that gets drawn, due to an invariant: one event
         # at a time for each item in the game world.
@@ -292,7 +286,12 @@ cells.
         assert(len(overrun_both) <= 1)
         if len(overrun_both) == 1:
             ev = overrun_both.pop()
-            cel = CalendarCell(self, ev.start, ev.start + ev.length, False, ev.name)
+            if ev.text[0] == "@":
+                celtext = db.get_text(ev.text[1:])
+            else:
+                celtext = ev.text
+            cel = CalendarCell(self, ev.start, ev.start + ev.length,
+                               False, celtext)
             cel.top = self.gettop() + self.style.spacing
             cel.bot = self.getbot() - self.style.spacing
             self.cells = [cel]
@@ -302,13 +301,21 @@ cells.
         assert(len(overrun_before)) <= 1
         overrun_after = set.intersection(start_set, continue_set) - end_set
         assert(len(overrun_after)) <= 1
-        # The events that overrun the calendar should be drawn that way--just a little.
+        # The events that overrun the calendar should be drawn that
+        # way--just a little over the edge.
         last_cel = None
         if len(overrun_before) == 1:
             ob_event = overrun_before.pop()
-            ob_cel = CalendarCell(self, ob_event, self.cel_style, ob_event.name)
+            if ob_event.text[0] == "@":
+                celtext = db.get_text(ob_event.text[1:])
+            else:
+                celtext = ob_event.text
+            ob_cel = CalendarCell(self, ob_event, self.cel_style, celtext)
             ob_cel.top = self.gettop() + self.style.spacing  # overrun
-            cel_rows_on_screen = ob_event.start + ob_event.length - self.scrolled_to
+            cel_rows_on_screen = (
+                ob_event.start +
+                ob_event.length -
+                self.scrolled_to)
             ob_cel.bot = self.gettop() - cel_rows_on_screen * rowheight
             last_cel = ob_cel
         else:
@@ -319,7 +326,11 @@ cells.
             last_cel.bot = self.gettop()
         el = sorted(list(enclosed))
         for event in el:
-            cel = CalendarCell(self, event, self.cel_style, event.name)
+            if event.text[0] == "@":
+                celtext = db.get_text(event.text[1:])
+            else:
+                celtext = event.text
+            cel = CalendarCell(self, event, self.cel_style, celtext)
             cel.top = self.gettop() - event.start * rowheight
             cel.bot = cel.top - event.length * rowheight
             cel.height = cel.top - cel.bot
@@ -347,7 +358,11 @@ cells.
                 self.cells.append(empty)
                 last_bot = empty.bot
                 ticks_between -= 1
-            cel = CalendarCell(self, oa, self.cel_style, oa.name)
+            if oa.text[0] == "@":
+                celtext = db.get_text(oa.text[1:])
+            else:
+                celtext = oa.text
+            cel = CalendarCell(self, oa, self.cel_style, celtext)
             cel.top = last_bot
             cel.bot = self.getbot() - self.style.spacing
             self.cells.append(cel)

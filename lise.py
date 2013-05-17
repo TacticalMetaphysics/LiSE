@@ -1,11 +1,11 @@
 import pyglet
 from gui import GameWindow
-from database import Database
+from database import load_game
 from state import GameState
 from board import load_board
 
 
-db = Database("default.sqlite")
+db = load_game("default.sqlite", "English")
 b = load_board(db, "Physical")
 s = GameState(db)
 gw = GameWindow(s, "Physical")

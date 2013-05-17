@@ -65,6 +65,8 @@ class MenuItem:
         self.parse_effect_deck(db)
         while len(self.menu.items) < self.idx:
             self.menu.items.append(None)
+        if self.text[0] == "@":
+            self.text = db.get_text(self.text[1:])
         self.menu.items[self.idx] = self
 
     def onclick(self, button, modifiers):
@@ -239,7 +241,8 @@ def parse_menu_item(rows):
 class Menu:
     tables = [
         ('menu',
-         {'name': 'text',
+         {'board': 'text',
+          'name': 'text',
           'left': 'float not null',
           'bottom': 'float not null',
           'top': 'float not null',
@@ -252,8 +255,9 @@ class Menu:
          [])]
     interactive = True
 
-    def __init__(self, name, left, bottom, top, right, style,
-                 main_for_window, visible, db=None, board=None):
+    def __init__(self, board, name, left, bottom, top, right, style,
+                 main_for_window, visible, db=None):
+        self.board = board
         self.name = name
         self.left = left
         self.bot = bottom
@@ -267,7 +271,6 @@ class Menu:
         self.interactive = True
         self.hovered = False
         self.grabpoint = None
-        self.board = board
         self.sprite = None
         self.oldstate = None
         self.newstate = None
@@ -299,13 +302,6 @@ class Menu:
         self.items = db.menuitemdict[self.name]
         for item in self.items:
             item.unravel(db)
-        if self.board is not None:
-            if stringlike(self.board):
-                self.board = db.boarddict[self.board]
-            boardname = self.board.dimension.name
-            if boardname not in db.boardmenudict:
-                db.boardmenudict[boardname] = {}
-            db.boardmenudict[boardname][self.name] = self
 
     def set_gw(self, gw):
         self.gw = gw
@@ -326,7 +322,6 @@ class Menu:
         for item in self.items:
             item.top_from_top = i * self.rowheight
             item.bot_from_top = item.top_from_top + self.rowheight
-            print "{0}+{1}={2}".format(item.top_from_top, self.rowheight, item.bot_from_top)
             item.top = self.top_abs - item.top_from_top
             item.bot = item.top - self.rowheight
             i += 1
@@ -471,12 +466,9 @@ def load_items_in_menus(db, menus):
     return unravel_items_in_menus(db, read_items_in_menus(db, menus))
 
 
-menu_qualified_cols = ["menu." + col for col in Menu.colnames["menu"]]
 menu_board_qryfmt = (
-    "SELECT board_menu.board, {0} FROM menu, board_menu WHERE "
-    "menu.name=board_menu.menu AND "
-    "board_menu.board IN ({1})".format(
-        ", ".join(menu_qualified_cols), "{0}"))
+    "SELECT {0} FROM menu WHERE board IN ({1})".format(
+        ", ".join(Menu.colns), "{0}"))
 
 
 def read_menus_in_boards(db, boards):
@@ -484,23 +476,13 @@ def read_menus_in_boards(db, boards):
     qrystr = qryfmt.format(", ".join(["?"] * len(boards)))
     db.c.execute(qrystr, boards)
     r = {}
-    menunames = set()
     stylenames = set()
-    menus = []
-    for board in boards:
-        r[board] = {}
     for row in db.c:
-        rowdict = dictify_row(row, ["board"] + Menu.colnames["menu"])
+        rowdict = dictify_row(row, Menu.colns)
         rowdict["db"] = db
-        numenu = Menu(**rowdict)
-        r[rowdict["board"]][rowdict["name"]] = numenu
-        menunames.add(rowdict["name"])
         stylenames.add(rowdict["style"])
-        menus.append(numenu)
-        if rowdict["board"] not in db.boardmenudict:
-            db.boardmenudict[rowdict["board"]] = {}
-        db.boardmenudict[rowdict["board"]][rowdict["name"]] = numenu
-    read_items_in_menus(db, list(menunames))
+        r[rowdict["name"]] = Menu(**rowdict)
+    read_items_in_menus(db, r.keys())
     read_styles(db, list(stylenames))
     return r
 
