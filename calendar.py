@@ -249,13 +249,17 @@ cells.
     def getheight(self):
         return self.cal.getheight()
 
-    def adjust(self):
-        self.cells = []
-        calstart = self.cal.getstart()
-        calend = self.cal.getend() 
+    def adjust(self, start=None, end=None):
+        if start is None:
+            calstart = self.cal.getstart()
+        else:
+            calstart = start
+        if end is None:
+            calend = self.cal.getend() 
+        else:
+            calend = end
         rowheight = self.cal.rowheight()
         (s, c, e) = self.schedule.events_between(calstart, calend)
-        # check if adjustment would even do anything
         start_hash = s["hash"]
         continue_hash = c["hash"]
         end_hash = e["hash"]
@@ -270,17 +274,20 @@ cells.
             self.tweaks += 1
             return
         start_set = set()
-        for item in s.iteritems():
-            if item[0] != "hash":
-                start_set.update(item[1])
+        h = s.pop("hash")
+        for val in s.itervalues():
+            start_set.update(val)
+        s["hash"] = h
+        h = c.pop("hash")
         continue_set = set()
-        for item in c.iteritems():
-            if item[0] != "hash":
-                continue_set.update(item[1])
+        for val in c.itervalues():
+            continue_set.update(val)
+        c["hash"] = h
+        h = e.pop("hash")
         end_set = set()
-        for item in e.iteritems():
-            if item[0] != "hash":
-                end_set.update(item[1])
+        for val in e.itervalues():
+            end_set.update(val)
+        e["hash"] = h
         # Events that start or end in the visible timeframe, but do
         # not continue in it, aren't visible; don't collect those.
         # Otherwise collect all events into four piles. One for those
@@ -343,34 +350,17 @@ cells.
         for event in el:
             celtext = event.text
             cel = CalendarCell(self, event, self.cel_style, celtext)
-            cel.top = self.gettop() - event.start * rowheight
+            celtoprel = event.start - self.cal.scrolled_to
+            cel.top = self.gettop() - celtoprel * rowheight
             cel.bot = cel.top - event.length * rowheight
             cel.height = cel.top - cel.bot
-            if last_cel.bot > cel.bot:
-                last_bot = last_cel.bot
-                while last_end < event.start:
-                    empty = CalendarCell(self, None, self.cel_style)
-                    empty.top = last_bot
-                    empty.bot = empty.top - rowheight
-                    self.cells.append(empty)
-                    last_bot = empty.bot
-                    last_end += 1
             cells.append(cel)
-            last_cel = cel
         if len(overrun_after) == 1:
             oa = overrun_after.pop()
-            ticks_between = oa.start - last_cel.getend()
-            last_bot = last_cel.bot
-            while ticks_between > 0:
-                empty = CalendarCell(self, None, self.cel_style)
-                empty.top = last_bot
-                empty.bot = empty.top - rowheight
-                self.cells.append(empty)
-                last_bot = empty.bot
-                ticks_between -= 1
             celtext = oa.text
             cel = CalendarCell(self, oa, self.cel_style, celtext)
-            cel.top = last_bot
+            celtoprel = oa.start - self.cal.scrolled_to
+            cel.top = self.gettop() - celtoprel * rowheight
             cel.bot = self.getbot() - self.style.spacing
             cells.append(cel)
         if start_hash not in self.cell_cache:
@@ -388,11 +378,16 @@ cells.
             other.item == self.item)
 
     def get_state_tup(self):
+        try:
+            idx = self.cal.index(self)
+        except ValueError:
+            idx = -1
         return (
             self.getleft(),
             self.getright(),
             self.gettop(),
             self.getbot(),
+            idx,
             self.visible,
             self.interactive,
             self.tweaks)
