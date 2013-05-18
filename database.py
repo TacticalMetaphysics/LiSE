@@ -1,6 +1,7 @@
 import sqlite3
 import board
 import dimension
+from collections import OrderedDict
 
 
 """The database backend, with dictionaries of loaded objects."""
@@ -46,7 +47,7 @@ arguments.
         self.removed = set()
         self.dimensiondict = {}
         self.caldict = {}
-        self.calcoldict = {}
+        self.calcoldict = OrderedDict()
         self.scheduledict = {}
         self.eventdict = {}
         self.startevdict = {}

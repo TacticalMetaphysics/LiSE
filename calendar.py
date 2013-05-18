@@ -1,6 +1,7 @@
 from util import SaveableMetaclass, stringlike, dictify_row
 from pyglet.image import SolidColorImagePattern as color_pattern
 from style import read_styles
+from collections import OrderedDict
 
 
 """User's view on a given item's schedule.
@@ -25,24 +26,24 @@ is happening.
 
     """
 
-    def __init__(self, col, event, style, text=""):
+    def __init__(self, col, event):
         self.col = col
         self.event = event
-        self.style = style
-        self.text = text
+        self.style = self.col.cel_style
+        if self.event is None:
+            self.text = ""
+        else:
+            self.text = self.event.text
         self.oldstate = None
+        self.sprite = None
         self.visible = True
         self.interactive = True
         self.tweaks = 0
-        self.start = 0
-        self.end = 0
-        self.top = 0
-        self.bot = 0
-        self.inactive_pattern = color_pattern(style.bg_inactive.tup)
+        self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         if event is None:
             self.active_pattern = self.inactive_pattern
         else:
-            self.active_pattern = color_pattern(style.bg_active.tup)
+            self.active_pattern = color_pattern(self.style.bg_active.tup)
 
     def __eq__(self, other):
         if not isinstance(other, CalendarCell):
@@ -59,14 +60,7 @@ is happening.
             self.event))
 
     def __len__(self):
-        if hasattr(self, 'event'):
-            return self.event.length
-        elif hasattr(self, 'length'):
-            return self.length
-        elif hasattr(self, 'start') and hasattr(self, 'end'):
-            return self.end - self.start
-        else:
-            return None
+        return self.event.length
 
     def get_state_tup(self):
         return (
@@ -78,26 +72,29 @@ is happening.
             self.interactive,
             self.tweaks)
 
+    def getstart(self):
+        return self.event.start
+
     def gettop(self):
-        return self.top
+        return (self.getstart() - self.col.cal.scrolled_to) * self.col.cal.rowheight()
 
     def getbot(self):
-        return self.bot
+        return self.gettop() - (self.col.cal.rowheight() * len(self))
 
     def getleft(self):
-        return self.col.celleft
+        return self.col.getleft() + self.style.spacing
 
     def getright(self):
-        return self.col.celright
+        return self.col.getright() - self.style.spacing
 
     def getwidth(self):
-        return self.col.celwidth
+        return self.getright() - self.getleft()
 
     def getheight(self):
-        return self.top - self.bot
+        return self.gettop() - self.getbot()
 
     def label_bot(self):
-        return self.top - self.style.fontsize - self.style.spacing
+        return self.gettop() - self.style.fontsize - self.style.spacing
 
     def getstart(self):
         if hasattr(self, 'event'):
@@ -167,7 +164,8 @@ cells.
         self.style = style
         self.cel_style = cel_style
         self.oldstate = None
-        self.cells = []
+        self.sprite = None
+        self.cells = {}
         self.left = 0
         self.right = 0
         self.cell_cache = {}
@@ -187,11 +185,14 @@ cells.
                 db.calcoldict[boardname] = {}
             db.calcoldict[boardname][itname] = self
 
+    def __iter__(self):
+        return self.cells.itervalues()
+
     def toggle_visibility(self):
         if self in self.cal:
             self.cal.remove(self)
         else:
-            self.cal.append(self)
+            self.cal.add(self)
         self.tweaks += 1
 
     def hide(self):
@@ -216,7 +217,6 @@ cells.
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         self.active_pattern = color_pattern(self.style.bg_active.tup)
         self.cal = self.board.calendar
-        self.old_cal_start = self.cal.getstart()
         if not hasattr(self, 'schedule'):
             self.schedule = self.item.schedule
         else:
@@ -238,10 +238,10 @@ cells.
         return self.cal.getbot()
 
     def getleft(self):
-        return self.cal.colleft(self)
+        return self.cal.getleft() + self.cal.index(self) * self.cal.colwidth()
 
     def getright(self):
-        return self.cal.colleft(self) + self.cal.colwidth()
+        return self.getleft() + self.cal.colwidth()
 
     def getwidth(self):
         return self.cal.colwidth()
@@ -249,127 +249,27 @@ cells.
     def getheight(self):
         return self.cal.getheight()
 
-    def adjust(self, start=None, end=None):
-        if start is None:
-            calstart = self.cal.getstart()
-        else:
-            calstart = start
-        if end is None:
-            calend = self.cal.getend() 
-        else:
-            calend = end
-        rowheight = self.cal.rowheight()
-        (s, c, e) = self.schedule.events_between(calstart, calend)
-        start_hash = s["hash"]
-        continue_hash = c["hash"]
-        end_hash = e["hash"]
-        self.celleft = self.getleft() + self.style.spacing
-        self.celright = self.getright() - self.style.spacing
-        self.celwidth = self.celright - self.celleft
-        if (
-                start_hash in self.cell_cache and
-                continue_hash in self.cell_cache[start_hash] and
-                end_hash in self.cell_cache[start_hash][continue_hash]):
-            self.cells = self.cell_cache[start_hash][continue_hash][end_hash]
-            self.tweaks += 1
-            return
-        start_set = set()
-        h = s.pop("hash")
-        for val in s.itervalues():
-            start_set.update(val)
-        s["hash"] = h
-        h = c.pop("hash")
-        continue_set = set()
-        for val in c.itervalues():
-            continue_set.update(val)
-        c["hash"] = h
-        h = e.pop("hash")
-        end_set = set()
-        for val in e.itervalues():
-            end_set.update(val)
-        e["hash"] = h
-        # Events that start or end in the visible timeframe, but do
-        # not continue in it, aren't visible; don't collect those.
-        # Otherwise collect all events into four piles. One for those
-        # that start and end inside the visible timeframe. One for
-        # those that end in it, but start earlier. One for those that
-        # begin in it, but end later. And one for those that overrun
-        # it in both directions.
-        #
-        # All but the first of these sets may have at most one element
-        # in them. If there's anything in the latter set, that's all
-        # that gets drawn, due to the invariant that an item in the
-        # gameworld may have at most one event scheduled at a time.
-        cells = []
-        overrun_both = continue_set.difference(start_set, end_set)
-        assert(len(overrun_both) <= 1)
-        if len(overrun_both) == 1:
-            ev = overrun_both.pop()
-            celtext = ev.text
-            cel = CalendarCell(self, ev.start, ev.start + ev.length,
-                               False, celtext)
-            cel.top = self.gettop() + self.style.spacing
-            cel.bot = self.getbot() - self.style.spacing
-            cells = [cel]
-            if start_hash not in self.cell_cache:
-                self.cell_cache[start_hash] = {}
-            if continue_hash not in self.cell_cache:
-                self.cell_cache[start_hash][continue_hash] = {}
-            self.cell_cache[start_hash][continue_hash][end_hash] = cells
-            self.cells = cells
-            self.tweaks += 1
-            return
-        enclosed = set.intersection(start_set, continue_set, end_set)
-        overrun_before = set.intersection(continue_set, end_set) - start_set
-        assert(len(overrun_before)) <= 1
-        overrun_after = set.intersection(start_set, continue_set) - end_set
-        assert(len(overrun_after)) <= 1
-        # The events that overrun the calendar should be drawn that
-        # way--just a little over the edge.
-        last_cel = None
-        if len(overrun_before) == 1:
-            ob_event = overrun_before.pop()
-            celtext = ob_event.text
-            ob_cel = CalendarCell(self, ob_event, self.cel_style, celtext)
-            ob_cel.top = self.gettop() + self.style.spacing  # overrun
-            cel_rows_on_screen = (
-                ob_event.start +
-                ob_event.length -
-                self.scrolled_to)
-            ob_cel.bot = self.gettop() - cel_rows_on_screen * rowheight
-            last_end = ob_event.start + ob_event.length
-            last_cel = ob_cel
-            cells.append(last_cel)
-        else:
-            # This won't be drawn
-            last_cel = CalendarCell(self, None, self.cel_style)
-            last_end = self.cal.scrolled_to
-            last_cel.top = self.gettop()
-            last_cel.bot = self.gettop()
-        el = sorted(list(enclosed))
-        for event in el:
-            celtext = event.text
-            cel = CalendarCell(self, event, self.cel_style, celtext)
-            celtoprel = event.start - self.cal.scrolled_to
-            cel.top = self.gettop() - celtoprel * rowheight
-            cel.bot = cel.top - event.length * rowheight
-            cel.height = cel.top - cel.bot
-            cells.append(cel)
-        if len(overrun_after) == 1:
-            oa = overrun_after.pop()
-            celtext = oa.text
-            cel = CalendarCell(self, oa, self.cel_style, celtext)
-            celtoprel = oa.start - self.cal.scrolled_to
-            cel.top = self.gettop() - celtoprel * rowheight
-            cel.bot = self.getbot() - self.style.spacing
-            cells.append(cel)
-        if start_hash not in self.cell_cache:
-            self.cell_cache[start_hash] = {}
-        if continue_hash not in self.cell_cache[start_hash]:
-            self.cell_cache[start_hash][continue_hash] = {}
-        self.cell_cache[start_hash][continue_hash][end_hash] = cells
-        self.cells = cells
+    def adjust(self):
+        """Create calendar cells for all events in the schedule.
+
+Cells already here will be reused."""
+        schevs = iter(self.item.schedule)
+        for ev in schevs:
+            if ev.name not in self.cells:
+                self.cells[ev.name] = CalendarCell(self, ev)
+        for k in self.cells.iterkeys():
+            if k not in self.item.schedule.events:
+                ptr = self.cells.pop(k)
+                try:
+                    ptr.sprite.delete()
+                except AttributeError:
+                    pass
+                try:
+                    ptr.label.delete()
+                except AttributeError:
+                    pass
         self.tweaks += 1
+
 
     def __eq__(self, other):
         return (
@@ -378,20 +278,15 @@ cells.
             other.item == self.item)
 
     def get_state_tup(self):
-        try:
-            idx = self.cal.index(self)
-        except ValueError:
-            idx = -1
         return (
+            hash(self.cal.get_state_tup()),
             self.getleft(),
             self.getright(),
             self.gettop(),
             self.getbot(),
-            idx,
             self.visible,
             self.interactive,
             self.tweaks)
-
 
 class Calendar:
     """A collection of calendar columns representing at least one
@@ -401,9 +296,10 @@ This really can't be used without a database, but you can assign said
 database without passing it to the constructor by use of the set_gw
 method.
 
-    """
-    def __init__(self, board, left, right, top, bot, visible, interactive,
-                 rows_on_screen, scrolled_to, db=None):
+"""
+    def __init__(
+            self, board, left, right, top, bot, visible, interactive,
+            rows_on_screen, scrolled_to, db=None):
         self.board = board
         self.left = left
         self.right = right
@@ -425,18 +321,18 @@ method.
             db.caldict[boardname] = self
 
     def __iter__(self):
-        if hasattr(self, 'columns'):
-            return iter(self.columns)
-        else:
-            return None
+        return self.coldict.itervalues()
+
+    def __len__(self):
+        return len(self.coldict)
 
     def get_state_tup(self):
         return (
-            len(self.columns),
-            self.left,
-            self.right,
-            self.top,
-            self.bot,
+            len(self),
+            self.getleft(),
+            self.getright(),
+            self.gettop(),
+            self.getbot(),
             self.visible,
             self.interactive,
             self.rows_on_screen,
@@ -448,16 +344,16 @@ method.
         if stringlike(self.board):
             self.board = db.boarddict[self.board]
         if self.board.dimension.name in db.calcoldict:
-            self.columns = db.calcoldict[self.board.dimension.name].values()
+            self.coldict = db.calcoldict[self.board.dimension.name]
         else:
-            self.columns = []
-        for column in self.columns:
+            self.coldict = OrderedDict()
+        for column in self.coldict.itervalues():
             column.unravel(db)
 
     def set_gw(self, gw):
         self.gw = gw
         self.gw.db.caldict[self.board.dimension.name] = self
-        for col in self.columns:
+        for col in self.coldict.itervalues():
             col.set_cal(self)
 
     def gettop(self):
@@ -484,29 +380,28 @@ method.
     def getend(self):
         return self.scrolled_to + self.rows_on_screen
 
-    def append(self, col):
-        return self.columns.append(col)
+    def add(self, col):
+        if col.item.name not in self.coldict:
+            self.coldict[col.item.name] = col
+        self.tweaks += 1
 
     def remove(self, col):
-        return self.columns.remove(col)
+        del self.coldict[col.item.name]
+        self.tweaks += 1
 
-    def insert(self, i, col):
-        return self.columns.insert(i, col)
-
-    def count(self, col):
-        return self.columns.count(col)
-
-    def extend(self, cols):
-        return self.columns.extend(cols)
+    def discard(self, col):
+        if col.item.name in self.coldict:
+            del self.coldict[col.item.name]
+        self.tweaks += 1
 
     def index(self, col):
-        return self.columns.index(col)
+        return sorted(self.coldict.keys()).index(col.item.name)
 
-    def pop(self, i=-1):
-        return self.columns.pop(i)
+    def pop(self, colname):
+        return self.coldict.pop(colname)
 
-    def __getitem__(self, i):
-        return self.columns[i]
+    def __getitem__(self, colname):
+        return self.coldict[colname]
 
     def toggle_visibility(self):
         self.visible = not self.visible
@@ -521,10 +416,7 @@ method.
             self.toggle_visibility()
 
     def colwidth(self):
-        return self.getwidth() / len(self.columns)
-
-    def colleft(self, col):
-        return self.getleft() + self.colwidth() * self.columns.index(col)
+        return self.getwidth() / len(self.coldict)
 
     def rowheight(self):
         return self.getheight() / self.rows_on_screen

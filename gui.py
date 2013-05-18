@@ -57,7 +57,6 @@ class GameWindow:
             menu.set_gw(self)
         self.drawn_board = None
         self.drawn_edges = None
-        self.cels_drawn = {}
 
         self.onscreen = set()
 
@@ -95,14 +94,11 @@ class GameWindow:
             spot_todo = [
                 spot for spot in self.spots if
                 spot.get_state_tup() not in self.onscreen]
-            col_todo = [
-                calcol for calcol in self.calendar if
-                calcol.get_state_tup() not in self.onscreen]
+            col_todo = self.calendar.coldict.values()
             cel_todo = []
             for col in self.calendar:
                 cel_todo.extend([
-                    cel for cel in col.cells if
-                    cel.get_state_tup() not in self.onscreen])
+                    cel for cel in col.cells.itervalues()])
             # draw the edges, representing portals
             e = []
             for portal in portal_todo:
@@ -189,18 +185,17 @@ class GameWindow:
                         y=mi.getbot(),
                         batch=self.batch,
                         group=self.labelgroup)
-            # draw the calendars
+            # draw the calendar
             for col in col_todo:
                 col.adjust()
                 newstate = col.get_state_tup()
                 self.onscreen.discard(col.oldstate)
                 self.onscreen.add(newstate)
                 col.oldstate = newstate
-                if hasattr(col, 'sprite') and col.sprite is not None:
-                    try:
-                        col.sprite.delete()
-                    except AttributeError:
-                        pass
+                try:
+                    col.sprite.delete()
+                except AttributeError:
+                    pass
                 image = col.inactive_pattern.create_image(
                     col.getwidth(), col.getheight())
                 if self.calendar.visible and col.visible:
@@ -213,14 +208,14 @@ class GameWindow:
                 self.onscreen.discard(cel.oldstate)
                 self.onscreen.add(newstate)
                 cel.oldstate = newstate
-                if cel in self.cels_drawn:
-                    for deleteme in ['sprite', 'label']:
-                        try:
-                            self.cels_drawn[cel][deleteme].delete()
-                        except AttributeError:
-                            pass
-                        except KeyError:
-                            pass
+                try:
+                    cel.sprite.delete()
+                except AttributeError:
+                    pass
+                try:
+                    cel.label.delete()
+                except AttributeError:
+                    pass
                 if self.calendar.visible and cel.visible and cel.col.visible:
                     if self.hovered == cel:
                         pat = cel.active_pattern
@@ -242,7 +237,8 @@ class GameWindow:
                         y=cel.label_bot(),
                         batch=self.batch,
                         group=self.labelgroup)
-                    self.cels_drawn[cel] = {'sprite': sprite, 'label': label}
+                    cel.sprite = sprite
+                    cel.label = label
                     
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.

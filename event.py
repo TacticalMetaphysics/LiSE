@@ -102,6 +102,12 @@ success that strains a person terribly and causes them injury.
         self.cmpcheck(other)
         return self.start <= other.start
 
+    def __hash__(self):
+        if hasattr(self, 'start') and hasattr(self, 'length'):
+            return hash((self.start, self.length, self.name))
+        else:
+            return hash(self.name)
+
     def scheduled_copy(self, start, length):
         # Return a copy of myself with the given start & end
         new = Event(self.db, self.tabdict)

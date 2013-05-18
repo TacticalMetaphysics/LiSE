@@ -517,7 +517,7 @@ class Schedule:
     def __init__(self, dimension, item, db=None):
         self.dimension = dimension
         self.item = item
-        self.events = set()
+        self.events = {}
         self.events_starting = dict()
         self.events_ending = dict()
         self.events_ongoing = dict()
@@ -548,6 +548,9 @@ class Schedule:
                 db.endevdict[dimname] = {}
             db.endevdict[dimname][itemname] = self.events_ending
 
+    def __iter__(self):
+        return self.events.itervalues()
+
     def unravel(self, db):
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
@@ -565,7 +568,7 @@ class Schedule:
                 pass
 
     def add(self, ev):
-        self.events.add(ev)
+        self.events[ev.name] = ev
         ev_end = ev.start + ev.length
         if ev.start not in self.events_starting:
             self.events_starting[ev.start] = set()
