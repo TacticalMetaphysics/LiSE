@@ -45,7 +45,8 @@ arguments.
         self.altered = set()
         self.removed = set()
         self.dimensiondict = {}
-        self.calendardict = {}
+        self.caldict = {}
+        self.calcoldict = {}
         self.scheduledict = {}
         self.eventdict = {}
         self.startevdict = {}
@@ -60,7 +61,6 @@ arguments.
         self.boarddict = {}
         self.menudict = {}
         self.menuitemdict = {}
-        self.boardmenudict = {}
         self.pawndict = {}
         self.styledict = {}
         self.colordict = {}
@@ -377,7 +377,7 @@ toggle the visibility of that menu.
 
         """
         (boardn, itn) = menuspec.split('.')
-        self.boardmenudict[boardn][itn].toggle_visibility()
+        self.menudict[boardn][itn].toggle_visibility()
 
     def toggle_calendar_visibility(self, calspec):
         """Given a string consisting of a dimension name, a dot, and an item
@@ -390,7 +390,7 @@ for that item.
 
     def hide_menu(self, menuspec):
         (boardn, menun) = menuspec.split('.')
-        self.boardmenudict[boardn][menun].hide()
+        self.menudict[boardn][menun].hide()
 
     def hide_calendar(self, calspec):
         (boardn, itn) = calspec.split('.')
@@ -398,20 +398,20 @@ for that item.
 
     def show_menu(self, menuspec):
         (boardn, menun) = menuspec.split('.')
-        self.boardmenudict[boardn][menun].show()
+        self.menudict[boardn][menun].show()
 
     def show_calendar(self, calspec):
         (boardn, itn) = calspec.split('.')
         self.calendardict[boardn][itn].show()
 
     def hide_menus_in_board(self, boardn):
-        for menu in self.boardmenudict[boardn].itervalues():
+        for menu in self.menudict[boardn].itervalues():
             if not menu.main_for_window:
                 menu.hide()
 
     def hide_other_menus_in_board(self, menuspec):
         (boardn, menun) = menuspec.split('.')
-        for menu in self.boardmenudict[boardn].itervalues():
+        for menu in self.menudict[boardn].itervalues():
             if not menu.main_for_window and menu.name != menun:
                 menu.hide()
 

@@ -19,20 +19,22 @@ CALENDAR_TOGGLER_RE = re.compile("toggle_calendar\((.*)\)")
 class MenuItem:
     tables = [
         ('menu_item',
-         {'menu': 'text',
+         {'board': 'text',
+          'menu': 'text',
           'idx': 'integer',
           'text': 'text',
           'effect_deck': 'text',
           'closer': 'boolean',
           'visible': 'boolean',
           'interactive': 'boolean'},
-         ('menu', 'idx'),
-         {"menu": ("menu", "name"),
+         ('board', 'menu', 'idx'),
+         {"board, menu": ("menu", "board, name"),
           "effect_deck": ("effect_deck_link", "deck")},
          [])]
 
-    def __init__(self, menu, idx, text, effect_deck, closer,
+    def __init__(self, board, menu, idx, text, effect_deck, closer,
                  visible, interactive, db=None):
+        self.board = board
         self.menu = menu
         self.idx = idx
         self.text = text
@@ -48,26 +50,36 @@ class MenuItem:
         self.pressed = False
         self.tweaks = 0
         if db is not None:
-            menun = None
-            if isinstance(self.menu, Menu):
-                menun = self.menu.name
+            if stringlike(self.board):
+                boardname = self.board
             else:
-                menun = self.menu
-            if not menun in db.menuitemdict:
-                db.menuitemdict[menun] = []
-            while len(db.menuitemdict[menun]) <= self.idx:
-                db.menuitemdict[menun].append(None)
-            db.menuitemdict[menun][self.idx] = self
+                if stringlike(self.board.dimension):
+                    boardname = self.board.dimension
+                else:
+                    boardname = self.board.dimension.name
+            if stringlike(self.menu):
+                menuname = self.menu
+            else:
+                menuname = self.menu.name
+            if boardname not in db.menuitemdict:
+                db.menuitemdict[boardname] = {}
+            if menuname not in db.menuitemdict[boardname]:
+                db.menuitemdict[boardname][menuname] = []
+            ptr = db.menuitemdict[boardname][menuname]
+            while len(ptr) <= self.idx:
+                ptr.append(None)
+            ptr[self.idx] = self
 
     def unravel(self, db):
+        if stringlike(self.board):
+            self.board = db.boarddict[self.board]
         if stringlike(self.menu):
-            self.menu = db.menudict[self.menu]
+            self.menu = db.menudict[self.board.dimension.name][self.menu]
         self.parse_effect_deck(db)
         while len(self.menu.items) < self.idx:
             self.menu.items.append(None)
         if self.text[0] == "@":
             self.text = db.get_text(self.text[1:])
-        self.menu.items[self.idx] = self
 
     def onclick(self, button, modifiers):
         self.effect_deck.do()
@@ -277,18 +289,13 @@ class Menu:
         self.pressed = False
         self.tweaks = 0
         if db is not None:
-            db.menudict[self.name] = self
-            if self.board is not None:
-                if stringlike(self.board):
-                    boardname = self.board
-                else:
-                    if stringlike(self.board.dimension):
-                        boardname = self.board.dimension
-                    else:
-                        boardname = self.board.dimension.name
-                if boardname not in db.boardmenudict:
-                    db.boardmenudict[boardname] = {}
-                db.boardmenudict[boardname][self.name] = self
+            if stringlike(self.board):
+                boardname = self.board
+            else:
+                boardname = self.board.name
+            if boardname not in db.menudict:
+                db.menudict[boardname] = {}
+            db.menudict[boardname][self.name] = self
 
     def unravel(self, db):
         if stringlike(self.style):
@@ -299,7 +306,11 @@ class Menu:
         bga = self.style.bg_active.tup
         self.inactive_pattern = pyglet.image.SolidColorImagePattern(bgi)
         self.active_pattern = pyglet.image.SolidColorImagePattern(bga)
-        self.items = db.menuitemdict[self.name]
+        if stringlike(self.board):
+            boardname = self.board
+        else:
+            boardname = self.board.name
+        self.items = db.menuitemdict[boardname][self.name]
         for item in self.items:
             item.unravel(db)
 
@@ -466,9 +477,15 @@ def load_items_in_menus(db, menus):
     return unravel_items_in_menus(db, read_items_in_menus(db, menus))
 
 
+menu_qcols = ["menu." + coln for coln in Menu.colns]
+menu_item_qvals = ["menu_item.idx"] + ["menu_item." + valn for valn in MenuItem.valns]
+mbqcols = menu_qcols + menu_item_qvals
+mbcols = Menu.colns + ["idx"] + MenuItem.valns
 menu_board_qryfmt = (
-    "SELECT {0} FROM menu WHERE board IN ({1})".format(
-        ", ".join(Menu.colns), "{0}"))
+    "SELECT {0} FROM menu JOIN menu_item ON "
+    "menu.board=menu_item.board AND "
+    "menu.name=menu_item.menu WHERE menu.board IN ({1})".format(
+        ", ".join(mbqcols), "{0}"))
 
 
 def read_menus_in_boards(db, boards):
@@ -476,20 +493,30 @@ def read_menus_in_boards(db, boards):
     qrystr = qryfmt.format(", ".join(["?"] * len(boards)))
     db.c.execute(qrystr, boards)
     r = {}
-    stylenames = set()
+    for board in boards:
+        r[board] = {}
     for row in db.c:
-        rowdict = dictify_row(row, Menu.colns)
-        rowdict["db"] = db
-        stylenames.add(rowdict["style"])
-        r[rowdict["name"]] = Menu(**rowdict)
-    read_items_in_menus(db, r.keys())
-    read_styles(db, list(stylenames))
+        rowdict = dictify_row(row, mbqcols)
+        if rowdict["menu.name"] not in r[rowdict["menu.board"]]:
+            menurd = {"db": db}
+            for coln in Menu.colns:
+                menurd[coln] = rowdict["menu." + coln]
+            print "Instantiating a board thus:"
+            print menurd
+            r[rowdict["menu.board"]][rowdict["menu.name"]] = Menu(**menurd)
+        menuitemrd = {"db": db,
+                      "board": rowdict["menu.board"],
+                      "menu": rowdict["menu.name"],
+                      "idx": rowdict["menu_item.idx"]}
+        for valn in MenuItem.valns:
+            menuitemrd[valn] = rowdict["menu_item." + valn]
+        mi = MenuItem(**menuitemrd)
     return r
 
 
 def unravel_menus(db, md):
     for menu in md.itervalues():
-        menu.unravel()
+        menu.unravel(db)
     return md
 
 

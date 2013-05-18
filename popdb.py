@@ -52,6 +52,7 @@ for mip in miproto:
     for item in items.iteritems():
         (txt, onclick) = item
         menu_items.append({
+            'board': dimname,
             'menu': menu,
             'idx': i,
             'text': txt,
@@ -266,6 +267,22 @@ parms.journeys = journeys
 schedules = []
 parms.schedules = schedules
 
+calcols = [
+    (dimname,
+     "me",
+     True,
+     True),
+    (dimname,
+     "mom",
+     True,
+     True)]
+parms.calcols = [
+    {"board": tup[0],
+     "item": tup[1],
+     "visible": tup[2],
+     "interactive": tup[3]}
+    for tup in calcols]
+
 
 imgtups = [("troll_m", "rltiles/player/base/troll_m.bmp", True),
            ("zruty", "rltiles/nh-mon0/z/zruty.bmp", True),
@@ -302,7 +319,7 @@ pawntups = [
     (dimname, 'me', 'troll_m'),
     (dimname, 'mom', 'zruty')]
 pawns = [
-    {'dimension': row[0],
+    {'board': row[0],
      'thing': row[1],
      'img': row[2],
      'visible': True,
@@ -331,13 +348,15 @@ menus = [
     for tup in menutups]
 parms.menus = menus
 
-
-boards = [{
-    'dimension': dimname,
-    'width': 800,
-    'height': 600,
-    'wallpaper': 'wall'}]
-parms.boards = boards
+boards = [
+    (dimname,
+     'wall')]
+     
+parms.boards = [
+    {"dimension": tup[0],
+     "wallpaper": tup[1],
+     "calendar_visible": True}
+    for tup in boards]
 
 
 def mkefd2(fun, arg):
@@ -368,33 +387,6 @@ effect_decks = [
      "effect": effectdict["name"]}
     for effectdict in effects]
 parms.effect_decks = effect_decks
-
-
-caltups = [
-    (
-        "Physical",
-        "me",
-        False,
-        True,
-        10,
-        0,
-        0.2,
-        0.9,
-        0.1,
-        0.9,
-        'BigLight',
-        'SmallDark')]
-
-
-calendars = [
-    dict(
-        zip(
-            ("dimension", "item", "visible", "interactive",
-             "rows_on_screen", "scrolled_to", "left", "top",
-             "bot", "right", "style", "cel_style"), row))
-    for row in caltups]
-parms.calendars = calendars
-
 
 strtups = [
     ("@game_menu", "Game"),
@@ -525,7 +517,7 @@ def populate_database(db, data):
     populate_journey_steps(db, data.steps)
     populate_schedules(db, data.schedules)
     populate_gfx(db, data.imgs, data.pawns, data.spots, data.boards,
-                 data.calendars)
+                 data.calcols)
     populate_strs(db, data.strings)
     db.c.execute("INSERT INTO game DEFAULT VALUES;")
 

@@ -521,6 +521,9 @@ class Schedule:
         self.events_starting = dict()
         self.events_ending = dict()
         self.events_ongoing = dict()
+        self.cached_commencements = {}
+        self.cached_processions = {}
+        self.cached_conclusions = {}
         if db is not None:
             dimname = None
             itemname = None
@@ -551,6 +554,16 @@ class Schedule:
         if stringlike(self.item):
             self.item = db.itemdict[self.dimension.name][self.item]
 
+    def trash_cache(self, start):
+        for cache in [
+                self.cached_commencements,
+                self.cached_processions,
+                self.cached_conclusions]:
+            try:
+                del cache[start]
+            except KeyError:
+                pass
+
     def add(self, ev):
         self.events.add(ev)
         ev_end = ev.start + ev.length
@@ -564,6 +577,8 @@ class Schedule:
             self.events_ongoing[i].add(ev)
         self.events_starting[ev.start].add(ev)
         self.events_ending[ev_end].add(ev)
+        self.trash_cache(ev.start)
+
 
     def discard(self, ev):
         ev_end = ev.start + ev.length
@@ -571,15 +586,40 @@ class Schedule:
         self.events_ending[ev_end].discard(ev)
         for i in xrange(ev.start+1, ev_end-1):
             self.events_ongoing[i].discard(ev)
+        self.trash_cache(ev.start)
 
     def commencements_between(self, start, end):
-        return lookup_between(self.events_starting, start, end)
+        if (
+                start in self.cached_commencements and
+                end in self.cached_commencements[start]):
+            return self.cached_commencements[start][end]
+        lookup = lookup_between(self.events_starting, start, end)
+        if start not in self.cached_commencements:
+            self.cached_commencements[start] = {}
+        self.cached_commencements[start][end] = lookup
+        return lookup
 
     def processions_between(self, start, end):
-        return lookup_between(self.events_ongoing, start, end)
+        if (
+                start in self.cached_processions and
+                end in self.cached_processions[start]):
+            return self.cached_processions[start][end]
+        lookup = lookup_between(self.events_ongoing, start, end)
+        if start not in self.cached_processions:
+            self.cached_processions[start] = {}
+        self.cached_processions[start][end] = lookup
+        return lookup
 
     def conclusions_between(self, start, end):
-        return lookup_between(self.events_ending, start, end)
+        if (
+                start in self.cached_conclusions and
+                end in self.cached_conclusions[start]):
+            return self.cached_conclusions[start][end]
+        lookup = lookup_between(self.events_ending, start, end)
+        if start not in self.cached_conclusions:
+            self.cached_conclusions[start] = {}
+        self.cached_conclusions[start][end] = lookup
+        return lookup
 
     def events_between(self, start, end):
         return (self.commencements_between(start, end),

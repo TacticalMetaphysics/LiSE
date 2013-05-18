@@ -22,7 +22,6 @@ class GameWindow:
         self.pressed = None
         self.hovered = None
         self.grabbed = None
-        self.calendar_changed = False
         self.mouse_x = 0
         self.mouse_y = 0
         self.mouse_dx = 0
@@ -52,11 +51,10 @@ class GameWindow:
         self.spots = self.board.spotdict.values()
         self.pawns = self.board.pawndict.values()
         self.portals = self.board.dimension.portaldict.values()
-        self.calendars = self.board.calendardict.values()
+        self.calendar = self.board.calendar
+        self.calendar.set_gw(self)
         for menu in self.menus:
             menu.set_gw(self)
-        for calendar in self.calendars:
-            calendar.set_gw(self)
         self.drawn_board = None
         self.drawn_edges = None
         self.cels_drawn = {}
@@ -76,47 +74,35 @@ class GameWindow:
             except AttributeError:
                 pass
             self.drawn_board = s
-            # if the background image has moved since last frame, then
-            # so has everything else
+            # if the board has moved since last frame, then
+            # so has everything on it.
             redraw_all = (self.view_left != self.prev_view_left or
                           self.view_bot != self.prev_view_bot)
-            self.view_left = self.prev_view_left
-            self.view_bot = self.prev_view_bot
+            self.prev_view_left = self.view_left
+            self.prev_view_bot = self.view_bot
             portal_todo = self.portals
-            if redraw_all:
-                menus_todo = self.menus
-                mi_todo = []
-                for menu in menus_todo:
-                    mi_todo.extend(menu.items)
-                pawn_todo = self.pawns
-                spot_todo = self.spots
-                col_todo = self.calendars
-                cel_todo = []
-                for col in col_todo:
-                    cel_todo.extend(col.cells)
-            else:
-                menus_todo = [
-                    menu for menu in self.menus if
-                    menu.get_state_tup() not in self.onscreen]
-                mi_todo = []
-                for menu in self.menus:
-                    mi_todo.extend([
-                        it for it in menu.items if
-                        it.get_state_tup() not in self.onscreen])
-                pawn_todo = [
-                    pawn for pawn in self.pawns if
-                    pawn.get_state_tup() not in self.onscreen]
-                spot_todo = [
-                    spot for spot in self.spots if
-                    spot.get_state_tup() not in self.onscreen]
-                col_todo = [
-                    calcol for calcol in self.calendars if
-                    calcol.get_state_tup() not in self.onscreen]
-                cel_todo = []
-                for col in self.calendars:
-                    cel_todo.extend([
-                        cel for cel in col.cells if
-                        cel.get_state_tup() not in self.onscreen])
+            menus_todo = [
+                menu for menu in self.menus if
+                menu.get_state_tup() not in self.onscreen]
+            mi_todo = []
+            for menu in self.menus:
+                mi_todo.extend([
+                    it for it in menu.items if
+                    it.get_state_tup() not in self.onscreen])
+            pawn_todo = [
+                pawn for pawn in self.pawns if
+                pawn.get_state_tup() not in self.onscreen]
+            spot_todo = [
+                spot for spot in self.spots if
+                spot.get_state_tup() not in self.onscreen]
+            col_todo = [
+                calcol for calcol in self.calendar if
+                calcol.get_state_tup() not in self.onscreen]
+            cel_todo = []
+            for col in self.calendar:
+                cel_todo.extend([
+                    cel for cel in col.cells if
+                    cel.get_state_tup() not in self.onscreen])
             # draw the edges, representing portals
             e = []
             for portal in portal_todo:
@@ -205,7 +191,7 @@ class GameWindow:
                         group=self.labelgroup)
             # draw the calendars
             for col in col_todo:
-                col.adjust(self.db)
+                col.adjust()
                 newstate = col.get_state_tup()
                 self.onscreen.discard(col.oldstate)
                 self.onscreen.add(newstate)
@@ -217,7 +203,7 @@ class GameWindow:
                         pass
                 image = col.inactive_pattern.create_image(
                     col.getwidth(), col.getheight())
-                if col.visible:
+                if self.calendar.visible and col.visible:
                     col.sprite = pyglet.sprite.Sprite(
                         image, col.getleft(), col.getbot(),
                         batch=self.batch, group=self.calendargroup)
@@ -227,16 +213,15 @@ class GameWindow:
                 self.onscreen.discard(cel.oldstate)
                 self.onscreen.add(newstate)
                 cel.oldstate = newstate
-                try:
-                    ptr = self.cels_drawn[hash(cel)]
-                    ptr[0].delete()
-                    ptr[1].delete()
-                except KeyError:
-                    pass
-                except AttributeError:
-                    pass
-                if cel.visible and cel.calendar.visible:
-                    print "Cel and col are visible. Drawing."
+                if cel in self.cels_drawn:
+                    for deleteme in ['sprite', 'label']:
+                        try:
+                            self.cels_drawn[cel][deleteme].delete()
+                        except AttributeError:
+                            pass
+                        except KeyError:
+                            pass
+                if self.calendar.visible and cel.visible and cel.col.visible:
                     if self.hovered == cel:
                         pat = cel.active_pattern
                         color = cel.style.fg_active.tup
@@ -257,7 +242,8 @@ class GameWindow:
                         y=cel.label_bot(),
                         batch=self.batch,
                         group=self.labelgroup)
-                    self.cels_drawn[hash(cel)] = (sprite, label)
+                    self.cels_drawn[cel] = {'sprite': sprite, 'label': label}
+                    
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.
             self.batch.draw()
@@ -365,3 +351,9 @@ class GameWindow:
             self.width = w
             self.height = h
             self.resized = True
+
+    def getwidth(self):
+        return self.window.width
+
+    def getheight(self):
+        return self.window.height

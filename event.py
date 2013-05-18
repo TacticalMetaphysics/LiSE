@@ -68,6 +68,8 @@ success that strains a person terribly and causes them injury.
             db.eventdict[name] = self
 
     def unravel(self, db):
+        if self.text[0] == "@":
+            self.text = db.get_text(self.text[1:])
         for deck in [self.commence_tests, self.proceed_tests,
                      self.conclude_tests]:
             for effect in deck:
@@ -182,9 +184,13 @@ def load_event_decks(db, names):
 
 def lookup_between(startdict, start, end):
     r = {}
+    tohash = []
     for i in xrange(start, end):
         if i in startdict:
             r[i] = startdict[i]
+            tohash.append(i)
+            tohash.extend(iter(startdict[i]))
+    r["hash"] = hash(tuple(tohash))
     return r
 
 
