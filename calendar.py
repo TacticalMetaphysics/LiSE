@@ -36,8 +36,6 @@ is happening.
             self.text = self.event.text
         self.oldstate = None
         self.sprite = None
-        self.visible = True
-        self.interactive = True
         self.tweaks = 0
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         if event is None:
@@ -208,9 +206,11 @@ cells.
             self.board = db.boarddict[self.board]
         if stringlike(self.item):
             self.item = db.itemdict[self.board.dimension.name][self.item]
+        self.item.pawn.calcol = self
         if stringlike(self.style):
             self.style = db.styledict[self.style]
         self.style.unravel(db)
+        self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         if stringlike(self.cel_style):
             self.cel_style = db.styledict[self.cel_style]
         self.cel_style.unravel(db)
@@ -256,10 +256,11 @@ Cells already here will be reused."""
         schevs = iter(self.item.schedule)
         for ev in schevs:
             if ev.name not in self.cells:
+                print "Making a calendar cell to represent " + ev.name
                 self.cells[ev.name] = CalendarCell(self, ev)
         for k in self.cells.iterkeys():
             if k not in self.item.schedule.events:
-                ptr = self.cells.pop(k)
+                print "Removing the calendar cell representing " + ev.name
                 try:
                     ptr.sprite.delete()
                 except AttributeError:

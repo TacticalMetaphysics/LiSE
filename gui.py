@@ -77,6 +77,8 @@ class GameWindow:
             # so has everything on it.
             redraw_all = (self.view_left != self.prev_view_left or
                           self.view_bot != self.prev_view_bot)
+            if redraw_all:
+                self.onscreen = set()
             self.prev_view_left = self.view_left
             self.prev_view_bot = self.view_bot
             portal_todo = self.portals
@@ -94,11 +96,6 @@ class GameWindow:
             spot_todo = [
                 spot for spot in self.spots if
                 spot.get_state_tup() not in self.onscreen]
-            col_todo = self.calendar.coldict.values()
-            cel_todo = []
-            for col in self.calendar:
-                cel_todo.extend([
-                    cel for cel in col.cells.itervalues()])
             # draw the edges, representing portals
             e = []
             for portal in portal_todo:
@@ -186,60 +183,50 @@ class GameWindow:
                         batch=self.batch,
                         group=self.labelgroup)
             # draw the calendar
-            for col in col_todo:
+            cols = []
+            for item in self.board.pawndict.itervalues():
+                if hasattr(pawn, 'calcol'):
+                    cols.append(item.calcol)
+            for col in cols:
+                print "processing col for " + col.item.name
                 col.adjust()
-                newstate = col.get_state_tup()
-                self.onscreen.discard(col.oldstate)
-                self.onscreen.add(newstate)
-                col.oldstate = newstate
                 try:
                     col.sprite.delete()
                 except AttributeError:
                     pass
-                image = col.inactive_pattern.create_image(
-                    col.getwidth(), col.getheight())
-                if self.calendar.visible and col.visible:
+                for cel in col.cells.itervalues():
+                    try:
+                        cel.sprite.delete()
+                    except AttributeError:
+                        pass
+                    try:
+                        cel.label.delete()
+                    except AttributeError:
+                        pass
+                if self.calendar.visible and col.item.name in self.calendar.coldict:
+                    image = col.inactive_pattern.create_image(
+                        col.getwidth(), col.getheight())
                     col.sprite = pyglet.sprite.Sprite(
                         image, col.getleft(), col.getbot(),
                         batch=self.batch, group=self.calendargroup)
-            # draw the cells in the calendars
-            for cel in cel_todo:
-                newstate = cel.get_state_tup()
-                self.onscreen.discard(cel.oldstate)
-                self.onscreen.add(newstate)
-                cel.oldstate = newstate
-                try:
-                    cel.sprite.delete()
-                except AttributeError:
-                    pass
-                try:
-                    cel.label.delete()
-                except AttributeError:
-                    pass
-                if self.calendar.visible and cel.visible and cel.col.visible:
-                    if self.hovered == cel:
-                        pat = cel.active_pattern
-                        color = cel.style.fg_active.tup
-                    else:
-                        pat = cel.inactive_pattern
-                        color = cel.style.fg_inactive.tup
-                    image = pat.create_image(
-                        cel.getwidth(), cel.getheight())
-                    sprite = pyglet.sprite.Sprite(
-                        image, cel.getleft(), cel.getbot(),
-                        batch=self.batch, group=self.cellgroup)
-                    label = pyglet.text.Label(
-                        cel.text,
-                        cel.style.fontface,
-                        cel.style.fontsize,
-                        color=color,
-                        x=cel.getleft(),
-                        y=cel.label_bot(),
-                        batch=self.batch,
-                        group=self.labelgroup)
-                    cel.sprite = sprite
-                    cel.label = label
-                    
+                    for cel in col.cells.itervalues():
+                        if self.hovered == cel:
+                            pat = cel.active_pattern
+                            color = cel.style.fg_active.tup
+                        else:
+                            pat = cel.inactive_pattern
+                            color = cel.style.fg_inactive.tup
+                        image = pat.create_image(
+                            cel.getwidth(), cel.getheight())
+                        cel.sprite = pyglet.sprite.Sprite(
+                            image, cel.getleft(), cel.getbot(),
+                            batch=self.batch, group=self.cellgroup)
+                        cel.label = pyglet.text.Label(
+                            cel.text, cel.style.fontface,
+                            cel.style.fontsize, color=color,
+                            x = cel.getleft(),
+                            y = cel.label_bot(),
+                            batch=self.batch, group=self.labelgroup)
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.
             self.batch.draw()
