@@ -48,10 +48,10 @@ class SaveableMetaclass(type):
             pkey = primarykeys[tablename]
             fkeys = foreignkeys[tablename]
             cks = ["CHECK(%s)" % ck for ck in checks[tablename]]
-            pkeydecs = [keyname + " " + typ
+            pkeydecs = [keyname + " " + typ.upper()
                         for (keyname, typ) in coldecl.iteritems()
                         if keyname in pkey]
-            valdecs = [valname + " " + typ
+            valdecs = [valname + " " + typ.upper()
                        for (valname, typ) in coldecl.iteritems()
                        if valname not in pkey]
             coldecs = sorted(pkeydecs) + sorted(valdecs)
@@ -78,7 +78,8 @@ class SaveableMetaclass(type):
                 table_decl_data.append(chkstr)
             table_decl = ", ".join(table_decl_data)
             create_stmt = "CREATE TABLE %s (%s);" % (tablename, table_decl)
-            insert_stmt_start = "INSERT INTO " + tablename + " ({0}) VALUES {1};"
+            insert_stmt_start = "INSERT INTO %s VALUES " % (
+                tablename,)
             inserts[tablename] = insert_stmt_start
             delete_stmt_start = "DELETE FROM %s WHERE (%s) IN " % (
                 tablename, pkeycolstr)
@@ -92,17 +93,12 @@ class SaveableMetaclass(type):
             schemata.append(create_stmt)
 
         def insert_rowdicts_table(db, rowdicts, tabname):
-            sample = rowdicts[0]
-            cols_used = [col for col in colnames[tabname] if col in sample]
-            colsstr = ", ".join(cols_used)
-            row_qms = ", ".join(["?"] * len(sample))
-            rowstr = "({0})".format(row_qms)
-            rowsstr = ", ".join([rowstr] * len(rowdicts))
-            qrystr = inserts[tabname].format(colsstr, rowsstr)
+            rowstr = rowstrs[tabname]
+            qrystr = inserts[tabname] + ", ".join([rowstr] * len(rowdicts))
             qrylst = []
             for rowdict in rowdicts:
-                for col in cols_used:
-                    qrylst.append(rowdict[col])
+                extender = [rowdict[col] for col in colnames[tabname]]
+                qrylst.extend(extender)
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
             return []
@@ -112,9 +108,7 @@ class SaveableMetaclass(type):
             qrystr = deletes[tabname] + ", ".join([keystr] * len(keydicts))
             qrylst = []
             for keydict in keydicts:
-                for col in keynames[tabname]:
-                    if col in keydict:
-                        qrylist.append(keydict[col])
+                qrylst.extend([keydict[col] for col in keynames[tabname]])
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
             return []
@@ -124,9 +118,7 @@ class SaveableMetaclass(type):
             qrystr = detects[tabname] + ", ".join([keystr] * len(keydicts))
             qrylst = []
             for keydict in keydicts:
-                for col in keynames[tabname]:
-                    if col in keydict:
-                        qrylist.append(keydict[col])
+                qrylst.extend([keydict[col] for col in keynames[tabname]])
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
             return db.c.fetchall()
@@ -136,9 +128,7 @@ class SaveableMetaclass(type):
             qrystr = missings[tabname] + ", ".join([keystr] * len(keydicts))
             qrylst = []
             for keydict in keydicts:
-                for col in keynames[tabname]:
-                    if col in keydict:
-                        qrylist.append(keydict[col])
+                qrylst.extend([keydict[col] for col in keynames[tabname]])
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
             return db.c.fetchall()
@@ -146,10 +136,10 @@ class SaveableMetaclass(type):
         def op_tabdict(db, tabdict, op):
             r = []
             for item in tabdict.iteritems():
-                (tab, rowdicts) = item
-                q = op(db, rowdicts, tab)
-                if q is not None:
-                    r.append(q)
+                (table, rowdicts) = item
+                if not isinstance(rowdicts, list):
+                    rowdicts = [rowdicts]
+                r.extend(op(db, rowdicts, table))
             return r
 
         def insert_tabdict(db, tabdict):
