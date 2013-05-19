@@ -18,28 +18,27 @@ parms = DefaultParameters()
 
 
 dimname = 'Physical'
-langname = 'English'
 
-game_menu_items = {'@new_map': 'start_new_map()',
-                   '@open_map': 'open_map()',
-                   '@save_map': 'save_map()',
-                   '@quit_maped': 'quit_map_editor()'}
-editor_menu_items = {'@ed_select': 'editor_select()',
-                     '@ed_copy': 'editor_copy()',
-                     '@ed_paste': 'editor_paste()',
-                     '@ed_delete': 'editor_delete()'}
-place_menu_items = {'@custplace': 'new_place(custom)',
-                    '@workplace': 'new_place(workplace)',
-                    '@commonplace': 'new_place(commons)',
-                    '@lairplace': 'new_place(lair)'}
-thing_menu_items = {'@custthing': 'new_thing(custom)',
-                    '@decorthing': 'new_thing(decoration)',
-                    '@clothing': 'new_thing(clothing)',
-                    '@toolthing': 'new_thing(tool)'}
-main_menu_items = {'@game_menu': 'toggle_menu(Game)',
-                   '@editor_menu': 'toggle_menu(Editor)',
-                   '@place_menu': 'toggle_menu(Place)',
-                   '@thing_menu': 'toggle_menu(Thing)'}
+game_menu_items = {'New': 'start_new_map()',
+                   'Open': 'open_map()',
+                   'Save': 'save_map()',
+                   'Quit': 'quit_map_editor()'}
+editor_menu_items = {'Select': 'editor_select()',
+                     'Copy': 'editor_copy()',
+                     'Paste': 'editor_paste()',
+                     'Delete': 'editor_delete()'}
+place_menu_items = {'Custom Place': 'new_place(custom)',
+                    'Workplace': 'new_place(workplace)',
+                    'Commons': 'new_place(commons)',
+                    'Lair': 'new_place(lair)'}
+thing_menu_items = {'Custom Thing': 'new_thing(custom)',
+                    'Decoration': 'new_thing(decoration)',
+                    'Clothing': 'new_thing(clothing)',
+                    'Tool': 'new_thing(tool)'}
+main_menu_items = {'Game': 'toggle_menu(Game)',
+                   'Editor': 'toggle_menu(Editor)',
+                   'Place': 'toggle_menu(Place)',
+                   'Thing': 'toggle_menu(Thing)'}
 
 miproto = [('Game', game_menu_items), ('Editor', editor_menu_items),
            ('Place', place_menu_items),
@@ -52,7 +51,6 @@ for mip in miproto:
     for item in items.iteritems():
         (txt, onclick) = item
         menu_items.append({
-            'board': dimname,
             'menu': menu,
             'idx': i,
             'text': txt,
@@ -267,22 +265,6 @@ parms.journeys = journeys
 schedules = []
 parms.schedules = schedules
 
-calcols = [
-    (dimname,
-     "me",
-     True,
-     True),
-    (dimname,
-     "mom",
-     True,
-     True)]
-parms.calcols = [
-    {"board": tup[0],
-     "item": tup[1],
-     "visible": tup[2],
-     "interactive": tup[3]}
-    for tup in calcols]
-
 
 imgtups = [("troll_m", "rltiles/player/base/troll_m.bmp", True),
            ("zruty", "rltiles/nh-mon0/z/zruty.bmp", True),
@@ -319,7 +301,7 @@ pawntups = [
     (dimname, 'me', 'troll_m'),
     (dimname, 'mom', 'zruty')]
 pawns = [
-    {'board': row[0],
+    {'dimension': row[0],
      'thing': row[1],
      'img': row[2],
      'visible': True,
@@ -336,7 +318,6 @@ menutups = [
     ('Thing', 0.1, 0.3, 1.0, 0.2, 'SmallDark', False, False)]
 menus = [
     {
-        "board": dimname,
         "name": tup[0],
         "left": tup[1],
         "right": tup[2],
@@ -358,6 +339,10 @@ parms.boards = [
      "calendar_visible": True}
     for tup in boards]
 
+board_menu = [{'board': dimname, 'menu': menuname}
+              for menuname in
+              ['Thing', 'Place', 'Game', 'Editor', 'Main']]
+parms.board_menu = board_menu
 
 def mkefd2(fun, arg):
     return {
@@ -491,22 +476,18 @@ def populate_effects(db, effects, decks):
     EffectDeck.dbop['insert'](db, decktd)
 
 
-def populate_gfx(db, imgs, pawns, spots, boards, calendars):
+def populate_gfx(db, imgs, pawns, spots, boards, board_menus, calendars):
     img_td = {'img': imgs}
     pawn_td = {'pawn': pawns}
     spot_td = {'spot': spots}
-    board_td = {'board': boards}
+    board_td = {'board': boards,
+                'board_menu': board_menus}
     cal_td = {'calendar_col': calendars}
     Img.dbop['insert'](db, img_td)
     Pawn.dbop['insert'](db, pawn_td)
     Spot.dbop['insert'](db, spot_td)
     Board.dbop['insert'](db, board_td)
     CalendarCol.dbop['insert'](db, cal_td)
-
-
-def populate_strs(db, strs):
-    for s in strs:
-        db.c.execute("INSERT INTO strings VALUES (?, ?, ?);", s)
 
 
 def populate_database(db, data):

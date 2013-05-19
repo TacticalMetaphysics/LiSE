@@ -1,7 +1,6 @@
 from util import SaveableMetaclass, stringlike, dictify_row
 from pyglet.image import SolidColorImagePattern as color_pattern
 from style import read_styles
-from collections import OrderedDict
 
 
 """User's view on a given item's schedule.
@@ -26,22 +25,24 @@ is happening.
 
     """
 
-    def __init__(self, col, event):
-        self.col = col
-        self.event = event
-        self.style = self.col.cel_style
-        if self.event is None:
-            self.text = ""
-        else:
-            self.text = self.event.text
+    def __init__(self, calendar, start, end, empty, text=""):
+        self.calendar = calendar
+        self.start = start
+        self.end = end
+        self.empty = empty
+        self.text = text
         self.oldstate = None
-        self.sprite = None
-        self.tweaks = 0
-        self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
-        if event is None:
-            self.active_pattern = self.inactive_pattern
-        else:
-            self.active_pattern = color_pattern(self.style.bg_active.tup)
+        self.newstate = None
+        self.visible = True
+        self.interactive = True
+        self.inactive_pattern = color_pattern(calendar.style.bg_inactive.tup)
+        self.active_pattern = color_pattern(calendar.style.bg_active.tup)
+
+    def unravel(self, db):
+        if stringlike(self.calendar):
+            self.calendar = db.calendarcoldict[self.calendar]
+        if stringlike(self.color):
+            self.color = db.colordict[self.color]
 
     def __eq__(self, other):
         if not isinstance(other, CalendarCell):
@@ -51,42 +52,31 @@ is happening.
             self.end == other.end and
             self.text == other.text)
 
-    def __hash__(self):
-        return hash((
-            self.col.board.dimension,
-            self.col.item,
-            self.event))
-
     def __len__(self):
-        return self.event.length
+        return self.end - self.start
 
     def get_state_tup(self):
         return (
-            hash(self.col.get_state_tup()),
-            self.gettop(),
-            self.getbot(),
-            self.text,
-            self.visible,
-            self.interactive,
-            self.tweaks)
-
-    def getstart(self):
-        return self.event.start
+            hash(self.calendar.get_state_tup()),
+            self.start,
+            self.end,
+            self.empty,
+            self.text)
 
     def gettop(self):
-        return (self.getstart() - self.col.cal.scrolled_to) * self.col.cal.rowheight()
+        return self.top
 
     def getbot(self):
-        return self.gettop() - (self.col.cal.rowheight() * len(self))
+        return self.bot
 
     def getleft(self):
-        return self.col.getleft() + self.style.spacing
+        return self.calendar.celleft
 
     def getright(self):
-        return self.col.getright() - self.style.spacing
+        return self.calendar.celright
 
     def getwidth(self):
-        return self.getright() - self.getleft()
+        return self.calendar.celwidth
 
     def getheight(self):
         return self.gettop() - self.getbot()
@@ -141,60 +131,61 @@ cells.
     __metaclass__ = SaveableMetaclass
     tables = [
         ("calendar_col",
-         {"board": "text",
+         {"dimension": "text",
           "item": "text",
           "visible": "boolean",
           "interactive": "boolean",
-          "style": "text DEFAULT 'BigLight'",
-          "cel_style": "text DEFAULT 'SmallDark'"},
-         ("board", "item"),
-         {"board, item": ("item", "board, name"),
-          "style": ("style", "name"),
-          "cel_style": ("style", "name")},
-         []
+          "rows_on_screen": "integer",
+          "scrolled_to": "integer",
+          "left": "float",
+          "top": "float",
+          "bot": "float",
+          "right": "float",
+          "style": "text"},
+         ("dimension", "item"),
+         {"dimension, item": ("item", "dimension, name"),
+          "style": ("style", "name")},
+         ["rows_on_screen>0", "scrolled_to>=0"]
          )]
 
-    def __init__(self, board, item, visible, interactive,
-                 style, cel_style,
+    def __init__(self, dimension, item, visible, interactive,
+                 rows_on_screen, scrolled_to,
+                 left, top, bot, right, style,
                  db=None):
-        self.board = board
+        self.dimension = dimension
         self.item = item
         self.visible = visible
-        self.tweaks = 0
+        self.toggles = 0
         self.interactive = interactive
+        self.rows_on_screen = rows_on_screen
+        self.scrolled_to = scrolled_to
+        self.left = left
+        self.top = top
+        self.bot = bot
+        self.right = right
+        self.height = self.top - self.bot
+        self.width = self.right - self.left
         self.style = style
-        self.cel_style = cel_style
         self.oldstate = None
-        self.sprite = None
-        self.cells = {}
-        self.left = 0
-        self.right = 0
-        self.cell_cache = {}
+        self.newstate = None
         if db is not None:
-            if stringlike(self.board):
-                boardname = self.board
+            dimname = None
+            itname = None
+            if stringlike(self.dimension):
+                dimname = self.dimension
             else:
-                if stringlike(self.board.dimension):
-                    boardname = self.board.dimension
-                else:
-                    boardname = self.board.dimension.name
+                dimname = self.dimension.name
             if stringlike(self.item):
                 itname = self.item
             else:
                 itname = self.item.name
-            if boardname not in db.calcoldict:
-                db.calcoldict[boardname] = {}
-            db.calcoldict[boardname][itname] = self
-
-    def __iter__(self):
-        return self.cells.itervalues()
+            if dimname not in db.calendardict:
+                db.calendardict[dimname] = {}
+            db.calendardict[dimname][itname] = self
 
     def toggle_visibility(self):
-        if self in self.cal:
-            self.cal.remove(self)
-        else:
-            self.cal.add(self)
-        self.tweaks += 1
+        self.visible = not self.visible
+        self.toggles += 1
 
     def hide(self):
         if self.visible:
@@ -204,25 +195,17 @@ cells.
         if not self.visible:
             self.toggle_visibility()
 
-    def is_visible(self):
-        return self.visible and self.item.name in self.cal.coldict
-
     def unravel(self, db):
-        if stringlike(self.board):
-            self.board = db.boarddict[self.board]
+        if stringlike(self.dimension):
+            self.dimension = db.dimensiondict[self.dimension]
+        dn = self.dimension.name
         if stringlike(self.item):
-            self.item = db.itemdict[self.board.dimension.name][self.item]
-        self.item.pawn.calcol = self
+            self.item = db.itemdict[dn][self.item]
         if stringlike(self.style):
             self.style = db.styledict[self.style]
         self.style.unravel(db)
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
-        if stringlike(self.cel_style):
-            self.cel_style = db.styledict[self.cel_style]
-        self.cel_style.unravel(db)
-        self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         self.active_pattern = color_pattern(self.style.bg_active.tup)
-        self.cal = self.board.calendar
         if not hasattr(self, 'schedule'):
             self.schedule = self.item.schedule
         else:
@@ -238,22 +221,22 @@ cells.
             self.adjust()
 
     def gettop(self):
-        return self.cal.gettop()
+        return self.top_abs
 
     def getbot(self):
-        return self.cal.getbot()
+        return self.bot_abs
 
     def getleft(self):
-        return self.cal.getleft() + self.cal.index(self) * self.cal.colwidth()
+        return self.left_abs
 
     def getright(self):
-        return self.getleft() + self.cal.colwidth()
+        return self.right_abs
 
     def getwidth(self):
-        return self.cal.colwidth()
+        return self.width_abs
 
     def getheight(self):
-        return self.cal.getheight()
+        return self.height_abs
 
     def adjust(self):
         """Create calendar cells for all events in the schedule.
@@ -279,170 +262,37 @@ Cells already here will be reused."""
     def __eq__(self, other):
         return (
             isinstance(other, CalendarCol) and
-            other.board == self.board and
+            other.dimension == self.dimension and
             other.item == self.item)
 
     def get_state_tup(self):
         return (
-            hash(self.cal.get_state_tup()),
-            self.getleft(),
-            self.getright(),
-            self.gettop(),
-            self.getbot(),
-            self.visible,
-            self.interactive,
-            self.tweaks)
-
-class Calendar:
-    """A collection of calendar columns representing at least one
-schedule, possibly several.
-
-This really can't be used without a database, but you can assign said
-database without passing it to the constructor by use of the set_gw
-method.
-
-"""
-    def __init__(
-            self, board, left, right, top, bot, visible, interactive,
-            rows_on_screen, scrolled_to, db=None):
-        self.board = board
-        self.left = left
-        self.right = right
-        self.top = top
-        self.bot = bot
-        self.visible = visible
-        self.interactive = interactive
-        self.rows_on_screen = rows_on_screen
-        self.scrolled_to = scrolled_to
-        self.tweaks = 0
-        if db is not None:
-            if stringlike(self.board):
-                boardname = self.board
-            else:
-                if stringlike(self.board.dimension):
-                    boardname = board.dimension
-                else:
-                    boardname = board.dimension.name
-            db.caldict[boardname] = self
-
-    def __iter__(self):
-        return self.coldict.itervalues()
-
-    def __len__(self):
-        return len(self.coldict)
-
-    def get_state_tup(self):
-        return (
-            len(self),
-            self.getleft(),
-            self.getright(),
-            self.gettop(),
-            self.getbot(),
+            self.dimension.name,
+            self.item.name,
             self.visible,
             self.interactive,
             self.rows_on_screen,
             self.scrolled_to,
-            self.tweaks)
-            
-
-    def unravel(self, db):
-        if stringlike(self.board):
-            self.board = db.boarddict[self.board]
-        if self.board.dimension.name in db.calcoldict:
-            self.coldict = db.calcoldict[self.board.dimension.name]
-        else:
-            self.coldict = OrderedDict()
-        for column in self.coldict.itervalues():
-            column.unravel(db)
-
-    def set_gw(self, gw):
-        self.gw = gw
-        self.gw.db.caldict[self.board.dimension.name] = self
-        for col in self.coldict.itervalues():
-            col.set_cal(self)
-
-    def gettop(self):
-        return int(self.top * self.gw.getheight())
-
-    def getbot(self):
-        return int(self.bot * self.gw.getheight())
-
-    def getleft(self):
-        return int(self.left * self.gw.getwidth())
-
-    def getright(self):
-        return int(self.right * self.gw.getwidth())
-
-    def getwidth(self):
-        return self.getright() - self.getleft()
-
-    def getheight(self):
-        return self.gettop() - self.getbot()
-
-    def getstart(self):
-        return self.scrolled_to
-
-    def getend(self):
-        return self.scrolled_to + self.rows_on_screen
-
-    def add(self, col):
-        if col.item.name not in self.coldict:
-            self.coldict[col.item.name] = col
-        self.tweaks += 1
-
-    def remove(self, col):
-        del self.coldict[col.item.name]
-        self.tweaks += 1
-
-    def discard(self, col):
-        if col.item.name in self.coldict:
-            del self.coldict[col.item.name]
-        self.tweaks += 1
-
-    def index(self, col):
-        return sorted(self.coldict.keys()).index(col.item.name)
-
-    def pop(self, colname):
-        return self.coldict.pop(colname)
-
-    def __getitem__(self, colname):
-        return self.coldict[colname]
-
-    def toggle_visibility(self):
-        self.visible = not self.visible
-        self.tweaks += 1
-
-    def hide(self):
-        if self.visible:
-            self.toggle_visibility()
-
-    def show(self):
-        if not self.visible:
-            self.toggle_visibility()
-
-    def colwidth(self):
-        return self.getwidth() / len(self.coldict)
-
-    def rowheight(self):
-        return self.getheight() / self.rows_on_screen
-
-    def is_visible(self):
-        return self.visible and len(self.coldict) > 0
+            self.toggles)
 
 
-rcib_format = (
-    "SELECT {0} FROM calendar_col WHERE board IN ({1})".format(
+cal_dim_qryfmt = (
+    "SELECT {0} FROM calendar_col WHERE dimension IN ({1})".format(
         ", ".join(CalendarCol.colns), "{0}"))
 
-def read_calendar_cols_in_boards(db, boardnames):
-    qryfmt = rcib_format
-    qrystr = qryfmt.format(", ".join(["?"] * len(boardnames)))
-    db.c.execute(qrystr, boardnames)
+
+def read_calendars_in_dimensions(db, names):
+    qryfmt = cal_dim_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
+    db.c.execute(qrystr, names)
     r = {}
-    for boardname in boardnames:
-        r[boardname] = {}
+    stylenames = set()
+    for name in names:
+        r[name] = {}
     for row in db.c:
         rowdict = dictify_row(row, CalendarCol.colns)
         rowdict["db"] = db
-        r[rowdict["board"]][rowdict["item"]] = CalendarCol(**rowdict)
+        r[rowdict["dimension"]][rowdict["item"]] = CalendarCol(**rowdict)
+        stylenames.add(rowdict["style"])
+    read_styles(db, list(stylenames))
     return r

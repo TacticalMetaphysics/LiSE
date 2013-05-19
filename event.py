@@ -45,7 +45,6 @@ success that strains a person terribly and causes them injury.
     tables = [
         ("event",
          {"name": "text",
-          "text": "text",
           "ongoing": "boolean",
           "commence_effects": "text",
           "proceed_effects": "text",
@@ -56,10 +55,9 @@ success that strains a person terribly and causes them injury.
           "conclude_effects": ("effect_deck", "name")},
          [])]
 
-    def __init__(self, name, text, ongoing, commence_effects,
+    def __init__(self, name, ongoing, commence_effects,
                  proceed_effects, conclude_effects, db=None):
         self.name = name
-        self.text = text
         self.ongoing = ongoing
         self.commence_effects = commence_effects
         self.proceed_effects = proceed_effects
@@ -68,8 +66,6 @@ success that strains a person terribly and causes them injury.
             db.eventdict[name] = self
 
     def unravel(self, db):
-        if self.text[0] == "@":
-            self.text = db.get_text(self.text[1:])
         for deck in [self.commence_tests, self.proceed_tests,
                      self.conclude_tests]:
             for effect in deck:
@@ -101,12 +97,6 @@ success that strains a person terribly and causes them injury.
     def __le__(self, other):
         self.cmpcheck(other)
         return self.start <= other.start
-
-    def __hash__(self):
-        if hasattr(self, 'start') and hasattr(self, 'length'):
-            return hash((self.start, self.length, self.name))
-        else:
-            return hash(self.name)
 
     def scheduled_copy(self, start, length):
         # Return a copy of myself with the given start & end
@@ -190,13 +180,9 @@ def load_event_decks(db, names):
 
 def lookup_between(startdict, start, end):
     r = {}
-    tohash = []
     for i in xrange(start, end):
         if i in startdict:
             r[i] = startdict[i]
-            tohash.append(i)
-            tohash.extend(iter(startdict[i]))
-    r["hash"] = hash(tuple(tohash))
     return r
 
 

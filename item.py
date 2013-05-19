@@ -3,7 +3,6 @@ from util import (
     dictify_row,
     stringlike)
 from event import (
-    lookup_between,
     Event,
     SenselessEvent,
     ImpossibleEvent,
@@ -138,7 +137,7 @@ class Thing(Item):
             self.journey = db.journeydict[self.dimension.name][self.name]
             self.journey.unravel(db)
             if self.schedule is None:
-                self.schedule = self.journey.schedule(db)
+                self.schedule = self.journey.schedule()
                 self.schedule.unravel(db)
         if self.container is not None:
             self.container.add(self)
@@ -226,10 +225,14 @@ inaccessible. Beware.
                                        (self.name, it.name))
 
     def speed_thru(self, port):
-        """Given a portal, return an integer for the number of ticks it would
-take me to pass through it."""
+        """Given a portal, return a float representing how fast I can pass
+through it.
 
-        return 60
+Speed is equal to the reciprocal of the number of ticks of the
+game-clock it takes to pass through the portal.
+
+        """
+        return 1/60.
 
 
 class Journey:
@@ -375,7 +378,7 @@ method of the thing that operates on the portal.
             self.steplist.append(None)
         self.steplist[idx] = port
 
-    def gen_event(self, step, db):
+    def gen_event(self, step, db=None):
         """Make an Event representing every tick of travel through the given
 portal.
 
@@ -412,66 +415,40 @@ The Event will not have a start or a length.
             thingname = self.thing["name"]
         else:
             thingname = self.thing.name
-        event_name = "%s:%s-thru-%s" % (
-            dimname, thingname, commence_arg)
-        if event_name in db.eventdict:
-            return db.eventdict[event_name]
-
         commence_s = "{0}.{1}.enter({2})".format(
             dimname, thingname, commence_arg)
-        if commence_s in db.effectdeckdict:
-            commence_deck = db.effectdeckdict[commence_s]
-        else:
-            effd = {
-                "name": commence_s,
-                "func": "%s.%s.enter" % (dimname, thingname),
-                "arg": commence_arg,
-                "dict_hint": "dimension.thing",
-                "db": db}
-            if effd["name"] in db.effectdict:
-                commence = db.effectdict[effd["name"]]
-                assert(commence.func == effd["func"])
-                assert(commence.arg == effd["arg"])
-            else:
-                commence = Effect(**effd)
-            commence_deck = EffectDeck(commence_s, [commence], db)
+        effd = {
+            "name": commence_s,
+            "func": "%s.%s.enter" % (dimname, thingname),
+            "arg": commence_arg,
+            "dict_hint": "dimension.thing",
+            "db": db}
+        commence = Effect(**effd)
+        commence_deck = EffectDeck(commence_s, [commence], db)
         proceed_s = "%s.%s.remain(%s)" % (
             dimname, thingname, proceed_arg)
-        if proceed_s in db.effectdeckdict:
-            proceed_deck = db.effectdeckdict[proceed_s]
-        else:
-            effd = {
-                "name": proceed_s,
-                "func": "%s.%s.remain" % (dimname, thingname),
-                "arg": proceed_arg,
-                "dict_hint": "dimension.thing",
-                "db": db}
-            if effd["name"] in db.effectdict:
-                proceed = db.effectdict[effd["name"]]
-                assert(proceed.func == effd["func"])
-                assert(proceed.arg == effd["arg"])
-            else:
-                proceed = Effect(**effd)
-            proceed_deck = EffectDeck(proceed_s, [proceed], db)
+        effd = {
+            "name": proceed_s,
+            "func": "%s.%s.remain" % (dimname, thingname),
+            "arg": proceed_arg,
+            "dict_hint": "dimension.thing",
+            "db": db}
+        proceed = Effect(**effd)
+        proceed_deck = EffectDeck(proceed_s, [proceed], db)
         conclude_s = "%s.%s.enter(%s)" % (
             dimname, thingname, conclude_arg)
-        if conclude_s in db.effectdeckdict:
-            conclude_deck = db.effectdeckdict[conclude_s]
-        else:
-            effd = {
-                "name": conclude_s,
-                "func": "%s.%s.enter" % (dimname, thingname),
-                "arg": conclude_arg,
-                "dict_hint": "dimension.thing",
-                "db": db}
-            if effd["name"] in db.effectdict:
-                conclude = db.effectdict[effd["name"]]
-            else:
-                conclude = Effect(**effd)
-            conclude_deck = EffectDeck(conclude_s, [conclude], db)
+        effd = {
+            "name": conclude_s,
+            "func": "%s.%s.enter" % (dimname, thingname),
+            "arg": conclude_arg,
+            "dict_hint": "dimension.thing",
+            "db": db}
+        conclude = Effect(**effd)
+        conclude_deck = EffectDeck(conclude_s, [conclude], db)
+        event_name = "%s:%s-thru-%s" % (
+            dimname, thingname, commence_arg),
         event_d = {
             "name": event_name,
-            "text": "Movement",
             "ongoing": False,
             "commence_effects": commence_deck,
             "proceed_effects": proceed_deck,
@@ -480,7 +457,7 @@ The Event will not have a start or a length.
         event = Event(**event_d)
         return event
 
-    def schedule(self, db, start=0):
+    def schedule(self, start=0):
         """Make a Schedule filled with Events representing the steps in this
 Journey.
 
@@ -488,14 +465,11 @@ Journey.
 
         """
         stepevents = []
-        last_end = start
         for step in self.steps:
-            ev = self.gen_event(step, db)
-            ev.start = last_end
+            ev = self.gen_event(step)
+            ev.start = start
             ev.length = self.thing.speed_thru(step)
-            stepevents.append(ev)
-            last_end = ev.start + ev.length
-        s = Schedule(self.dimension, self.thing, db)
+        s = Schedule(self.dimension, self.thing)
         for ev in stepevents:
             s.add(ev)
         return s
@@ -517,13 +491,9 @@ class Schedule:
     def __init__(self, dimension, item, db=None):
         self.dimension = dimension
         self.item = item
-        self.events = {}
         self.events_starting = dict()
         self.events_ending = dict()
         self.events_ongoing = dict()
-        self.cached_commencements = {}
-        self.cached_processions = {}
-        self.cached_conclusions = {}
         if db is not None:
             dimname = None
             itemname = None
@@ -538,18 +508,15 @@ class Schedule:
             if dimname not in db.scheduledict:
                 db.scheduledict[dimname] = {}
             db.scheduledict[dimname][itemname] = self
-            if dimname not in db.startevdict:
+            if dimname not in db.schedevdict:
                 db.startevdict[dimname] = {}
             db.startevdict[dimname][itemname] = self.events_starting
             if dimname not in db.contevdict:
                 db.contevdict[dimname] = {}
-            db.contevdict[dimname][itemname] = self.events_ongoing
+            db.contevdict[dimname][itname] = self.events_ongoing
             if dimname not in db.endevdict:
                 db.endevdict[dimname] = {}
-            db.endevdict[dimname][itemname] = self.events_ending
-
-    def __iter__(self):
-        return self.events.itervalues()
+            db.endevdict[dimname][itname] = self.events_ending
 
     def unravel(self, db):
         if stringlike(self.dimension):
@@ -557,18 +524,7 @@ class Schedule:
         if stringlike(self.item):
             self.item = db.itemdict[self.dimension.name][self.item]
 
-    def trash_cache(self, start):
-        for cache in [
-                self.cached_commencements,
-                self.cached_processions,
-                self.cached_conclusions]:
-            try:
-                del cache[start]
-            except KeyError:
-                pass
-
     def add(self, ev):
-        self.events[ev.name] = ev
         ev_end = ev.start + ev.length
         if ev.start not in self.events_starting:
             self.events_starting[ev.start] = set()
@@ -579,9 +535,7 @@ class Schedule:
                 self.events_ongoing[i] = set()
             self.events_ongoing[i].add(ev)
         self.events_starting[ev.start].add(ev)
-        self.events_ending[ev_end].add(ev)
-        self.trash_cache(ev.start)
-
+        self.events_ending[ev_end].add[ev]
 
     def discard(self, ev):
         ev_end = ev.start + ev.length
@@ -589,45 +543,6 @@ class Schedule:
         self.events_ending[ev_end].discard(ev)
         for i in xrange(ev.start+1, ev_end-1):
             self.events_ongoing[i].discard(ev)
-        self.trash_cache(ev.start)
-
-    def commencements_between(self, start, end):
-        if (
-                start in self.cached_commencements and
-                end in self.cached_commencements[start]):
-            return self.cached_commencements[start][end]
-        lookup = lookup_between(self.events_starting, start, end)
-        if start not in self.cached_commencements:
-            self.cached_commencements[start] = {}
-        self.cached_commencements[start][end] = lookup
-        return lookup
-
-    def processions_between(self, start, end):
-        if (
-                start in self.cached_processions and
-                end in self.cached_processions[start]):
-            return self.cached_processions[start][end]
-        lookup = lookup_between(self.events_ongoing, start, end)
-        if start not in self.cached_processions:
-            self.cached_processions[start] = {}
-        self.cached_processions[start][end] = lookup
-        return lookup
-
-    def conclusions_between(self, start, end):
-        if (
-                start in self.cached_conclusions and
-                end in self.cached_conclusions[start]):
-            return self.cached_conclusions[start][end]
-        lookup = lookup_between(self.events_ending, start, end)
-        if start not in self.cached_conclusions:
-            self.cached_conclusions[start] = {}
-        self.cached_conclusions[start][end] = lookup
-        return lookup
-
-    def events_between(self, start, end):
-        return (self.commencements_between(start, end),
-                self.processions_between(start, end),
-                self.conclusions_between(start, end))
 
 
 class Portal(Item):
