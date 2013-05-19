@@ -501,7 +501,7 @@ Spell the lang argument the same way it's spelled in the strings table.
 
 def load_game(dbfilen, language):
     """Load the game in the given SQLite3 database file. Load strings for
-the given language. Return a LiSE Database object."""
+the given language. Return a lise.Database object."""
     db = Database(dbfilen)
     db.load_game(language)
     return db
