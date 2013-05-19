@@ -80,6 +80,7 @@ class MenuItem:
             self.menu.items.append(None)
         if self.text[0] == "@":
             self.text = db.get_text(self.text[1:])
+        self.menu.items[self.idx] = self
 
     def onclick(self, button, modifiers):
         self.effect_deck.do()
@@ -480,6 +481,7 @@ def load_items_in_menus(db, menus):
     return unravel_items_in_menus(db, read_items_in_menus(db, menus))
 
 
+<<<<<<< HEAD
 menu_qcols = ["menu." + coln for coln in Menu.colns]
 menu_item_qvals = ["menu_item.idx"] + ["menu_item." + valn for valn in MenuItem.valns]
 mbqcols = menu_qcols + menu_item_qvals
@@ -489,6 +491,11 @@ menu_board_qryfmt = (
     "menu.board=menu_item.board AND "
     "menu.name=menu_item.menu WHERE menu.board IN ({1})".format(
         ", ".join(mbqcols), "{0}"))
+=======
+menu_board_qryfmt = (
+    "SELECT {0} FROM menu WHERE board IN ({1})".format(
+        ", ".join(Menu.colns), "{0}"))
+>>>>>>> a6f74e7a1143235f13dfbad0c049ced680772436
 
 
 def read_menus_in_boards(db, boards):
@@ -496,6 +503,7 @@ def read_menus_in_boards(db, boards):
     qrystr = qryfmt.format(", ".join(["?"] * len(boards)))
     db.c.execute(qrystr, boards)
     r = {}
+<<<<<<< HEAD
     for board in boards:
         r[board] = {}
     for row in db.c:
@@ -512,6 +520,16 @@ def read_menus_in_boards(db, boards):
         for valn in MenuItem.valns:
             menuitemrd[valn] = rowdict["menu_item." + valn]
         mi = MenuItem(**menuitemrd)
+=======
+    stylenames = set()
+    for row in db.c:
+        rowdict = dictify_row(row, Menu.colns)
+        rowdict["db"] = db
+        stylenames.add(rowdict["style"])
+        r[rowdict["name"]] = Menu(**rowdict)
+    read_items_in_menus(db, r.keys())
+    read_styles(db, list(stylenames))
+>>>>>>> a6f74e7a1143235f13dfbad0c049ced680772436
     return r
 
 

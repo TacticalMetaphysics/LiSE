@@ -9,6 +9,7 @@ from collections import OrderedDict
 Usually there should be only one calendar per board, but it can switch
 between showing various schedules, or even show many in parallel.
 
+
 """
 
 
@@ -124,9 +125,12 @@ is happening.
         if self.visible:
             self.toggle_visibility()
 
+<<<<<<< HEAD
     def is_visible(self):
         return self.visible and self.gettop() > 0
 
+=======
+>>>>>>> a6f74e7a1143235f13dfbad0c049ced680772436
 
 class CalendarCol:
     """A single-column visual representation of a schedule.
@@ -232,10 +236,22 @@ cells.
         else:
             self.hide()
 
+<<<<<<< HEAD
     def set_cal(self, cal):
         if cal is not self.cal:
             self.cal = cal
             self.adjust()
+=======
+    def set_gw(self, gw):
+        self.top_abs = int(self.top * gw.height)
+        self.bot_abs = int(self.bot * gw.height)
+        self.height_abs = int(self.height * gw.height)
+        self.left_abs = int(self.left * gw.width)
+        self.right_abs = int(self.right * gw.width)
+        self.width_abs = int(self.width * gw.width)
+        self.gw = gw
+        self.adjust(gw.db)
+>>>>>>> a6f74e7a1143235f13dfbad0c049ced680772436
 
     def gettop(self):
         return self.cal.gettop()
@@ -255,6 +271,7 @@ cells.
     def getheight(self):
         return self.cal.getheight()
 
+<<<<<<< HEAD
     def adjust(self):
         """Create calendar cells for all events in the schedule.
 
@@ -275,6 +292,121 @@ Cells already here will be reused."""
                     pass
         self.tweaks += 1
 
+=======
+    def adjust(self, db):
+        self.cells = []
+        calstart = self.scrolled_to
+        calend = calstart + self.rows_on_screen
+        rowheight = self.rowheight()
+        (s, c, e) = self.schedule.events_between(calstart, calend)
+        start_set = set()
+        for val in s.itervalues():
+            start_set.update(val)
+        continue_set = set()
+        for val in c.itervalues():
+            continue_set.update(val)
+        end_set = set()
+        for val in e.itervalues():
+            end_set.update(val)
+        self.celleft = self.getleft() + self.style.spacing
+        self.celright = self.getright() - self.style.spacing
+        self.celwidth = self.celright - self.celleft
+        # Events that start or end in the visible timeframe, but do
+        # not continue in it, aren't visible; don't collect those.
+        # Otherwise collect all events into four piles. One for those
+        # that start and end inside the visible timeframe. One for
+        # those that end in it, but start earlier. One for those that
+        # begin in it, but end later. And one for those that overrun
+        # it in both directions.
+        #
+        # If there's an event that overruns in both directions, it's
+        # the only one that gets drawn, due to an invariant: one event
+        # at a time for each item in the game world.
+        overrun_both = continue_set.difference(start_set, end_set)
+        assert(len(overrun_both) <= 1)
+        if len(overrun_both) == 1:
+            ev = overrun_both.pop()
+            if ev.text[0] == "@":
+                celtext = db.get_text(ev.text[1:])
+            else:
+                celtext = ev.text
+            cel = CalendarCell(self, ev.start, ev.start + ev.length,
+                               False, celtext)
+            cel.top = self.gettop() + self.style.spacing
+            cel.bot = self.getbot() - self.style.spacing
+            self.cells = [cel]
+            return self.cells
+        enclosed = set.intersection(start_set, continue_set, end_set)
+        overrun_before = set.intersection(continue_set, end_set) - start_set
+        assert(len(overrun_before)) <= 1
+        overrun_after = set.intersection(start_set, continue_set) - end_set
+        assert(len(overrun_after)) <= 1
+        # The events that overrun the calendar should be drawn that
+        # way--just a little over the edge.
+        last_cel = None
+        if len(overrun_before) == 1:
+            ob_event = overrun_before.pop()
+            if ob_event.text[0] == "@":
+                celtext = db.get_text(ob_event.text[1:])
+            else:
+                celtext = ob_event.text
+            ob_cel = CalendarCell(self, ob_event, self.cel_style, celtext)
+            ob_cel.top = self.gettop() + self.style.spacing  # overrun
+            cel_rows_on_screen = (
+                ob_event.start +
+                ob_event.length -
+                self.scrolled_to)
+            ob_cel.bot = self.gettop() - cel_rows_on_screen * rowheight
+            last_cel = ob_cel
+        else:
+            # This won't be drawn
+            last_cel = CalendarCell(self, None, self.cel_style)
+            last_cel.end = self.scrolled_to
+            last_cel.top = self.gettop()
+            last_cel.bot = self.gettop()
+        el = sorted(list(enclosed))
+        for event in el:
+            if event.text[0] == "@":
+                celtext = db.get_text(event.text[1:])
+            else:
+                celtext = event.text
+            cel = CalendarCell(self, event, self.cel_style, celtext)
+            cel.top = self.gettop() - event.start * rowheight
+            cel.bot = cel.top - event.length * rowheight
+            cel.height = cel.top - cel.bot
+            if last_cel.bot > cel.bot:
+                last_end = last_cel.event.start + last_cel.event.length
+                last_bot = last_cel.bot
+                ticks_between = event.start - last_end
+                while ticks_between > 0:
+                    empty = CalendarCell(self, None, self.cel_style)
+                    empty.top = last_bot
+                    empty.bot = empty.top - rowheight
+                    self.cells.append(empty)
+                    last_bot = empty.bot
+                    ticks_between -= 1
+            self.cells.append(cel)
+            last_cel = cel
+        if len(overrun_after) == 1:
+            oa = overrun_after.pop()
+            ticks_between = oa.start - last_cel.getend()
+            last_bot = last_cel.bot
+            while ticks_between > 0:
+                empty = CalendarCell(self, None, self.cel_style)
+                empty.top = last_bot
+                empty.bot = empty.top - rowheight
+                self.cells.append(empty)
+                last_bot = empty.bot
+                ticks_between -= 1
+            if oa.text[0] == "@":
+                celtext = db.get_text(oa.text[1:])
+            else:
+                celtext = oa.text
+            cel = CalendarCell(self, oa, self.cel_style, celtext)
+            cel.top = last_bot
+            cel.bot = self.getbot() - self.style.spacing
+            self.cells.append(cel)
+>>>>>>> a6f74e7a1143235f13dfbad0c049ced680772436
 
     def __eq__(self, other):
         return (

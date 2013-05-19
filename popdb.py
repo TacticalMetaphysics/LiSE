@@ -348,15 +348,17 @@ menus = [
     for tup in menutups]
 parms.menus = menus
 
+
 boards = [
     (dimname,
      'wall')]
-     
+
 parms.boards = [
     {"dimension": tup[0],
      "wallpaper": tup[1],
      "calendar_visible": True}
     for tup in boards]
+
 
 
 def mkefd2(fun, arg):
@@ -387,6 +389,32 @@ effect_decks = [
      "effect": effectdict["name"]}
     for effectdict in effects]
 parms.effect_decks = effect_decks
+
+strtups = [
+    ("@game_menu", "Game"),
+    ("@editor_menu", "Editor"),
+    ("@place_menu", "Place"),
+    ("@thing_menu", "Thing"),
+    ("@new_map", "New world"),
+    ("@open_map", "Open world..."),
+    ("@save_map", "Save..."),
+    ("@quit_maped", "Quit"),
+    ("@ed_select", "Select..."),
+    ("@ed_copy", "Copy"),
+    ("@ed_paste", "Paste"),
+    ("@ed_delete", "Delete..."),
+    ("@custplace", "New place..."),
+    ("@workplace", "New workplace..."),
+    ("@commonplace", "New commons..."),
+    ("@lairplace", "New lair..."),
+    ("@custthing", "New thing..."),
+    ("@decorthing", "New decoration..."),
+    ("@clothing", "New clothing..."),
+    ("@toolthing", "New tool...")]
+
+strings = [(tup[0], langname, tup[1]) for tup in strtups]
+parms.strings = strings
+
 
 strtups = [
     ("@game_menu", "Game"),
@@ -517,7 +545,11 @@ def populate_database(db, data):
     populate_journey_steps(db, data.steps)
     populate_schedules(db, data.schedules)
     populate_gfx(db, data.imgs, data.pawns, data.spots, data.boards,
+<<<<<<< HEAD
                  data.calcols)
+=======
+                 data.calendars)
+>>>>>>> a6f74e7a1143235f13dfbad0c049ced680772436
     populate_strs(db, data.strings)
     db.c.execute("INSERT INTO game DEFAULT VALUES;")
 
