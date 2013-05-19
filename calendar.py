@@ -3,7 +3,12 @@ from pyglet.image import SolidColorImagePattern as color_pattern
 from style import read_styles
 
 
-"""User's view on a given item's schedule."""
+"""User's view on a given item's schedule.
+
+Usually there should be only one calendar per board, but it can switch
+between showing various schedules, or even show many in parallel.
+
+"""
 
 
 class CalendarCell:
@@ -74,7 +79,43 @@ is happening.
         return self.calendar.celwidth
 
     def getheight(self):
-        return self.height
+        return self.gettop() - self.getbot()
+
+    def label_bot(self):
+        return self.gettop() - self.style.fontsize - self.style.spacing
+
+    def getstart(self):
+        if hasattr(self, 'event'):
+            return self.event.start
+        elif hasattr(self, 'start'):
+            return self.start
+        else:
+            return None
+
+    def getend(self):
+        if self.event is not None:
+            return self.event.start + self.event.length
+        elif hasattr(self, 'start') and hasattr(self, 'length'):
+            return self.start + self.length
+        elif hasattr(self, 'end'):
+            return self.end
+        else:
+            return None
+
+    def toggle_visibility(self):
+        self.visible = not self.visible
+        self.tweaks += 1
+
+    def show(self):
+        if not self.visible:
+            self.toggle_visibility()
+
+    def hide(self):
+        if self.visible:
+            self.toggle_visibility()
+
+    def is_visible(self):
+        return self.visible and self.gettop() > 0
 
 
 class CalendarCol:
@@ -169,16 +210,15 @@ cells.
             self.schedule = self.item.schedule
         else:
             assert(self.item.schedule == self.schedule)
+        if self.visible:
+            self.show()
+        else:
+            self.hide()
 
-    def set_gw(self, gw):
-        self.top_abs = int(self.top * gw.height)
-        self.bot_abs = int(self.bot * gw.height)
-        self.height_abs = int(self.height * gw.height)
-        self.left_abs = int(self.left * gw.width)
-        self.right_abs = int(self.right * gw.width)
-        self.width_abs = int(self.width * gw.width)
-        self.gw = gw
-        self.adjust()
+    def set_cal(self, cal):
+        if cal is not self.cal:
+            self.cal = cal
+            self.adjust()
 
     def gettop(self):
         return self.top_abs
@@ -199,50 +239,25 @@ cells.
         return self.height_abs
 
     def adjust(self):
-        self.cells = []
-        calstart = self.scrolled_to
-        calend = calstart + self.rows_on_screen
-        rowheight = self.getheight() / self.rows_on_screen
-        evl = sorted(list(self.schedule.timeframe(calstart, calend)))
-        top = self.gettop()
-        self.celleft = self.getleft() + self.style.spacing
-        self.celright = self.getright() - self.style.spacing
-        self.celwidth = self.celright - self.celleft
-        if evl == []:
-            for i in xrange(self.scrolled_to, self.rows_on_screen - 1):
-                c = CalendarCell(self, i, i+1, True)
-                c.top = top
-                top -= rowheight
-                c.bot = top
-            return
-        celll = [
-            CalendarCell(
-                self, ev.start, ev.end, False, ev.display_str())
-            for ev in evl]
-        # I now have CalendarCells to represent the events; but I also
-        # need CalendarCells to represent the spaces between
-        # them. Those will always be one tick long. I'm not sure this
-        # is a sustainable assumption; if CalendarCols get to showing
-        # a lot of stuff at once, there will be a whole bunch of
-        # sprites in them. Is that a problem? I'll see, I suppose.
-        i = calstart
-        while celll != []:
-            cell = celll.pop()
-            while i < cell.start:
-                c = CalendarCell(self, i, i+1, True)
-                c.top = top
-                top -= rowheight
-                c.bot = top
-                self.cells.append(c)
-                i += 1
-            cell.top = top
-            top -= len(cell) * rowheight
-            cell.bot = top
-            i += len(cell)
-            self.cells.append(cell)
-        # There are now cells in self.cells to fill me up. There are
-        # also some that overrun my bounds. I'll have to take that
-        # into account when drawing.
+        """Create calendar cells for all events in the schedule.
+
+Cells already here will be reused."""
+        schevs = iter(self.item.schedule)
+        for ev in schevs:
+            if ev.name not in self.cells:
+                self.cells[ev.name] = CalendarCell(self, ev)
+        for k in self.cells.iterkeys():
+            if k not in self.item.schedule.events:
+                try:
+                    ptr.sprite.delete()
+                except AttributeError:
+                    pass
+                try:
+                    ptr.label.delete()
+                except AttributeError:
+                    pass
+        self.tweaks += 1
+
 
     def __eq__(self, other):
         return (

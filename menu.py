@@ -65,7 +65,8 @@ class MenuItem:
         self.parse_effect_deck(db)
         while len(self.menu.items) < self.idx:
             self.menu.items.append(None)
-        self.menu.items[self.idx] = self
+        if self.text[0] == "@":
+            self.text = db.get_text(self.text[1:])
 
     def onclick(self, button, modifiers):
         self.effect_deck.do()
@@ -453,12 +454,15 @@ def load_items_in_menus(db, menus):
     return unravel_items_in_menus(db, read_items_in_menus(db, menus))
 
 
-menu_qualified_cols = ["menu." + col for col in Menu.colnames["menu"]]
+menu_qcols = ["menu." + coln for coln in Menu.colns]
+menu_item_qvals = ["menu_item.idx"] + ["menu_item." + valn for valn in MenuItem.valns]
+mbqcols = menu_qcols + menu_item_qvals
+mbcols = Menu.colns + ["idx"] + MenuItem.valns
 menu_board_qryfmt = (
-    "SELECT board_menu.board, {0} FROM menu, board_menu WHERE "
-    "menu.name=board_menu.menu AND "
-    "board_menu.board IN ({1})".format(
-        ", ".join(menu_qualified_cols), "{0}"))
+    "SELECT {0} FROM menu JOIN menu_item ON "
+    "menu.board=menu_item.board AND "
+    "menu.name=menu_item.menu WHERE menu.board IN ({1})".format(
+        ", ".join(mbqcols), "{0}"))
 
 
 def read_menus_in_boards(db, boards):
@@ -466,24 +470,22 @@ def read_menus_in_boards(db, boards):
     qrystr = qryfmt.format(", ".join(["?"] * len(boards)))
     db.c.execute(qrystr, boards)
     r = {}
-    menunames = set()
-    stylenames = set()
-    menus = []
     for board in boards:
         r[board] = {}
     for row in db.c:
-        rowdict = dictify_row(row, ["board"] + Menu.colnames["menu"])
-        rowdict["db"] = db
-        numenu = Menu(**rowdict)
-        r[rowdict["board"]][rowdict["name"]] = numenu
-        menunames.add(rowdict["name"])
-        stylenames.add(rowdict["style"])
-        menus.append(numenu)
-        if rowdict["board"] not in db.boardmenudict:
-            db.boardmenudict[rowdict["board"]] = {}
-        db.boardmenudict[rowdict["board"]][rowdict["name"]] = numenu
-    read_items_in_menus(db, list(menunames))
-    read_styles(db, list(stylenames))
+        rowdict = dictify_row(row, mbqcols)
+        if rowdict["menu.name"] not in r[rowdict["menu.board"]]:
+            menurd = {"db": db}
+            for coln in Menu.colns:
+                menurd[coln] = rowdict["menu." + coln]
+            r[rowdict["menu.board"]][rowdict["menu.name"]] = Menu(**menurd)
+        menuitemrd = {"db": db,
+                      "board": rowdict["menu.board"],
+                      "menu": rowdict["menu.name"],
+                      "idx": rowdict["menu_item.idx"]}
+        for valn in MenuItem.valns:
+            menuitemrd[valn] = rowdict["menu_item." + valn]
+        mi = MenuItem(**menuitemrd)
     return r
 
 

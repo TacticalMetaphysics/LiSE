@@ -329,19 +329,20 @@ menus = [
     for tup in menutups]
 parms.menus = menus
 
-
-boards = [{
-    'dimension': dimname,
-    'width': 800,
-    'height': 600,
-    'wallpaper': 'wall'}]
-parms.boards = boards
+boards = [
+    (dimname,
+     'wall')]
+     
+parms.boards = [
+    {"dimension": tup[0],
+     "wallpaper": tup[1],
+     "calendar_visible": True}
+    for tup in boards]
 
 board_menu = [{'board': dimname, 'menu': menuname}
               for menuname in
               ['Thing', 'Place', 'Game', 'Editor', 'Main']]
 parms.board_menu = board_menu
-
 
 def mkefd2(fun, arg):
     return {
@@ -372,30 +373,30 @@ effect_decks = [
     for effectdict in effects]
 parms.effect_decks = effect_decks
 
+strtups = [
+    ("@game_menu", "Game"),
+    ("@editor_menu", "Editor"),
+    ("@place_menu", "Place"),
+    ("@thing_menu", "Thing"),
+    ("@new_map", "New world"),
+    ("@open_map", "Open world..."),
+    ("@save_map", "Save..."),
+    ("@quit_maped", "Quit"),
+    ("@ed_select", "Select..."),
+    ("@ed_copy", "Copy"),
+    ("@ed_paste", "Paste"),
+    ("@ed_delete", "Delete..."),
+    ("@custplace", "New place..."),
+    ("@workplace", "New workplace..."),
+    ("@commonplace", "New commons..."),
+    ("@lairplace", "New lair..."),
+    ("@custthing", "New thing..."),
+    ("@decorthing", "New decoration..."),
+    ("@clothing", "New clothing..."),
+    ("@toolthing", "New tool...")]
 
-caltups = [
-    (
-        "Physical",
-        "me",
-        False,
-        True,
-        10,
-        0,
-        0.2,
-        0.9,
-        0.1,
-        0.9,
-        'SmallLight')]
-
-
-calendars = [
-    dict(
-        zip(
-            ("dimension", "item", "visible", "interactive",
-             "rows_on_screen", "scrolled_to", "left", "top",
-             "bot", "right", "style"), row))
-    for row in caltups]
-parms.calendars = calendars
+strings = [(tup[0], langname, tup[1]) for tup in strtups]
+parms.strings = strings
 
 
 EMPTY_DB_FILE = 'empty.sqlite'
@@ -497,8 +498,9 @@ def populate_database(db, data):
     populate_journey_steps(db, data.steps)
     populate_schedules(db, data.schedules)
     populate_gfx(db, data.imgs, data.pawns, data.spots, data.boards,
-                 data.board_menu, data.calendars)
-    db.c.execute("INSERT INTO game VALUES (0);")
+                 data.calcols)
+    populate_strs(db, data.strings)
+    db.c.execute("INSERT INTO game DEFAULT VALUES;")
 
 
 db = Database(TARGET_DB_FILE)
