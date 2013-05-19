@@ -188,7 +188,6 @@ class GameWindow:
                 if hasattr(pawn, 'calcol'):
                     cols.append(item.calcol)
             for col in cols:
-                print "processing col for " + col.item.name
                 col.adjust()
                 try:
                     col.sprite.delete()

@@ -504,8 +504,6 @@ def read_menus_in_boards(db, boards):
             menurd = {"db": db}
             for coln in Menu.colns:
                 menurd[coln] = rowdict["menu." + coln]
-            print "Instantiating a board thus:"
-            print menurd
             r[rowdict["menu.board"]][rowdict["menu.name"]] = Menu(**menurd)
         menuitemrd = {"db": db,
                       "board": rowdict["menu.board"],
@@ -544,7 +542,6 @@ def make_menu_toggler_menu_item(
         menuname = target_menu
     else:
         menuname = target_menu.name
-    print "attempting to make menu toggler for menu {0} in board {1}".format(menuname, boardname)
     togdeck = make_menu_toggler(boardname, menuname, db)
     return MenuItem(menu_of_residence, idx, txt, togdeck,
                     closer, visible, interactive, db)

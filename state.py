@@ -1,6 +1,7 @@
 from event import get_all_starting_ongoing_ending as gasoe
 # do I want to handle the timer here? that might be good
 
+
 class GameState:
     """Class to hold the state of the game, specifically not including the
 state of the interface.
@@ -10,7 +11,7 @@ state of the interface.
         self.db = db
         self.age = db.get_age()
         self.since = 0
-                
+
     def __iter__(self):
         return iter(self.dimensions)
 

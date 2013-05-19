@@ -45,7 +45,6 @@ db = database.Database(DB_NAME)
 
 for clas in tabclasses:
     for tab in clas.schemata:
-        print tab
         db.c.execute(tab)
 
 game_decl = """CREATE TABLE game

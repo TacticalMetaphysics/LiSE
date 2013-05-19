@@ -151,7 +151,6 @@ class Pawn:
 
     def onclick(self, button, modifiers):
         # strictly a hack. replace with effectdeck as soon as reasonable
-        print "pawn for {0} clicked".format(self.thing.name)
         if hasattr(self, 'calcol'):
             self.calcol.toggle_visibility()
 
