@@ -183,6 +183,9 @@ class Pawn:
             y,
             self.tweaks)
 
+    def is_visible(self):
+        return self.visible
+
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])
 

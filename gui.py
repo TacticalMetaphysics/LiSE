@@ -120,7 +120,7 @@ class GameWindow:
                     spot.sprite.delete()
                 except AttributeError:
                     pass
-                if spot.visible:
+                if spot.is_visible():
                     (x, y) = spot.getcoords()
                     spot.sprite = pyglet.sprite.Sprite(
                         spot.img, x, y, batch=self.batch,
@@ -135,7 +135,7 @@ class GameWindow:
                     pawn.sprite.delete()
                 except AttributeError:
                     pass
-                if pawn.visible:
+                if pawn.is_visible():
                     (x, y) = pawn.getcoords()
                     pawn.sprite = pyglet.sprite.Sprite(
                         pawn.img, x, y, batch=self.batch,
@@ -150,7 +150,7 @@ class GameWindow:
                     menu.sprite.delete()
                 except AttributeError:
                     pass
-                if menu.visible:
+                if menu.is_visible():
                     image = (
                         menu.inactive_pattern.create_image(
                             menu.getwidth(),
@@ -167,7 +167,7 @@ class GameWindow:
                     mi.label.delete()
                 except AttributeError:
                     pass
-                if mi.menu.visible and mi.visible:
+                if mi.menu.is_visible() and mi.is_visible():
                     sty = mi.menu.style
                     if mi.hovered:
                         color = sty.fg_active.tup
@@ -203,7 +203,9 @@ class GameWindow:
                         cel.label.delete()
                     except AttributeError:
                         pass
-                if self.calendar.visible and col.item.name in self.calendar.coldict:
+                if (
+                        self.calendar.is_visible() and
+                        col.is_visible()):
                     image = col.inactive_pattern.create_image(
                         col.getwidth(), col.getheight())
                     col.sprite = pyglet.sprite.Sprite(

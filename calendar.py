@@ -124,6 +124,9 @@ is happening.
         if self.visible:
             self.toggle_visibility()
 
+    def is_visible(self):
+        return self.visible and self.gettop() > 0
+
 
 class CalendarCol:
     """A single-column visual representation of a schedule.
@@ -201,6 +204,9 @@ cells.
         if not self.visible:
             self.toggle_visibility()
 
+    def is_visible(self):
+        return self.visible and self.item.name in self.cal.coldict
+
     def unravel(self, db):
         if stringlike(self.board):
             self.board = db.boarddict[self.board]
@@ -256,11 +262,9 @@ Cells already here will be reused."""
         schevs = iter(self.item.schedule)
         for ev in schevs:
             if ev.name not in self.cells:
-                print "Making a calendar cell to represent " + ev.name
                 self.cells[ev.name] = CalendarCell(self, ev)
         for k in self.cells.iterkeys():
             if k not in self.item.schedule.events:
-                print "Removing the calendar cell representing " + ev.name
                 try:
                     ptr.sprite.delete()
                 except AttributeError:
@@ -421,6 +425,9 @@ method.
 
     def rowheight(self):
         return self.getheight() / self.rows_on_screen
+
+    def is_visible(self):
+        return self.visible and len(self.coldict) > 0
 
 
 rcib_format = (

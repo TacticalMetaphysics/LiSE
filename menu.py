@@ -228,6 +228,9 @@ class MenuItem:
         if efd in db.effectdeckdict:
             self.effect_deck = db.effectdeckdict[efd]
 
+    def is_visible(self):
+        return self.visible
+
 
 def pull_items_in_menus(db, menunames):
     qryfmt = "SELECT {0} FROM menu_item WHERE menu IN ({1})"
