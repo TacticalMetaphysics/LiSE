@@ -85,9 +85,7 @@ board later to get those pointers.
             db.boarddict[dimname] = self
 
     def unravel(self, db):
-        """Dereference strings into Python objects.
-
-Grab the Python objects referred to by self.wallpaper and
+        """Grab the Python objects referred to by self.wallpaper and
 self.dimension, if they are strings; then unravel all pawns, spots,
 and menus herein.
 
@@ -115,7 +113,14 @@ and menus herein.
             self.dimension == other.dimension)
 
     def __hash__(self):
-        return hash(self.dimension) + 1
+        """Return the hash of the represented dimension.
+
+As there's supposed to be only one board per dimension (though there
+may be dimensions without boards), boards can be identified with their
+dimension's hash.
+
+        """
+        return hash(self.dimension)
 
     def getwidth(self):
         """Return the width assigned at instantiation."""
@@ -138,6 +143,13 @@ read_some_boards_format = (
 
 
 def read_boards(db, boards):
+    """From the given database, read the boards representing the given
+dimensions, and everything in them.
+
+The boards don't get unraveled, and are not very useful until they are
+unraveled. If you want boards that do things, use load_boards().
+
+    """
     qryfmt = read_some_boards_format
     qrystr = qryfmt.format(", ".join(["?"] * len(boards)))
     db.c.execute(qrystr, boards)
@@ -174,14 +186,21 @@ def read_boards(db, boards):
 
 
 def unravel_boards(db, boardd):
+    """Unravel some boards previously read by read_boards(). Return the
+same dictionary that was input--now with the boards in useful form."""
     for board in boardd.itervalues():
         board.unravel(db)
     return boardd
 
 
 def load_boards(db, boards):
+    """From the given database, load the boards representing the
+dimensions by the given names, returning a dictionary keyed with the
+dimension names."""
     return unravel_boards(db, read_boards(db, boards))
 
 
 def load_board(db, boardn):
-    return load_boards(db, [boardn])
+    """From the given database, load the board representing the dimension
+named thus."""
+    return load_boards(db, [boardn])[boardn]
