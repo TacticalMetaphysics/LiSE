@@ -1,4 +1,5 @@
 from util import SaveableMetaclass, dictify_row, stringlike
+from copy import copy
 from calendar import CalendarCol
 
 
@@ -23,18 +24,18 @@ class Pawn:
 
     tables = [
         ("pawn",
-         {"board": "text",
+         {"dimension": "text",
           "thing": "text",
           "img": "text",
           "visible": "boolean",
           "interactive": "boolean"},
-         ("board", "thing"),
+         ("dimension", "thing"),
          {"img": ("img", "name"),
-          "board, thing": ("thing", "dimension, name")},
+          "dimension, thing": ("thing", "dimension, name")},
          [])]
 
-    def __init__(self, board, thing, img, visible, interactive, db=None):
-        self.board = board
+    def __init__(self, dimension, thing, img, visible, interactive, db=None):
+        self.dimension = dimension
         self.thing = thing
         self.img = img
         self.visible = visible
@@ -48,13 +49,10 @@ class Pawn:
         if db is not None:
             dimname = None
             thingname = None
-            if stringlike(self.board):
-                dimname = self.board
+            if stringlike(self.dimension):
+                dimname = self.dimension
             else:
-                if stringlike(self.board.dimension):
-                    dimname = self.board.dimension
-                else:
-                    dimname = self.board.dimension.name
+                dimname = self.dimension.name
             if stringlike(self.thing):
                 thingname = self.thing
             else:
@@ -75,18 +73,28 @@ class Pawn:
 
     def unravel(self, db):
         # Invariant: things have already been unraveled
-        if stringlike(self.board):
-            self.board = db.boarddict[self.board]
+        if stringlike(self.dimension):
+            self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.thing):
-            self.thing = db.itemdict[self.board.dimension.name][self.thing]
+            self.thing = db.itemdict[self.dimension.name][self.thing]
         self.thing.pawn = self
-        if not hasattr(self, 'calcol'):
-            if hasattr(self.thing, 'schedule'):
-                self.calcol = CalendarCol(
-                    self.board.dimension.name, self.thing.name,
-                    True, True, "BigLight", "SmallDark")
-        if hasattr(self, 'calcol'):
-            self.calcol.unravel(db)
+        if (self.dimension.name in db.calendardict
+            and self.thing.name in db.calendardict[self.dimension.name]):
+            self.calendar = db.calendardict[self.dimension.name][self.thing.name]
+        elif self.thing.schedule is not None:
+            self.calendar = CalendarCol(
+                self.dimension.name,
+                self.thing.name,
+                False,
+                True,
+                10,
+                0,
+                0.6,
+                0.9,
+                0.1,
+                0.9,
+                'SmallLight',
+                db)
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
         self.rx = self.img.getwidth() / 2
@@ -151,8 +159,9 @@ class Pawn:
 
     def onclick(self, button, modifiers):
         # strictly a hack. replace with effectdeck as soon as reasonable
-        if hasattr(self, 'calcol'):
-            self.calcol.toggle_visibility()
+        print "pawn for {0} clicked".format(self.thing.name)
+        if hasattr(self, 'calendar'):
+            self.calendar.toggle_visibility()
 
     def set_hovered(self):
         if not self.hovered:
@@ -163,12 +172,6 @@ class Pawn:
         if self.hovered:
             self.hovered = False
             self.tweaks += 1
-
-    def set_pressed(self):
-        pass
-
-    def unset_pressed(self):
-        pass
 
     def get_state_tup(self):
         (x, y) = self.getcoords()
@@ -182,17 +185,14 @@ class Pawn:
             y,
             self.tweaks)
 
-    def is_visible(self):
-        return self.visible
-
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])
 
 pawn_dimension_qryfmt = (
-    "SELECT {0} FROM pawn WHERE board IN ({1})".format(pawncolstr, "{0}"))
+    "SELECT {0} FROM pawn WHERE dimension IN ({1})".format(pawncolstr, "{0}"))
 
 
-def read_pawns_in_boards(db, names):
+def read_pawns_in_dimensions(db, names):
     qryfmt = pawn_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
@@ -202,7 +202,7 @@ def read_pawns_in_boards(db, names):
     for row in db.c:
         rowdict = dictify_row(row, Pawn.colnames["pawn"])
         rowdict["db"] = db
-        r[rowdict["board"]][rowdict["thing"]] = Pawn(**rowdict)
+        r[rowdict["dimension"]][rowdict["thing"]] = Pawn(**rowdict)
     return r
 
 
@@ -212,11 +212,11 @@ def unravel_pawns(db, pawnd):
     return pawnd
 
 
-def unravel_pawns_in_boards(db, pawnd):
+def unravel_pawns_in_dimensions(db, pawnd):
     for pawns in pawnd.itervalues():
         unravel_pawns(db, pawns)
     return pawnd
 
 
-def load_pawns_in_boards(db, names):
-    return unravel_pawns_in_dimensions(db, read_pawns_in_boards(db, names))
+def load_pawns_in_dimensions(db, names):
+    return unravel_pawns_in_dimensions(db, read_pawns_in_dimensions(db, names))
