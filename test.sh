@@ -1,1 +1,0 @@
-python -B tests.py

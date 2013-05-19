@@ -38,17 +38,24 @@ DB_NAME = 'empty.sqlite'
 
 try:
     os.remove(DB_NAME)
-except IOError:
+except OSError:
     pass
 
 db = database.Database(DB_NAME)
 
 for clas in tabclasses:
     for tab in clas.schemata:
-        print tab
         db.c.execute(tab)
 
-db.c.execute("CREATE TABLE game (age INTEGER);")
+game_decl = """CREATE TABLE game
+ (front_board TEXT DEFAULT 'Physical', age INTEGER DEFAULT 0,
+ seed INTEGER DEFAULT 0);"""
+strs_decl = """CREATE TABLE strings (stringname TEXT, language TEXT,
+ string TEXT, PRIMARY KEY(stringname, language));"""
+extratabs = [game_decl, strs_decl]
+
+for extratab in extratabs:
+    db.c.execute(extratab)
 
 db.c.close()
 db.conn.commit()
