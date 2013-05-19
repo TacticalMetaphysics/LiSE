@@ -125,6 +125,12 @@ class Spot:
             self.hovered = False
             self.tweaks += 1
 
+    def set_pressed(self):
+        pass
+
+    def unset_pressed(self):
+        pass
+
     def dropped(self, x, y, button, modifiers):
         self.grabpoint = None
 
@@ -156,7 +162,7 @@ spot_dimension_qryfmt = (
         ", ".join(Spot.colnames["spot"]), "{0}"))
 
 
-def read_spots_in_dimensions(db, names):
+def read_spots_in_boards(db, names):
     qryfmt = spot_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
@@ -176,11 +182,11 @@ def unravel_spots(db, spd):
     return spd
 
 
-def unravel_spots_in_dimensions(db, spdd):
+def unravel_spots_in_boards(db, spdd):
     for spots in spdd.itervalues():
         unravel_spots(db, spots)
     return spdd
 
 
-def load_spots_in_dimensions(db, names):
-    return unravel_spots_in_dimensions(db, read_spots_in_dimensions(db, names))
+def load_spots_in_boards(db, names):
+    return unravel_spots_in_boards(db, read_spots_in_boards(db, names))

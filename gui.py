@@ -8,7 +8,7 @@ class GameWindow:
     def __init__(self, gamestate, boardname, batch=None):
         self.db = gamestate.db
         self.gamestate = gamestate
-        self.board = db.boarddict[boardname]
+        self.board = self.db.boarddict[boardname]
 
         self.boardgroup = pyglet.graphics.OrderedGroup(0)
         self.edgegroup = pyglet.graphics.OrderedGroup(1)
@@ -17,12 +17,11 @@ class GameWindow:
         self.menugroup = pyglet.graphics.OrderedGroup(4)
         self.calendargroup = pyglet.graphics.OrderedGroup(4)
         self.cellgroup = pyglet.graphics.OrderedGroup(5)
-        self.labelgroup = pyglet.graphics.OrderedGroup(5)
+        self.labelgroup = pyglet.graphics.OrderedGroup(6)
 
         self.pressed = None
         self.hovered = None
         self.grabbed = None
-        self.calendar_changed = False
         self.mouse_x = 0
         self.mouse_y = 0
         self.mouse_dx = 0
@@ -52,9 +51,8 @@ class GameWindow:
         self.spots = self.board.spotdict.values()
         self.pawns = self.board.pawndict.values()
         self.portals = self.board.dimension.portaldict.values()
-        self.calendars = self.board.calendardict.values()
-        for cal in self.calendars:
-            cal.set_gw(self)
+        self.calendar = self.board.calendar
+        self.calendar.set_gw(self)
         for menu in self.menus:
             menu.set_gw(self)
         self.drawn_board = None
@@ -75,47 +73,29 @@ class GameWindow:
             except AttributeError:
                 pass
             self.drawn_board = s
-            # if the background image has moved since last frame, then
-            # so has everything else
+            # if the board has moved since last frame, then
+            # so has everything on it.
             redraw_all = (self.view_left != self.prev_view_left or
                           self.view_bot != self.prev_view_bot)
-            self.view_left = self.prev_view_left
-            self.view_bot = self.prev_view_bot
-            portal_todo = self.portals
             if redraw_all:
-                menus_todo = self.menus
-                mi_todo = []
-                for menu in menus_todo:
-                    mi_todo.extend(menu.items)
-                pawn_todo = self.pawns
-                spot_todo = self.spots
-                col_todo = self.calendars
-                cel_todo = []
-                for col in col_todo:
-                    cel_todo.extend(col.cells)
-            else:
-                menus_todo = [
-                    menu for menu in self.menus if
-                    menu.get_state_tup() not in self.onscreen]
-                mi_todo = []
-                for menu in self.menus:
-                    mi_todo.extend([
-                        it for it in menu.items if
-                        it.get_state_tup() not in self.onscreen])
-                pawn_todo = [
-                    pawn for pawn in self.pawns if
-                    pawn.get_state_tup() not in self.onscreen]
-                spot_todo = [
-                    spot for spot in self.spots if
-                    spot.get_state_tup() not in self.onscreen]
-                col_todo = [
-                    calcol for calcol in self.calendars if
-                    calcol.get_state_tup() not in self.onscreen]
-                cel_todo = []
-                for col in self.calendars:
-                    cel_todo.extend([
-                        cel for cel in col.cells if
-                        cel.get_state_tup() not in self.onscreen])
+                self.onscreen = set()
+            self.prev_view_left = self.view_left
+            self.prev_view_bot = self.view_bot
+            portal_todo = self.portals
+            menus_todo = [
+                menu for menu in self.menus if
+                menu.get_state_tup() not in self.onscreen]
+            mi_todo = []
+            for menu in self.menus:
+                mi_todo.extend([
+                    it for it in menu.items if
+                    it.get_state_tup() not in self.onscreen])
+            pawn_todo = [
+                pawn for pawn in self.pawns if
+                pawn.get_state_tup() not in self.onscreen]
+            spot_todo = [
+                spot for spot in self.spots if
+                spot.get_state_tup() not in self.onscreen]
             # draw the edges, representing portals
             e = []
             for portal in portal_todo:
@@ -140,7 +120,7 @@ class GameWindow:
                     spot.sprite.delete()
                 except AttributeError:
                     pass
-                if spot.visible:
+                if spot.is_visible():
                     (x, y) = spot.getcoords()
                     spot.sprite = pyglet.sprite.Sprite(
                         spot.img, x, y, batch=self.batch,
@@ -155,7 +135,7 @@ class GameWindow:
                     pawn.sprite.delete()
                 except AttributeError:
                     pass
-                if pawn.visible:
+                if pawn.is_visible():
                     (x, y) = pawn.getcoords()
                     pawn.sprite = pyglet.sprite.Sprite(
                         pawn.img, x, y, batch=self.batch,
@@ -170,7 +150,7 @@ class GameWindow:
                     menu.sprite.delete()
                 except AttributeError:
                     pass
-                if menu.visible:
+                if menu.is_visible():
                     image = (
                         menu.inactive_pattern.create_image(
                             menu.getwidth(),
@@ -187,7 +167,7 @@ class GameWindow:
                     mi.label.delete()
                 except AttributeError:
                     pass
-                if mi.menu.visible and mi.visible:
+                if mi.menu.is_visible() and mi.is_visible():
                     sty = mi.menu.style
                     if mi.hovered:
                         color = sty.fg_active.tup
@@ -202,18 +182,18 @@ class GameWindow:
                         y=mi.getbot(),
                         batch=self.batch,
                         group=self.labelgroup)
-            # draw the calendars
-            for col in col_todo:
+            # draw the calendar
+            cols = []
+            for item in self.board.pawndict.itervalues():
+                if hasattr(pawn, 'calcol'):
+                    cols.append(item.calcol)
+            for col in cols:
                 col.adjust()
-                newstate = col.get_state_tup()
-                self.onscreen.discard(col.oldstate)
-                self.onscreen.add(newstate)
-                col.oldstate = newstate
                 try:
                     col.sprite.delete()
                 except AttributeError:
                     pass
-                for cel in col.cells:
+                for cel in col.cells.itervalues():
                     try:
                         cel.sprite.delete()
                     except AttributeError:
@@ -222,37 +202,32 @@ class GameWindow:
                         cel.label.delete()
                     except AttributeError:
                         pass
-                if col.visible:
-                    image = (
-                        col.inactive_pattern.create_image(
-                            col.getwidth(), col.getheight()))
+                if (
+                        self.calendar.is_visible() and
+                        col.is_visible()):
+                    image = col.inactive_pattern.create_image(
+                        col.getwidth(), col.getheight())
                     col.sprite = pyglet.sprite.Sprite(
                         image, col.getleft(), col.getbot(),
                         batch=self.batch, group=self.calendargroup)
-            # draw the cells in the calendars
-            for cel in cel_todo:
-                newstate = cel.get_state_tup()
-                self.onscreen.discard(cel.oldstate)
-                self.onscreen.add(newstate)
-                cel.oldstate = newstate
-                try:
-                    cel.sprite.delete()
-                except AttributeError:
-                    pass
-                try:
-                    cel.label.delete()
-                except AttributeError:
-                    pass
-                if cel.visible:
-                    if self.hovered == cel:
-                        pat = cel.active_pattern
-                    else:
-                        pat = cel.inactive_pattern
-                    image = pat.create_image(
-                        cel.getwidth(), cel.getheight())
-                    cel.sprite = pyglet.sprite.Sprite(
-                        image, cel.getleft(), cel.getbot(),
-                        batch=self.batch, group=self.cellgroup)
+                    for cel in col.cells.itervalues():
+                        if self.hovered == cel:
+                            pat = cel.active_pattern
+                            color = cel.style.fg_active.tup
+                        else:
+                            pat = cel.inactive_pattern
+                            color = cel.style.fg_inactive.tup
+                        image = pat.create_image(
+                            cel.getwidth(), cel.getheight())
+                        cel.sprite = pyglet.sprite.Sprite(
+                            image, cel.getleft(), cel.getbot(),
+                            batch=self.batch, group=self.cellgroup)
+                        cel.label = pyglet.text.Label(
+                            cel.text, cel.style.fontface,
+                            cel.style.fontsize, color=color,
+                            x = cel.getleft(),
+                            y = cel.label_bot(),
+                            batch=self.batch, group=self.labelgroup)
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.
             self.batch.draw()
@@ -360,3 +335,9 @@ class GameWindow:
             self.width = w
             self.height = h
             self.resized = True
+
+    def getwidth(self):
+        return self.window.width
+
+    def getheight(self):
+        return self.window.height
