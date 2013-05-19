@@ -1,1 +1,0 @@
-python -B lise.py
