@@ -2,24 +2,14 @@ from util import SaveableMetaclass, dictify_row, stringlike
 from calendar import CalendarCol
 
 
+"""Widget representing things that move about from place to place."""
+
+
 __metaclass__ = SaveableMetaclass
 
 
 class Pawn:
-    """A token to represent something that moves about between Places.
-
-    Pawn(thing, place, x, y) => pawn
-
-    thing is the game-logic item that the Pawn represents.
-    It should be of class Thing.
-
-    place is the name of a Place that is already represented by a Spot
-    in the same Board. pawn will appear here to begin with. Note that
-    the Spot need not be visible. You can supply the Place name for an
-    invisible spot to make it appear that a Pawn is floating in that
-    nebulous dimension between Places.
-
-    """
+    """A token to represent something that moves about between places."""
 
     tables = [
         ("pawn",
@@ -34,6 +24,12 @@ class Pawn:
          [])]
 
     def __init__(self, board, thing, img, visible, interactive, db=None):
+        """Return a pawn on the given board, representing the given thing with
+the given image. It may be visible or not, interactive or not.
+
+With db, register in db's pawndict.
+
+        """
         self.board = board
         self.thing = thing
         self.img = img
@@ -64,6 +60,7 @@ class Pawn:
             db.pawndict[dimname][thingname] = self
 
     def __eq__(self, other):
+        """Essentially, compare the state tuples of the two pawns."""
         return (
             isinstance(other, Pawn) and
             self.dimension == other.dimension and
@@ -74,6 +71,16 @@ class Pawn:
             self.grabpoint == other.grabpoint)
 
     def unravel(self, db):
+        """On the assumption that my thing has already been unraveled,
+dereference it, the board, and the image.
+
+Then store myself as an attribute of the thing, and the thing's
+schedule and calendar column as an attribute of myself.
+
+In the absence of a calendar column, but the presence of a schedule,
+make a new, hidden calendar column to represent the schedule.
+
+        """
         # Invariant: things have already been unraveled
         if stringlike(self.board):
             self.board = db.boarddict[self.board]
@@ -93,6 +100,7 @@ class Pawn:
         self.ry = self.img.getheight() / 2
 
     def getcoords(self):
+        """Return my x and y in a pair."""
         # Assume I've been provided a spotdict. Use it to get the
         # spot's x and y, as well as that of the spot for the next
         # step on my thing's journey. If my thing doesn't have a
@@ -122,55 +130,71 @@ class Pawn:
             return (ls.x, ls.y)
 
     def getcenter(self):
+        """Return the x and y of my centerpoint in a pair."""
         (x, y) = self.getcoords()
         return (x + self.rx, y + self.ry)
 
     def getleft(self):
+        """Return the x of my leftmost edge."""
         return self.getcoords()[0]
 
     def getright(self):
+        """Return the x of my rightmost edge."""
         return self.getcoords()[0] + self.img.getwidth()
 
     def getrx(self):
+        """Return half my width."""
         return self.rx
 
     def getry(self):
+        """Return half my height."""
         return self.ry
 
     def gettop(self):
+        """Return the y of my top edge."""
         return self.getcoords()[1] + self.img.getheight()
 
     def getbot(self):
+        """Return the y of my bottom edge."""
         return self.getcoords()[1]
 
     def is_visible(self):
+        """Can you see me?"""
         return self.visible
 
     def is_interactive(self):
+        """Can you touch me?"""
         return self.interactive
 
     def onclick(self, button, modifiers):
+        """For now, pawns toggle their associated calendar columns on being
+clicked. This is probably not the ideal."""
         # strictly a hack. replace with effectdeck as soon as reasonable
         if hasattr(self, 'calcol'):
             self.calcol.toggle_visibility()
 
     def set_hovered(self):
+        """Become hovered."""
         if not self.hovered:
             self.hovered = True
             self.tweaks += 1
 
     def unset_hovered(self):
+        """Stop being hovered."""
         if self.hovered:
             self.hovered = False
             self.tweaks += 1
 
     def set_pressed(self):
+        """Become pressed."""
         pass
 
     def unset_pressed(self):
+        """Stop being pressed."""
         pass
 
     def get_state_tup(self):
+        """Return a tuple containing everything you might need to draw me."""
         (x, y) = self.getcoords()
         return (
             self.img.name,
@@ -193,6 +217,12 @@ pawn_dimension_qryfmt = (
 
 
 def read_pawns_in_boards(db, names):
+    """Read all pawns in the given boards. Don't unravel them yet.
+
+They'll be in a 2D dictionary, keyed first by board name, then by
+thing name.
+
+    """
     qryfmt = pawn_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
@@ -207,16 +237,21 @@ def read_pawns_in_boards(db, names):
 
 
 def unravel_pawns(db, pawnd):
+    """Unravel pawns in a dictionary keyed by thing name, and return
+it."""
     for pawn in pawnd.itervalues():
         pawn.unravel(db)
     return pawnd
 
 
 def unravel_pawns_in_boards(db, pawnd):
+    """Unravel pawns read in by read_pawns_in_boards"""
     for pawns in pawnd.itervalues():
         unravel_pawns(db, pawns)
     return pawnd
 
 
 def load_pawns_in_boards(db, names):
+    """Load all pawns in the given boards, and return them in a 2D
+dictionary keyed first by board name, then by thing name."""
     return unravel_pawns_in_dimensions(db, read_pawns_in_boards(db, names))
