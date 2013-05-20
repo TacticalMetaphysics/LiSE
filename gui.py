@@ -1,7 +1,11 @@
 import pyglet
 
 
+"""All the graphics code unique to LiSE."""
+
+
 class GameWindow:
+    """Instantiates a Pyglet window and displays the given board in it."""
     arrowhead_angle = 45
     arrowhead_len = 10
 
@@ -62,6 +66,8 @@ class GameWindow:
 
         @window.event
         def on_draw():
+            """Draw the background image; all spots, pawns, and edges on the
+board; all visible menus; and the calendar, if it's visible."""
             # draw the background image
             x = -1 * self.view_left
             y = -1 * self.view_bot
@@ -239,6 +245,8 @@ class GameWindow:
 
         @window.event
         def on_mouse_motion(x, y, dx, dy):
+            """Find the widget, if any, that the mouse is over, and highlight
+it."""
             if self.hovered is None:
                 for menu in self.menus:
                     if (
@@ -288,6 +296,8 @@ class GameWindow:
 
         @window.event
         def on_mouse_press(x, y, button, modifiers):
+            """If there's something already highlit, and the mouse is still over
+it when pressed, it's been half-way clicked; remember this."""
             if self.hovered is None:
                 return
             else:
@@ -297,6 +307,8 @@ class GameWindow:
 
         @window.event
         def on_mouse_release(x, y, button, modifiers):
+            """If something was being dragged, drop it. If something was being
+pressed but not dragged, it's been clicked. Otherwise do nothing."""
             if self.grabbed is not None:
                 if hasattr(self.grabbed, 'dropped'):
                     self.grabbed.dropped(x, y, button, modifiers)
@@ -315,6 +327,8 @@ class GameWindow:
 
         @window.event
         def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
+            """If the thing previously pressed has a move_with_mouse method, use
+it."""
             if self.grabbed is not None:
                 self.grabbed.move_with_mouse(x, y, dx, dy, buttons, modifiers)
             elif (self.pressed is not None and
@@ -332,6 +346,7 @@ class GameWindow:
 
         @window.event
         def on_resize(w, h):
+            """Inform the on_draw function that the window's been resized."""
             self.width = w
             self.height = h
             self.resized = True
