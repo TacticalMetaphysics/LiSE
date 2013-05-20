@@ -2,19 +2,43 @@ from util import SaveableMetaclass, dictify_row
 from effect import load_effect_decks
 
 
+"""Containers for EffectDecks that have beginnings, middles, and ends.
+
+Events, in LiSE, resemble events in programming generally insofar as
+you register listeners in the form of EffectDecks, and the listeners
+get called when the event is fired. Events here actually have *three*
+EffectDecks registered, one each for the moment the event starts, the
+moment it ends, and the various ticks in between.
+
+Events get passed to the effect decks, which may or may not use them
+for anything in particular.
+
+"""
+
+
 class SenselessEvent(Exception):
+    """Exception raised when trying to fire events that can't happen
+anywhere ever."""
     pass
 
 
 class ImpossibleEvent(Exception):
+    """Exception raised when trying to fire events that can't happen given
+the present circumstances."""
     pass
 
 
 class IrrelevantEvent(Exception):
+    """Exception raised when trying to fire events that could happen if
+they hadn't already, or if some other event hadn't already done the
+same thing."""
     pass
 
 
 class ImpracticalEvent(Exception):
+    """Exception raised when trying to fire events that could happen, but
+are bad ideas. They may be allowed to pass anyway if the characters
+involved *insist*."""
     pass
 
 
@@ -58,6 +82,12 @@ success that strains a person terribly and causes them injury.
 
     def __init__(self, name, text, ongoing, commence_effects,
                  proceed_effects, conclude_effects, db=None):
+        """Return an Event with the given name, text, and ongoing-status, and
+the three given effect decks.
+
+If db is provided, register with its eventdict.
+
+        """
         self.name = name
         self.text = text
         self.ongoing = ongoing
@@ -68,6 +98,12 @@ success that strains a person terribly and causes them injury.
             db.eventdict[name] = self
 
     def unravel(self, db):
+        """Dereference the effect decks.
+
+If the event text begins with @, it's a pointer; look up the real
+value in the db.
+
+        """
         if self.text[0] == "@":
             self.text = db.get_text(self.text[1:])
         for deck in [self.commence_tests, self.proceed_tests,
@@ -76,6 +112,8 @@ success that strains a person terribly and causes them injury.
                 effect = db.effectdict[effect]
 
     def cmpcheck(self, other):
+        """Check if this event is comparable to the other. Raise TypeError if
+not."""
         if not hasattr(self, 'start') or not hasattr(other, 'start'):
             raise Exception("Events are only comparable when they have "
                             "start times.")
@@ -109,7 +147,7 @@ success that strains a person terribly and causes them injury.
             return hash(self.name)
 
     def scheduled_copy(self, start, length):
-        # Return a copy of myself with the given start & end
+        """Return a copy of myself with the given start time and length."""
         new = Event(self.db, self.tabdict)
         new.start = start
         new.length = length
@@ -117,23 +155,29 @@ success that strains a person terribly and causes them injury.
         return new
 
     def commence(self):
+        """Perform all commence effects, and set self.ongoing to True."""
         self.commence_effects.do()
         self.ongoing = True
 
     def proceed(self):
+        """Perform all proceed effects."""
         self.proceed_effects.do()
 
     def conclude(self):
+        """Perform all conclude effects, and set self.ongoing to False."""
         self.conclude_effects.do()
         self.ongoing = False
 
     def display_str(self):
+        """Get the text to be shown in this event's calendar cell, and return
+it."""
         # Sooner or later gonna get it so you can put arbitrary
         # strings in some other table and this refers to that
         return self.name
 
 
 class EventDeck:
+    """A deck representing events that might get scheduled at some point."""
     tables = [
         ("event_deck_link",
          {"deck": "text",
@@ -144,6 +188,12 @@ class EventDeck:
          [])]
 
     def __init__(self, name, event_list, db=None):
+        """Return an EventDeck with the given name, containing the given
+events.
+
+If db is provided, register with its eventdeckdict.
+
+        """
         self.name = name
         self.events = event_list
         if db is not None:
@@ -162,6 +212,10 @@ read_event_decks_qryfmt = (
 
 
 def load_event_decks(db, names):
+    """Load the event decks by the given names, including all effects
+therein.
+
+Return a dictionary, keyed by the event deck name."""
     qryfmt = read_event_decks_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
@@ -189,6 +243,8 @@ def load_event_decks(db, names):
 
 
 def lookup_between(startdict, start, end):
+    """Given a dictionary with integer keys, return a subdictionary with
+those keys falling between these bounds."""
     r = {}
     tohash = []
     for i in xrange(start, end):
@@ -201,6 +257,7 @@ def lookup_between(startdict, start, end):
 
 
 def get_all_starting_between(db, start, end):
+    """Look through all the events yet loaded by the database, and return a dictionary of those that start in the given range."""
     r = {}
     for item in db.startevdict.itervalues():
         r.update(lookup_between(item, start, end))
@@ -208,6 +265,9 @@ def get_all_starting_between(db, start, end):
 
 
 def get_all_ongoing_between(db, start, end):
+    """Look through all the events yet loaded by the database, and return
+a dictionary of those that occur (but perhaps not start or end) in
+the given range."""
     r = {}
     for item in db.contevdict.itervalues():
         r.update(lookup_between(item, start, end))
@@ -215,6 +275,10 @@ def get_all_ongoing_between(db, start, end):
 
 
 def get_all_ending_between(db, start, end):
+    """Look through all the events yet loaded by the database, and return
+a dictionary of those that end in the given range.
+
+    """
     r = {}
     for item in db.endevdict.itervalues():
         r.update(lookup_between(item, start, end))
@@ -222,6 +286,8 @@ def get_all_ending_between(db, start, end):
 
 
 def get_all_starting_ongoing_ending(db, start, end):
+    """Return a tuple of events from the db that (start, continue, end) in
+the given range."""
     return (get_all_starting_between(db, start, end),
             get_all_ongoing_between(db, start, end),
             get_all_ending_between(db, start, end))
