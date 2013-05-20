@@ -4,10 +4,20 @@ from pyglet.resource import image
 from util import SaveableMetaclass, dictify_row
 
 
+"""Container for images to be drawn, maybe."""
+
+
 __metaclass__ = SaveableMetaclass
 
 
 class Img:
+    """A pretty thin wrapper around a Pyglet image.
+
+Has savers and loaders that work with the LiSE database. The image
+itself isn't saved, though. It's loaded, but saving an Img just means
+saving the path.
+
+    """
     tables = [
         ("img",
          {"name": "text",
@@ -18,6 +28,7 @@ class Img:
          [])]
 
     def __init__(self, name, path, rltile, db=None):
+        """Return an Img, and register it with the imgdict of the database provided, if provided."""
         self.name = name
         self.path = path
         self.rltile = rltile
@@ -26,6 +37,13 @@ class Img:
             db.imgdict[name] = self
 
     def unravel(self, db):
+        """Load the underlying texture using pyglet.
+
+Different loaders are used depending on if the image is a Windows
+bitmap or a PNG. In the former case, a certain color value is made
+transparent.
+
+        """
         if self.tex is None:
             if self.rltile:
                 self.tex = load_rltile(db, self.name, self.path)
@@ -33,16 +51,20 @@ class Img:
                 self.tex = load_regular_img(db, self.name, self.path)
 
     def get_texture(self):
+        """Return the Pyglet texture object."""
         return self.tex
 
     def getwidth(self):
+        """Return the underlying texture's width."""
         return self.tex.width
 
     def getheight(self):
+        """Return the underlying texture's height."""
         return self.tex.height
 
 
 def load_rltile(db, name, path):
+    """Load a Windows bitmap, and replace ffGll -> 00Gll and ff. -> 00."""
     badimg = image(path)
     badimgd = badimg.get_image_data()
     bad_rgba = badimgd.get_data('RGBA', badimgd.pitch)
@@ -54,6 +76,7 @@ def load_rltile(db, name, path):
 
 
 def load_regular_img(db, name, path):
+    """Load an ordinary PNG image."""
     tex = image(path).get_image_data().get_texture()
     return tex
 
@@ -64,6 +87,8 @@ read_imgs_qryfmt = (
 
 
 def read_imgs(db, names):
+    """Instantiate the Img of the given names, but don't load their
+textures just yet. Return a dictionary keyed by name."""
     qryfmt = read_imgs_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
@@ -76,10 +101,13 @@ def read_imgs(db, names):
 
 
 def unravel_imgs(db, imgd):
+    """Unravel Img previously read by read_imgs, thus loading the
+textures. Return a dictionary keyed by name."""
     for img in imgd.itervalues():
         img.unravel(db)
     return imgd
 
 
 def load_imgs(db, names):
+    """Load the Img by the given names. Return a dictionary keyed by name."""
     return unravel_imgs(db, read_imgs(db, names))
