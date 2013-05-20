@@ -12,6 +12,11 @@ from spot import Spot
 from pawn import Pawn
 from board import Board
 
+
+"""Make an empty database of LiSE's schema. It will be called
+empty.sqlite. popdb.py will make a copy of that and put data in."""
+
+
 tabclasses = [
     Dimension,
     Schedule,
