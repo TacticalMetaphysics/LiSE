@@ -13,18 +13,28 @@ from effect import Effect, EffectDeck
 import re
 
 
+"""Items that exist in the simulated world. Their graphical
+representations are not considered here."""
+
+
 __metaclass__ = SaveableMetaclass
 
 
 class LocationException(Exception):
+    """Exception raised when a Thing tried to go someplace that made no
+sense."""
     pass
 
 
 class ContainmentException(Exception):
+    """Exception raised when a Thing tried to go into another Thing, and
+it made no sense."""
     pass
 
 
 class Item:
+    """Master class for all items that are in the game world. Doesn't do
+much."""
     tables = [
         ("item",
          {"dimension": "text",
@@ -35,6 +45,8 @@ class Item:
 
 
 class Place(Item):
+    """The 'top level' of the world model. Places contain Things and are
+connected to other Places, forming a graph."""
     tables = [
         ("place",
          {"dimension": "text",
@@ -44,6 +56,8 @@ class Place(Item):
          [])]
 
     def __init__(self, dimension, name, db):
+        """Return a Place of the given name, in the given dimension. Register
+it with the placedict and itemdict in the db."""
         self.dimension = dimension
         self.name = name
         self.contents = set()
@@ -61,6 +75,7 @@ class Place(Item):
             db.placedict[dimname][self.name] = self
 
     def unravel(self, db):
+        """Get myself a real Dimension object if I don't have one."""
         if isinstance(self.dimension, str):
             self.dimension = db.dimensiondict[self.dimension]
 
@@ -72,13 +87,33 @@ class Place(Item):
             return self.name == other.name
 
     def add(self, other):
+        """Put a Thing in this Place, but don't check if it makes sense. Be
+careful!"""
         self.contents.add(other)
 
     def remove(self, other):
+        """Remove a Thing from this Place, but don't check if it makes
+sense. Be careful!"""
         self.contents.remove(other)
 
 
 class Thing(Item):
+    """The sort of item that has a particular location at any given time.
+
+Every Thing has a Journey and a Schedule, but either may be empty.
+
+Things can contain other Things and be contained by other Things. This
+is independent of where they are "located," which is always a
+Place. But any things that contain one another should share locations,
+too.
+
+Things can *also* occupy a Portal. This normally doesn't prevent them
+from occupying the Place that the Portal is from! This is just a
+convenience for when movement events don't go right; then the Thing
+involved will get kicked out of the Portal, leaving it in its original
+location.
+
+    """
     tables = [
         ("thing",
          {"dimension": "text",
@@ -96,6 +131,14 @@ class Thing(Item):
     def __init__(self, dimension, name, location, container,
                  portal=None, journey_step=0, journey_progress=0.0, age=0,
                  schedule=None, db=None):
+        """Return a Thing in the given dimension, location, and container,
+with the given name. Its contents will be empty to start; later on,
+point some other Things' container attributes at this Thing to put
+them in.
+
+Register with the database's itemdict and thingdict too.
+
+        """
         self.dimension = dimension
         self.name = name
         self.location = location
@@ -121,6 +164,12 @@ class Thing(Item):
             db.thingdict[dimname][self.name] = self
 
     def unravel(self, db):
+        """If dimension, locatiaon, container, portal, or schedule are names
+rather than instances or None, dereference them.
+
+Also add self to location, and container if applicable.
+
+        """
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.location):
@@ -179,12 +228,16 @@ inaccessible. Beware.
         self.contents.remove(it)
 
     def can_enter(self, it):
+        """Can I enter the given place, portal, or thing?"""
         return True
 
     def can_contain(self, it):
+        """Can I contain that thing?"""
         return True
 
     def enter(self, it):
+        """Check if I can go into the destination, and if so, do it
+immediately. Else raise exception as appropriate."""
         if isinstance(it, Place):
             self.enter_place(it)
         elif isinstance(it, Portal):
@@ -196,6 +249,7 @@ inaccessible. Beware.
                             (self.name, repr(it)))
 
     def enter_place(self, it):
+        """Enter a location, with a few sanity checks"""
         if self.can_enter(it) and it.can_contain(self):
             if self.container is None or self.container.location == it:
                 self.location = it
@@ -210,6 +264,7 @@ inaccessible. Beware.
                                     (self.name, it.name))
 
     def enter_portal(self, it):
+        """Enter a portal, after a few sanity checks"""
         if self.can_enter(it) and it.can_contain(self):
             self.container.remove(self)
             it.add(self)
@@ -218,6 +273,7 @@ inaccessible. Beware.
                                        (self.name, it.name))
 
     def enter_thing(self, it):
+        """Enter another thing, after a few sanity checks"""
         if self.can_enter(it) and it.can_contain(self):
             self.container.remove(self)
             it.add(self)
@@ -268,6 +324,12 @@ class Journey:
          [])]
 
     def __init__(self, dimension, thing, steps, db=None):
+        """Return a journey in the given dimension, wherein the given thing
+takes the given steps.
+
+If db is provided, register in its journeydict.
+
+        """
         self.dimension = dimension
         self.thing = thing
         self.steps = steps
@@ -287,6 +349,7 @@ class Journey:
             db.journeydict[dimname][thingname] = self
 
     def unravel(self, db):
+        """Dereference dimension, thing, and all steps."""
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.thing):
@@ -371,6 +434,8 @@ method of the thing that operates on the portal.
             return self.getstep(0)
 
     def set_step(self, idx, port):
+        """Put given portal into the steplist at given index, padding steplist
+with None as needed."""
         while idx >= len(self.steplist):
             self.steplist.append(None)
         self.steplist[idx] = port
@@ -502,6 +567,13 @@ Journey.
 
 
 class Schedule:
+    "Many events, all assocated with the same item in the same dimension,
+and given start times and lengths.
+
+Events in a given schedule are assumed never to overlap. This is not
+true of events in different schedules.
+
+    """
     tables = [
         ("scheduled_event",
          {"dimension": "text",
@@ -515,6 +587,9 @@ class Schedule:
          [])]
 
     def __init__(self, dimension, item, db=None):
+        """Return an empty event for the given item in the given
+dimension. With db, register in db's scheduledict, startevdict,
+contevdict, and endevdict."""
         self.dimension = dimension
         self.item = item
         self.events = {}
@@ -549,15 +624,19 @@ class Schedule:
             db.endevdict[dimname][itemname] = self.events_ending
 
     def __iter__(self):
+        """Return iterator over my events in order of their start times."""
         return self.events.itervalues()
 
     def unravel(self, db):
+        """Dereference dimension and item."""
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.item):
             self.item = db.itemdict[self.dimension.name][self.item]
 
     def trash_cache(self, start):
+        """Trash all cached results for commencements_between,
+processions_between, and conclusions_between."""
         for cache in [
                 self.cached_commencements,
                 self.cached_processions,
@@ -568,6 +647,8 @@ class Schedule:
                 pass
 
     def add(self, ev):
+        """Add an event to all dictionaries in me. Assume it has a start and a
+length already."""
         self.events[ev.name] = ev
         ev_end = ev.start + ev.length
         if ev.start not in self.events_starting:
@@ -584,6 +665,8 @@ class Schedule:
 
 
     def discard(self, ev):
+        """Remove an event from all my dictionaries in which it is a
+member."""
         ev_end = ev.start + ev.length
         self.events_starting[ev.start].discard(ev)
         self.events_ending[ev_end].discard(ev)
@@ -592,6 +675,8 @@ class Schedule:
         self.trash_cache(ev.start)
 
     def commencements_between(self, start, end):
+        """Return a dict of all events that start in the given timeframe,
+keyed by their start times."""
         if (
                 start in self.cached_commencements and
                 end in self.cached_commencements[start]):
@@ -603,6 +688,10 @@ class Schedule:
         return lookup
 
     def processions_between(self, start, end):
+        """Return a dict of all events that occur in the given timeframe,
+regardless of whether they start or end in it. Keyed by every tick in
+which the event is ongoing, meaning most events will be present more
+than once."""
         if (
                 start in self.cached_processions and
                 end in self.cached_processions[start]):
@@ -614,6 +703,8 @@ class Schedule:
         return lookup
 
     def conclusions_between(self, start, end):
+        """Return a dict of all events that end in the given time frame, keyed
+by their end times."""
         if (
                 start in self.cached_conclusions and
                 end in self.cached_conclusions[start]):
@@ -625,12 +716,17 @@ class Schedule:
         return lookup
 
     def events_between(self, start, end):
+        """Return a tuple containing the results of commencements_between,
+processions_between, and conclusions_between, for the given
+timeframe."""
         return (self.commencements_between(start, end),
                 self.processions_between(start, end),
                 self.conclusions_between(start, end))
 
 
 class Portal(Item):
+    """A one-directional connection between two places, whereby a Thing
+may travel."""
     tables = [
         ("portal",
          {"dimension": "text",
@@ -644,6 +740,12 @@ class Portal(Item):
          [])]
 
     def __init__(self, dimension, name, from_place, to_place, db=None):
+        """Return a portal in the given dimension, with the given name,
+leading from the one given place to the other.
+
+With db, register it in db's itemdict and portaldict.
+
+        """
         self.dimension = dimension
         self.name = name
         self.orig = from_place
@@ -679,6 +781,7 @@ class Portal(Item):
             pdod[dimname][to_place_name][from_place_name] = self
 
     def unravel(self, db):
+        """Dereference dimension, origin, and destination."""
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.orig):
@@ -687,36 +790,55 @@ class Portal(Item):
             self.dest = db.itemdict[self.dimension.name][self.dest]
 
     def __hash__(self):
+        """Return hash of dimension and name, since they are constrained to be
+unique by the database."""
         return self.hsh
 
     def get_weight(self):
+        """Return 'weight' for the purposes of pathfinding. May have nothing
+to do with how easily anything can pass through me."""
         return self.weight
 
     def get_avatar(self):
+        """Return my 'avatar,' being a Thing that's meant to represent me in
+some place or other. Maybe it's a door or something."""
         return self.avatar
 
     def is_passable_now(self):
+        """Return whether anything can travel through me at the moment. This
+returns False if I'm eg. full, or closed for maintenance, or otherwise
+unusable but not in such a way that I should be considered a
+non-portal."""
         return True
 
     def admits(self, traveler):
+        """Return True if I want to let the given thing enter me, False otherwise."""
         return True
 
     def is_now_passable_by(self, traveler):
+        """Return True if I am passable now by anyone and also by the given
+traveler."""
         return self.isPassableNow() and self.admits(traveler)
 
     def get_dest(self):
+        """Return my destination."""
         return self.dest
 
     def get_orig(self):
+        """Return my origin."""
         return self.orig
 
     def get_ends(self):
+        """Return pair of origin and destination."""
         return [self.orig, self.dest]
 
     def touches(self, place):
+        """Return whether the given place is one of my two endpoints."""
         return self.orig is place or self.dest is place
 
     def find_neighboring_portals(self):
+        """Return portals from my origin and from my destination, including
+myself."""
         return self.orig.portals + self.dest.portals
 
 
@@ -727,6 +849,12 @@ thing_dimension_qryfmt = (
 
 
 def read_things_in_dimensions(db, dimnames):
+    """Read and instantiate, but do not unravel, all things in the given
+dimensions.
+
+Return a 2D dictionary keyed by dimension name, then thing name.
+
+    """
     qryfmt = thing_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
     db.c.execute(qrystr, dimnames)
@@ -741,18 +869,24 @@ def read_things_in_dimensions(db, dimnames):
 
 
 def unravel_things(db, tdb):
+    """Unravel thing objects in a dictionary keyed by names (but not
+dimensions)."""
     for thing in tdb.itervalues():
         thing.unravel(db)
     return tdb
 
 
 def unravel_things_in_dimensions(db, tddb):
+    """Unravel thing objects in a 2D dictionary keyed by dimension name,
+then thing name."""
     for things in tddb.itervalues():
         unravel_things(db, things)
     return tddb
 
 
 def load_things_in_dimensions(db, dimnames):
+    """Load all things in the named dimensions. Return a 2D dictionary of
+things keyed by dimension name, then thing name."""
     return unravel_things_in_dimensions(
         db, read_things_in_dimensions(db, dimnames))
 
@@ -764,6 +898,12 @@ schedule_dimension_qryfmt = (
 
 
 def read_schedules_in_dimensions(db, dimnames):
+    """Read and instantiate, but do not unravel, all schedules in the
+given dimensions.
+
+Return a 2D dictionary of schedules keyed by dimension name, then item name.
+
+    """
     qryfmt = schedule_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
     db.c.execute(qrystr, dimnames)
@@ -792,18 +932,27 @@ def read_schedules_in_dimensions(db, dimnames):
 
 
 def unravel_schedules(db, schd):
+    """Unravel schedules in a dict keyed by their items' names. Return the
+same dict."""
     for sched in schd.itervalues():
         sched.unravel(db)
     return schd
 
 
 def unravel_schedules_in_dimensions(db, schdd):
+    """Unravel schedules previously read in by read_schedules or
+read_schedules_in_dimensions."""
     for scheds in schdd.itervalues():
         unravel_schedules(db, scheds)
     return schdd
 
 
 def load_schedules_in_dimensions(db, dimnames):
+    """Load every schedule in the given dimensions.
+
+Return a 2D dict keyed by dimension name, then item name.
+
+    """
     return unravel_schedules_in_dimensions(
         db, read_schedules_in_dimensions(db, dimnames))
 
@@ -815,6 +964,12 @@ journey_dimension_qryfmt = (
 
 
 def read_journeys_in_dimensions(db, dimnames):
+    """Read and instantiate, but do not unravel, all journeys in the given
+dimensions.
+
+Return a 2D dict keyed by dimension name, then item name.
+
+    """
     qryfmt = journey_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
     db.c.execute(qrystr, dimnames)
@@ -842,18 +997,27 @@ def read_journeys_in_dimensions(db, dimnames):
 
 
 def unravel_journeys(db, jod):
+    """Unravel journeys in a dict keyed by their names. Return same
+dict."""
     for jo in jod.itervalues():
         jo.unravel(db)
     return jod
 
 
 def unravel_journeys_in_dimensions(db, jodd):
+    """Unravel journeys previously read in by read_journeys or
+read_journeys_in_dimensions."""
     for jod in jodd.itervalues():
         unravel_journeys(db, jod)
     return jodd
 
 
 def load_journeys_in_dimensions(db, dimnames):
+    """Load all journeys in the given dimensions.
+
+Return them in a 2D dict keyed by dimension name, then thing name.
+
+    """
     return unravel_journeys_in_dimensions(
         db, read_journeys_in_dimensions(db, dimnames))
 
@@ -865,6 +1029,12 @@ place_dimension_qryfmt = (
 
 
 def read_places_in_dimensions(db, dimnames):
+    """Read and instantiate, but do not unravel, all places in the given
+dimensions.
+
+Return them in a 2D dict keyed by dimension name, then place name.
+
+    """
     qryfmt = place_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
     db.c.execute(qrystr, dimnames)
@@ -879,18 +1049,29 @@ def read_places_in_dimensions(db, dimnames):
 
 
 def unravel_places(db, pls):
+    """Unravel places in a dict keyed by their names.
+
+Return the same dict."""
     for pl in pls.itervalues():
         pl.unravel(db)
     return pls
 
 
 def unravel_places_in_dimensions(db, pls):
+    """Unravel places previously read in by read_places or
+read_places_in_dimensions."""
     for pl in pls.itervalues():
         unravel_places(db, pl)
     return pls
 
 
 def load_places_in_dimensions(db, dimnames):
+    """Load all places in the given dimensions.
+
+Return them in a 2D dict keyed by the dimension name, then the place
+name.
+
+    """
     return unravel_places_in_dimensions(
         db, load_places_in_dimensions(db, dimnames))
 
@@ -902,6 +1083,12 @@ portal_dimension_qryfmt = (
 
 
 def read_portals_in_dimensions(db, dimnames):
+    """Read and instantiate, but do not unravel, all portals in the given
+dimensions.
+
+Return them in a 2D dict keyed by dimension name, then portal name.
+
+    """
     qryfmt = portal_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
     db.c.execute(qrystr, dimnames)
@@ -916,17 +1103,25 @@ def read_portals_in_dimensions(db, dimnames):
 
 
 def unravel_portals(db, portd):
+    """Unravel portals in a dict keyed by names. Return the dict."""
     for port in portd.itervalues():
         port.unravel(db)
     return portd
 
 
 def unravel_portals_in_dimensions(db, portdd):
+    """Unravel portals in a 2D dict previously read in by read_portals or
+read_portals_in_dimensions. Return the dict."""
     for ports in portdd.itervalues():
         unravel_portals(db, ports)
     return portdd
 
 
 def load_portals_in_dimensions(db, dimnames):
+    """Load all portals in the given dimensions.
+
+Return them in a 2D dict keyed by dimension name, then portal name.
+
+    """
     return unravel_portals_in_dimensions(
         db, read_portals_in_dimensions(db, dimnames))
