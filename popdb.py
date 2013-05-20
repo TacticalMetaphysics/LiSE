@@ -12,6 +12,15 @@ from database import Database
 from util import dictify_row
 
 
+"""Put some default values I made up into a database called
+default.sqlite, copied from empty.sqlite.
+
+At some point this will compile csv files and maybe xml into a
+database.
+
+"""
+
+
 class DefaultParameters:
     pass
 parms = DefaultParameters()
