@@ -1,16 +1,21 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 
 
+"""Widgets to represent places. Pawns move around on top of these."""
+
+
 __metaclass__ = SaveableMetaclass
 
 
 class Spot:
     """Controller for the icon that represents a Place.
 
-    Spot(place, x, y, spotgraph) => a Spot representing the given
-    place; at the given x and y coordinates on the screen; in the
-    given graph of Spots. The Spot will be magically connected to the other
-    Spots in the same way that the underlying Places are connected."""
+    Return a Spot representing the given place; at the given x and y
+    coordinates on the screen; in the given graph of Spots. The Spot
+    will be magically connected to the other Spots in the same way
+    that the underlying Places are connected.
+
+    """
     tables = [
         ("spot",
          {"dimension": "text",
@@ -27,6 +32,13 @@ class Spot:
 
     def __init__(self, dimension, place, img, x, y,
                  visible, interactive, db=None):
+        """Return a new spot on the given board, representing the given place
+with the given image. It will be at the given coordinates, and visible
+or interactive as indicated.
+
+With db, register the spot with spotdict.
+
+        """
         self.dimension = dimension
         self.place = place
         self.img = img
@@ -56,15 +68,19 @@ class Spot:
             db.spotdict[dimname][placename] = self
 
     def __repr__(self):
+        """Represent the coordinates and the name of the place"""
         return "spot(%i,%i)->%s" % (self.x, self.y, str(self.place))
 
     def __eq__(self, other):
+        """Compare the dimension and the name"""
         return (
             isinstance(other, Spot) and
             self.dimension == other.dimension and
             self.name == other.name)
 
     def unravel(self, db):
+        """Dereference dimension, place, and image. Compute some constants for
+graphics calculations."""
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.place):
@@ -80,61 +96,81 @@ class Spot:
         self.place.spot = self
 
     def getleft(self):
+        """Return the x of my left edge"""
         return self.left
 
     def getbot(self):
+        """Return the y of my bottom edge"""
         return self.bot
 
     def gettop(self):
+        """Return the y of my top edge"""
         return self.top
 
     def getright(self):
+        """Return the y of my right edge"""
         return self.right
 
     def getcenter(self):
+        """Return the coordinates of my centerpoint in a pair"""
         return (self.x, self.y)
 
     def getrx(self):
+        """Return half my width"""
         return self.rx
 
     def getry(self):
+        """Return half my height"""
         return self.ry
 
     def gettup(self):
+        """Return my image, left, and bottom"""
         return (self.img, self.getleft(), self.getbot())
 
     def getcoords(self):
+        """Return my left and bottom"""
         return (self.getleft(), self.getbot())
 
     def is_visible(self):
+        """Can you see me?"""
         return self.visible
 
     def is_interactive(self):
+        """Can you touch me?"""
         return self.interactive
 
     def onclick(self, button, modifiers):
+        """Does nothing yet"""
         pass
 
     def set_hovered(self):
+        """Become hovered"""
         if not self.hovered:
             self.hovered = True
             self.tweaks += 1
 
     def unset_hovered(self):
+        """Stop being hovered"""
         if self.hovered:
             self.hovered = False
             self.tweaks += 1
 
     def set_pressed(self):
+        """Become pressed"""
         pass
 
     def unset_pressed(self):
+        """Stop being pressed"""
         pass
 
     def dropped(self, x, y, button, modifiers):
+        """Stop being dragged by the mouse, forget the grabpoint"""
         self.grabpoint = None
 
     def move_with_mouse(self, x, y, dx, dy, buttons, modifiers):
+        """Remember where exactly I was grabbed, then move around with the
+mouse, always keeping the same relative position with respect to the
+mouse."""
         if self.grabpoint is None:
             self.grabpoint = (x - self.x, y - self.y)
         (grabx, graby) = self.grabpoint
@@ -146,6 +182,8 @@ class Spot:
         self.bot = self.y - self.ry
 
     def get_state_tup(self):
+        """Return a tuple with all the information you might need to draw
+me."""
         return (
             self.img.name,
             self.x,
@@ -163,6 +201,12 @@ spot_dimension_qryfmt = (
 
 
 def read_spots_in_boards(db, names):
+    """Read all spots in the given boards. Instantiate them, but don't
+unravel yet.
+
+Return a 2D dictionary keyed with dimension name, then thing name.
+
+    """
     qryfmt = spot_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
@@ -177,16 +221,25 @@ def read_spots_in_boards(db, names):
 
 
 def unravel_spots(db, spd):
+    """Take a dictionary of spots keyed by place name. Return it with the
+contents unraveled."""
     for spot in spd.itervalues():
         spot.unravel(db)
     return spd
 
 
 def unravel_spots_in_boards(db, spdd):
+    """Unravel the output of read_spots_in_boards."""
     for spots in spdd.itervalues():
         unravel_spots(db, spots)
     return spdd
 
 
 def load_spots_in_boards(db, names):
+    """Load all spots in the given boards.
+
+Return a 2D dictionary keyed first by board dimension name, then by
+place name.
+
+    """
     return unravel_spots_in_boards(db, read_spots_in_boards(db, names))
