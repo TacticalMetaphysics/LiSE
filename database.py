@@ -16,6 +16,7 @@ SQL. That's in util.py, the class SaveableMetaclass.
 
 
 def noop(nope):
+    """Do nothing."""
     pass
 
 
