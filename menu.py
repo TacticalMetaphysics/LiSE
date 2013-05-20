@@ -9,6 +9,9 @@ import re
 import pyglet
 
 
+"""Simple menu widgets"""
+
+
 __metaclass__ = SaveableMetaclass
 
 
@@ -17,6 +20,7 @@ CALENDAR_TOGGLER_RE = re.compile("toggle_calendar\((.*)\)")
 
 
 class MenuItem:
+    """A thing in a menu that you can click to make something happen."""
     tables = [
         ('menu_item',
          {'board': 'text',
@@ -34,6 +38,14 @@ class MenuItem:
 
     def __init__(self, board, menu, idx, text, effect_deck, closer,
                  visible, interactive, db=None):
+        """Return a menu item in the given board, the given menu; at the given
+index in that menu; with the given text; which executes the given
+effect deck when clicked; closes or doesn't when clicked; starts
+visible or doesn't; and starts interactive or doesn't.
+
+With db, register in db's menuitemdict.
+
+        """
         self.board = board
         self.menu = menu
         self.idx = idx
@@ -71,6 +83,8 @@ class MenuItem:
             ptr[self.idx] = self
 
     def unravel(self, db):
+        """Dereference the board, the menu, the effect deck, and the text if
+it starts with an @ character."""
         if stringlike(self.board):
             self.board = db.boarddict[self.board]
         if stringlike(self.menu):
@@ -82,99 +96,127 @@ class MenuItem:
             self.text = db.get_text(self.text[1:])
 
     def onclick(self, button, modifiers):
+        """Event handler that fires the effect deck."""
         self.effect_deck.do()
 
     def set_hovered(self):
+        """Become hovered if I'm not already."""
         if not self.hovered:
             self.hovered = True
             self.tweaks += 1
 
     def unset_hovered(self):
+        """If I'm being hovered, stop it."""
         if self.hovered:
             self.hovered = False
             self.tweaks += 1
 
     def set_pressed(self):
+        """Become pressed if I'm not already."""
         pass
 
     def unset_pressed(self):
+        """If I'm being pressed, stop it."""
         pass
 
     def __eq__(self, other):
+        """Compare the menu and the idx to see if these menu items ought to be
+the same."""
         return (
             isinstance(other, MenuItem) and
             self.menu == other.menu and
             self.idx == other.idx)
 
     def __gt__(self, other):
+        """Compare the text"""
         if isinstance(other, str):
             return self.text > other
         return self.text > other.text
 
     def __ge__(self, other):
+        """Compare the text"""
         if isinstance(other, str):
             return self.text >= other
         return self.text >= other.text
 
     def __lt__(self, other):
+        """Compare the text"""
         if isinstance(other, str):
             return self.text < other
         return self.text < other.text
 
     def __le__(self, other):
+        """Compare the text"""
         if isinstance(other, str):
             return self.text <= other
         return self.text <= other.text
 
     def __repr__(self):
+        """Show my text"""
         return self.text
 
     def getcenter(self):
+        """Return a pair with my center's x and y coords"""
         return (self.get_center_x(), self.get_center_y())
 
     def get_center_x(self):
+        """Return the x at my center"""
         return self.getleft() + self.getrx()
 
     def get_center_y(self):
+        """Return the y at my center"""
         return self.getbot() + self.getry()
 
     def getleft(self):
+        """Return the x at my leftmost edge"""
         return self.menu.getleft() + self.menu.style.spacing
 
     def getright(self):
+        """Return the x at my rightmost edge"""
         return self.menu.getright() - self.menu.style.spacing
 
     def gettop(self):
+        """Return the y at my upper edge"""
         return self.top
 
     def getbot(self):
+        """Return the y at my lower edge"""
         return self.bot
 
     def getwidth(self):
+        """How many pixels wide am I?"""
         return self.getright() - self.getleft()
 
     def getheight(self):
+        """How many pixels tall am I?"""
         return self.menu.style.fontsize + self.menu.style.spacing
 
     def getrx(self):
+        """Return half my width"""
         return self.getwidth() / 2
 
     def getry(self):
+        """Return half my height"""
         return self.getheight() / 2
 
     def toggle_visibility(self):
+        """Become visible if invisible or vice versa"""
         self.visible = not self.visible
         self.tweaks += 1
 
     def hide(self):
+        """Become invisible"""
         if self.visible:
             self.toggle_visibility()
 
     def show(self):
+        """Become visible"""
         if not self.visible:
             self.toggle_visibility()
 
     def get_state_tup(self):
+        """Return a tuple containing everything that's relevant to deciding
+just how to display this widget"""
         return (
             hash(self.menu.get_state_tup()),
             self.idx,
@@ -187,6 +229,8 @@ class MenuItem:
             self.tweaks)
 
     def parse_effect_deck(self, db):
+        """Dereference the effect deck, possibly making a new one if it's
+named a certain way."""
         efd = self.effect_deck
         if isinstance(efd, EffectDeck) or db is None:
             self.effect_deck = efd
@@ -229,6 +273,7 @@ class MenuItem:
             self.effect_deck = db.effectdeckdict[efd]
 
     def is_visible(self):
+        """Can you see me?"""
         return self.visible
 
 
@@ -254,6 +299,7 @@ def parse_menu_item(rows):
 
 
 class Menu:
+    """Container for MenuItems; not interactive unto itself."""
     tables = [
         ('menu',
          {'board': 'text',
@@ -272,6 +318,19 @@ class Menu:
 
     def __init__(self, board, name, left, bottom, top, right, style,
                  main_for_window, visible, db=None):
+        """Return a menu in the given board, with the given name, bounds,
+style, and flags main_for_window and visible.
+
+Bounds are proportional with respect to the lower left corner of the
+window. That is, they are floats, never below 0.0 nor above 1.0, and
+they express a portion of the window's width or height.
+
+main_for_window prevents the menu from ever being hidden. visible
+determines if you can see it at the moment.
+
+With db, register with db's menudict.
+
+        """
         self.board = board
         self.name = name
         self.left = left
@@ -301,6 +360,8 @@ class Menu:
             db.menudict[boardname][self.name] = self
 
     def unravel(self, db):
+        """Dereference style and board; fetch items from db's menuitemdict;
+and unravel style and all items."""
         if stringlike(self.style):
             self.style = db.styledict[self.style]
         self.style.unravel(db)
@@ -318,10 +379,13 @@ class Menu:
             item.unravel(db)
 
     def set_gw(self, gw):
+        """Remember the given gamewindow for use in later graphics
+calculations. Then do the calculations once."""
         self.gw = gw
         self.adjust()
 
     def adjust(self):
+        """Assign absolute coordinates to myself and all my items."""
         self.left_abs = int(self.gw.width * self.left)
         self.right_abs = int(self.gw.width * self.right)
         self.width_abs = int(self.gw.width * self.width)
@@ -341,87 +405,113 @@ class Menu:
             i += 1
 
     def __eq__(self, other):
+        """Return true if the names and boards match"""
         return (
             self.name == other.name and
             self.board == other.board)
 
     def __getitem__(self, i):
+        """Return an item herein"""
         return self.items[i]
 
     def __setitem__(self, i, to):
+        """Set a menuitem"""
         self.items[i] = to
 
     def __delitem__(self, i):
+        """Delete a menuitem"""
         return self.items.__delitem__(i)
 
     def getstyle(self):
+        """Return my style"""
         return self.style
 
     def getleft(self):
+        """Return the x at my left edge"""
         return self.left_abs
 
     def getbot(self):
+        """Return the y at my bottom edge"""
         return self.bot_abs
 
     def gettop(self):
+        """Return the y at my top edge"""
         return self.top_abs
 
     def getright(self):
+        """Return the x at my right edge"""
         return self.right_abs
 
     def getcenter(self):
+        """Return a pair, being coordinates of my center point"""
         fx = self.center_abs[0]
         fy = self.center_abs[1]
         return (fx, fy)
 
     def getwidth(self):
+        """Return width in pixels"""
         return self.width_abs
 
     def getheight(self):
+        """Return height in pixels"""
         return self.height_abs
 
     def getrx(self):
+        """Return half width in pixels"""
         return self.rx_abs
 
     def getry(self):
+        """Return half height in pixels"""
         return self.ry_abs
 
     def is_visible(self):
+        """Can you see me?"""
         return self.visible
 
     def is_interactive(self):
+        """Can you touch me?"""
         return self.interactive
 
     def toggle_visibility(self):
+        """Make myself visible if hidden, invisible if shown."""
         print "toggling visibility of menu {0}".format(self.name)
         self.visible = not self.visible
         self.tweaks += 1
 
     def show(self):
+        """Show myself if I am hidden"""
         if not self.visible:
             self.toggle_visibility()
 
     def hide(self):
+        """Hide myself if I am visible"""
         if self.visible:
             self.toggle_visibility()
 
     def onclick(self, button, modifiers):
+        """If one of my items is hovered, activate it"""
         if self.hovered is not None:
             self.hovered.onclick(button, modifiers)
 
     def set_hovered(self):
+        """Make myself hovered"""
         pass
 
     def unset_hovered(self):
+        """Make myself not hovered"""
         pass
 
     def set_pressed(self):
+        """Make myself pressed"""
         pass
 
     def unset_pressed(self):
+        """Make myself not pressed"""
         pass
 
     def get_state_tup(self):
+        """Return a tuple containing everything you need to decide how to draw
+me"""
         return (
             self,
             self.left,
@@ -443,6 +533,7 @@ item_menu_qryfmt = (
 
 
 def read_items_in_menus(db, menus):
+    """Read all items in the named menus."""
     # Assumes menus are already in db.menudict
     qryfmt = item_menu_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(menus)))
@@ -465,18 +556,22 @@ def read_items_in_menus(db, menus):
 
 
 def unravel_items(db, itd):
+    """Unravel items from a given board"""
     for it in itd.itervalues():
         it.unravel(db)
     return itd
 
 
 def unravel_items_in_menus(db, mitd):
+    """Unravel items from read_items_in_menus"""
     for its in mitd.itervalues():
         unravel_items(db, its)
     return mitd
 
 
 def load_items_in_menus(db, menus):
+    """Load items in the named menus. Return a 2D dict keyed by menu, then
+index."""
     return unravel_items_in_menus(db, read_items_in_menus(db, menus))
 
 
@@ -492,6 +587,12 @@ menu_board_qryfmt = (
 
 
 def read_menus_in_boards(db, boards):
+    """Read all menus in the given boards, and all items therein; but
+don't unravel anything just yet.
+
+Return a 2D dict keyed first by board dimension name, then by menu name.
+
+    """
     qryfmt = menu_board_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(boards)))
     db.c.execute(qrystr, boards)
@@ -516,24 +617,35 @@ def read_menus_in_boards(db, boards):
 
 
 def unravel_menus(db, md):
+    """Unravel a dict of menus keyed by name"""
     for menu in md.itervalues():
         menu.unravel(db)
     return md
 
 
 def unravel_menus_in_boards(db, bmd):
+    """Unravel a 2D dict of menus keyed by board dimension name, then menu
+name"""
     for menus in bmd.itervalues():
         unravel_menus(db, menus)
     return bmd
 
 
 def load_menus_in_boards(db, boards):
+    """Load all menus in the given boards.
+
+Return them in a 2D dict keyed first by board dimension name, then by
+menu name.
+
+    """
     return unravel_menus_in_boards(db, read_menus_in_boards(db, boards))
 
 
 def make_menu_toggler_menu_item(
         target_menu, menu_of_residence, idx, txt,
         closer, visible, interactive, db):
+    """Return a MenuItem that toggles some target_menu other than the
+menu_of_residence it's in."""
     if stringlike(menu_of_residence.board):
         boardname = menu_of_residence.board
     else:
@@ -549,6 +661,8 @@ def make_menu_toggler_menu_item(
 
 def make_calendar_toggler_menu_item(
         menu, item, txt, idx, closer, visible, interactive, db):
+    """Return a MenuItem that toggles the calendar column for a particular
+item."""
     if stringlike(item.dimension):
         dimname = item.dimension
     else:
