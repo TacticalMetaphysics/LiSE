@@ -39,9 +39,14 @@ keyed with their names.
             db.dimensiondict[name] = self
 
     def __hash__(self):
+        """Return the hash of this dimension's name, since the database
+constrains it to be unique."""
         return hash(self.name)
 
     def unravel(self, db):
+        """Get the dictionaries of the items in this dimension from the given
+database. Then iterate over the values therein and unravel
+everything."""
         if not hasattr(self, 'itemdict'):
             self.itemdict = db.itemdict[self.name]
         if not hasattr(self, 'thingdict'):
@@ -110,10 +115,13 @@ thereof will be returned, but the objects won't be unraveled yet.
 
 
 def unravel_dimensions(db, dd):
+    """Unravel dimensions previously read in by read_dimensions."""
     for dim in dd.itervalues():
         dim.unravel(db)
     return dd
 
 
 def load_dimensions(db, names):
+    """Load the dimensions of the given names, along with everything in
+them."""
     return unravel_dimensions(db, read_dimensions(db, names))
