@@ -8,7 +8,8 @@ from event import (
     SenselessEvent,
     ImpossibleEvent,
     IrrelevantEvent,
-    ImpracticalEvent)
+    ImpracticalEvent,
+    PortalTravelEvent)
 from effect import Effect, EffectDeck
 import re
 
@@ -419,19 +420,31 @@ with None as needed."""
             self.steplist.append(None)
         self.steplist[idx] = port
 
-    def gen_event(self, step, db):
-        """Make an Event representing every tick of travel through the given
-portal.
+    def schedule(self, db, delay=0):
+        """Add events representing this journey to the very end of the thing's
+schedule, if it has one.
 
-The Event will not have a start or a length.
+Optional argument delay adds some ticks of inaction between the end of
+the schedule and the beginning of the journey. If there's no schedule,
+or an empty one, that's the amount of time from the start of the game
+that the thing will wait before starting the journey.
+
+Then return the schedule. Just for good measure.
 
         """
-        pass
-
-    def schedule(self, db):
-        """Return a schedule representing this journey, with events for every
-step."""
-        pass
+        if not hasattr(self.thing, 'schedule'):
+            self.thing.schedule = Schedule(self.thing.dimension, self.thing, db)
+        try:
+            end = max(self.thing.schedule.events_ending.viewkeys())
+        except ValueError:
+            end = 0
+        start = end + delay
+        for port in self.steplist:
+            newev = PortalTravelEvent(self.thing, port, False, db)
+            evlen = self.thing.speed_thru(port)
+            self.thing.schedule.add(newev.scheduled_copy(start, evlen))
+            start += evlen
+        return self.thing.schedule
 
 
 class Schedule:
@@ -483,6 +496,9 @@ class Schedule:
 
     def __iter__(self):
         return self.events.itervalues()
+
+    def __len__(self):
+        return max(self.events_ongoing.viewkeys())
 
     def unravel(self, db):
         if stringlike(self.dimension):
