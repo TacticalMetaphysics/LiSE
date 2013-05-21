@@ -5,7 +5,6 @@ from style import read_styles
 from spot import read_spots_in_boards
 from calendar import Calendar, read_calendar_cols_in_boards
 from pawn import read_pawns_in_boards
-from menu import read_menus_in_boards
 from dimension import read_dimensions
 
 

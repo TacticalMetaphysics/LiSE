@@ -1,5 +1,9 @@
 from util import SaveableMetaclass, dictify_row
-from effect import load_effect_decks
+from effect import (
+    load_effect_decks,
+    PortalEntryEffectDeck,
+    PortalProgressEffectDeck,
+    PortalExitEffectDeck)
 
 
 class SenselessEvent(Exception):
@@ -133,6 +137,28 @@ success that strains a person terribly and causes them injury.
         return self.name
 
 
+class PortalTravelEvent(Event):
+    """Event representing a thing's travel through a single portal, from
+one place to another."""
+    name_format = "PortalTravelEvent {0}: {1}: {2}-{3}->{4}"
+    text_format = "Travel from {0} to {1}"
+
+    def __init__(self, thing, portal, ongoing, db=None):
+        dimname = thing.dimension.name
+        origname = portal.orig.name
+        destname = portal.dest.name
+        name = self.name_format.format(
+            dimname, thing.name, origname, portal.name, destname)
+        text = self.text_format.format(origname, destname)
+        commence_effects = PortalEntryEffectDeck(thing, portal, db)
+        proceed_effects = PortalProgressEffectDeck(thing, db)
+        conclude_effects = PortalExitEffectDeck(thing, db)
+        Event.__init__(
+            self, name, text, ongoing,
+            commence_effects, proceed_effects, conclude_effects,
+            db)
+
+
 class EventDeck:
     tables = [
         ("event_deck_link",
@@ -201,6 +227,8 @@ def lookup_between(startdict, start, end):
 
 
 def get_all_starting_between(db, start, end):
+    """Look through all the events yet loaded by the database, and return
+a dictionary of those that start in the given range."""
     r = {}
     for item in db.startevdict.itervalues():
         r.update(lookup_between(item, start, end))

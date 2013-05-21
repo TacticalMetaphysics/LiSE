@@ -1,4 +1,4 @@
-from event import get_all_starting_ongoing_ending as gasoe
+import logging
 # do I want to handle the timer here? that might be good
 
 
@@ -25,36 +25,23 @@ state of the interface.
             newage += 1
         if newage == self.age:
             return
-        starts = {}
-        conts = {}
-        ends = {}
-        for dimension in self.db.dimensiondict.itervalues():
-            for item in dimension.itemdict.itervalues():
-                if hasattr(item, 'schedule'):
-                    (s, c, e) = gasoe(self.db, self.age, newage)
-                    starts.update(s)
-                    conts.update(c)
-                    ends.update(e)
         for i in xrange(self.age, newage):
-            if i in starts:
-                s = iter(starts[i])
-                for starter in s:
-                    starter.commence()
-            if i in conts:
-                c = iter(conts[i])
-                for continuer in c:
-                    continuer.proceed()
-            if i in ends:
-                e = iter(ends[i])
-                for ender in e:
-                    ender.conclude()
-            self.age = i
+            starts = iter(self.db.startevdict[i])
+            conts = iter(self.db.contevdict[i])
+            ends = iter(self.db.endevdict[i])
+            if log.isEnabledFor(logging.DEBUG):
+                x = {
+                    "ts": ts,
+                    "st": st,
+                    "i": i,
+                    "old_age": self.age,
+                    "new_age": newage}
+                log.debug("Updating game state.", extra=x)
+            for ev in starts:
+                ev.commence()
+            for ev in conts:
+                ev.proceed()
+            for ev in ends:
+                ev.conclude()
+        self.age = newage
 
-    def add(self, dimension):
-        self.dimensions.add(dimension)
-
-    def discard(self, dimension):
-        self.dimensions.discard(dimension)
-
-    def remove(self, dimension):
-        self.dimensions.remove(dimension)

@@ -21,11 +21,15 @@ class Effect:
          {},
          [])]
 
-    def __init__(self, name, func, arg, dict_hint=None, db=None):
+    def __init__(self, name, func, arg,  db=None):
+        """Return an Effect of the given name, where the given function is
+called with the given argument. If a database is supplied, register in
+its effectdict."""
+        if name is None:
+            name = "{0}({1})".format(func, arg)
         self.name = name
         self.func = func
         self.arg = arg
-        self.dict_hint = dict_hint
         if db is not None:
             db.effectdict[name] = self
 
@@ -38,6 +42,39 @@ class Effect:
 
 
 NULL_EFFECT = Effect("null", "noop", "nope")
+
+
+class PortalEntryEffect(Effect):
+    """Effect to put an item in a portal when it wasn't before."""
+    def __init__(self, item, portal, db=None):
+        assert(item.dimension == portal.dimension)
+        self.item = item
+        self.portal = portal
+        dimname = item.dimension.name
+        arg = "{0}.{1}->{2}".format(dimname, item.name, portal.name)
+        name = "thing_into_portal({0})".format(arg)
+        Effect.__init__(self, name, "thing_into_portal", arg, db)
+
+
+class PortalProgressEffect(Effect):
+    """Effect to move a thing some distance along a portal, but not out of
+it."""
+    def __init__(self, item, db=None):
+        self.item = item
+        arg = "{0}.{1}".format(item.dimension.name, item.name)
+        name = "thing_along_portal({0})".format(arg)
+        Effect.__init__(self, name, "thing_along_portal", arg, db)
+
+
+class PortalExitEffect(Effect):
+    """Effect to put an item into the destination of a portal it's already
+in, incidentally taking it out of the portal."""
+    def __init__(self, item, db=None):
+        self.item = item
+        self.portal = item.location.getreal()
+        arg = "{0}.{1}".format(item.dimension.name, item.name)
+        name = "thing_out_of_portal({0})".format(arg)
+        Effect.__init__(self, name, "thing_out_of_portal", arg, db)
 
 
 class EffectDeck:
@@ -63,6 +100,24 @@ class EffectDeck:
 
     def do(self):
         return [effect.do() for effect in self.effects]
+
+
+class PortalEntryEffectDeck(EffectDeck):
+    def __init__(self, item, portal, db=None):
+        effect = PortalEntryEffect(item, portal, db)
+        EffectDeck.__init__(self, effect.name, [effect], db)
+
+
+class PortalProgressEffectDeck(EffectDeck):
+    def __init__(self, item, amount, db=None):
+        effect = PortalProgressEffect(item, amount, db)
+        EffectDeck.__init__(self, effect.name, [effect], db)
+
+
+class PortalExitEffectDeck(EffectDeck):
+    def __init__(self, item, amount, db=None):
+        effect = PortalExitEffect(item, amount, db)
+        EffectDeck.__init__(self, effect.name, [effect], db)
 
 
 load_effect_qryfmt = (
