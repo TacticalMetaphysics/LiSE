@@ -1,4 +1,50 @@
 class SaveableMetaclass(type):
+    """Sort of an object relational mapper.
+
+Classes with this metaclass need to be declared with an attribute
+called tables. This is a sequence of tuples. Each of the tuples is of
+length 5. Each describes a table that records what's in the class.
+
+The meaning of each tuple is thus:
+
+(name, column_declarations, primary_key, foreign_keys, checks)
+
+name is the name of the table as sqlite3 will use it.
+
+column_declarations is a dictionary. The keys are field names, aka
+column names. Each value is the type for its field, perhaps including
+a clause like DEFAULT 0.
+
+primary_key is an iterable over strings that are column names as
+declared in the previous argument. Together the columns so named form
+the primary key for this table.
+
+foreign_keys is a dictionary. Each foreign key is a key here, and its
+value is a pair. The first element of the pair is the foreign table
+that the foreign key refers to. The second element is the field or
+fields in that table that the foreign key points to.
+
+checks is an iterable over strings that will end up in a CHECK(...)
+clause in sqlite3.
+
+A class can have any number of such table-tuples. The tables will be
+declared in the order they appear in the tables attribute.
+
+To save, you need to define a method called get_tabdict. It should
+return a dictionary where the keys are table names. The values are
+either rowdicts or iterables over rowdicts. A rowdict is a dictionary
+containing the information in a single record of a table; the keys are
+the names of the fields.
+
+To load, you need to define a method called from_tabdict that takes
+that same kind of dictionary and returns an instance of your class.
+
+Once you've defined those, the save(db) and load(db) methods will save
+or load your class in the given database. If you need to create the
+database, look at the schemata attribute: execute that in a SQL cursor
+and your table will be ready.
+
+    """
     def __new__(metaclass, clas, parents, attrs):
         tablenames = []
         primarykeys = {}
@@ -446,4 +492,6 @@ def compile_tabdicts(objs):
 
 
 def stringlike(o):
+    """Return True if I can easily cast this into a string, False
+otherwise."""
     return isinstance(o, str) or isinstance(o, unicode)
