@@ -567,7 +567,7 @@ Journey.
 
 
 class Schedule:
-    "Many events, all assocated with the same item in the same dimension,
+    """Many events, all assocated with the same item in the same dimension,
 and given start times and lengths.
 
 Events in a given schedule are assumed never to overlap. This is not
