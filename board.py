@@ -83,6 +83,22 @@ board later to get those pointers.
                 dimname = self.dimension.name
             db.boarddict[dimname] = self
 
+    def get_tabdict(self):
+        return {
+            "board": {
+                "dimension": self.dimension.name,
+                "wallpaper": self.wallpaper.name,
+                "width": self.width,
+                "height": self.height,
+                "calendar_visible": self.calendar.visible,
+                "calendar_interactive": self.calendar.interactive,
+                "calendar_left": self.calendar.left,
+                "calendar_right": self.calendar.right,
+                "calendar_top": self.calendar.top,
+                "calendar_bot": self.calendar.bot,
+                "calendar_rows_on_screen": self.calendar.rows_on_screen,
+                "calendar_scrolled_to": self.calendar.scrolled_to}}
+
     def unravel(self, db):
         """Dereference strings into Python objects.
 
@@ -129,6 +145,9 @@ and menus herein.
             "dimension %s, containing %d spots, %d pawns, and %d menus."\
             % (self.width, self.height, self.dimension, len(self.spotdict),
                len(self.pawndict), len(self.menudict))
+
+    def __str__(self):
+        return self.name
 
 
 read_some_boards_format = (

@@ -25,6 +25,13 @@ class Img:
         if db is not None:
             db.imgdict[name] = self
 
+    def get_tabdict(self):
+        return {
+            "img": {
+                "name": self.name,
+                "path": self.path,
+                "rltile": self.rltile}}
+
     def unravel(self, db):
         if self.tex is None:
             if self.rltile:

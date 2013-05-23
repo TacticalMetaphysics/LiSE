@@ -164,11 +164,13 @@ class SaveableMetaclass(type):
         def missing_tabdict(db, tabdict):
             return op_tabdict(db, tabdict, missing_keydicts_table)
 
-        def mkrow(self, tabname, rowdict=None):
+        def mkrow(self, tabn=None, rowdict=None):
+            if tabn is None:
+                tabn = self.maintab
             if rowdict is None:
-                rowdict = self.mkrowdict(tabname)
+                rowdict = self.mkrowdict(tabn)
             r = []
-            for coln in self.colnames[tabname]:
+            for coln in self.colnames[tabn]:
                 r.append(rowdict[coln])
             return tuple(r)
 
@@ -184,7 +186,10 @@ class SaveableMetaclass(type):
                     for r in iter(getattr(self, tabname))]
             r = {}
             for colname in self.colnames[tabname]:
-                r[colname] = getattr(self, colname)
+                if getattr(self, colname).__class__ in (int, float, bool):
+                    r[colname] = getattr(self, colname)
+                else:
+                    r[colname] = str(getattr(self, colname))
             return r
 
         def mktabdict(self):
@@ -215,9 +220,9 @@ class SaveableMetaclass(type):
                   'rowqms': rowqms,
                   'dbop': dbop,
                   'unravel': unravel,
-                  'mkrow': mkrow,
-                  'mkrowdict': mkrowdict,
-                  'mktabdict': mktabdict,
+                  'get_row': mkrow,
+                  'get_rowdict': mkrowdict,
+                  'get_tabdict': mktabdict,
                   'maintab': tablenames[0]}
         atrdic.update(attrs)
 

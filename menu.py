@@ -270,6 +270,12 @@ class Menu:
          [])]
     interactive = True
 
+    def get_tabdict(self):
+        return {
+            "menu": self.get_rowdict(),
+            "menu_item": [it.get_rowdict() for it in self.items]
+        }
+
     def __init__(self, board, name, left, bottom, top, right, style,
                  main_for_window, visible, db=None):
         self.board = board

@@ -37,6 +37,9 @@ tuples that Pyglet uses to identify colors.
         if db is not None:
             db.colordict[self.name] = self
 
+    def __str__(self):
+        return self.name
+
     def __eq__(self, other):
         return (
             isinstance(other, Color) and
@@ -48,7 +51,7 @@ tuples that Pyglet uses to identify colors.
     def __iter__(self):
         return iter(self.tup)
 
-    def __str__(self):
+    def __repr__(self):
         return "(" + ", ".join(self.tup) + ")"
 
 
@@ -84,6 +87,9 @@ class Style:
         self.fg_active = fg_active
         if db is not None:
             db.styledict[self.name] = self
+
+    def __str__(self):
+        return self.name
 
     def unravel(self, db):
         for colorcol in self.color_cols:

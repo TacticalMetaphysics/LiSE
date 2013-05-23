@@ -44,6 +44,9 @@ class Item:
          {},
          [])]
 
+    def __str__(self):
+        return self.name
+
 
 class Location:
     """Behaves just like the place (or thing, or portal) where a given
@@ -60,7 +63,7 @@ Call the get_real() method if you want the underlying object.
         self.getreal = lambda self: db.locdict[dimname][itemname]
 
     def __getattr__(self, attrn):
-        return self.get_real().__getattribute__(attrn)
+        return getattr(self.get_real(), attr)
 
     def __setattr__(self, att, val):
         return self.get_real().__setattr__(att, val)

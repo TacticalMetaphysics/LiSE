@@ -19,12 +19,6 @@ class Dimension:
 places, or portals with any other dimension, but possibly sharing
 characters."""
 
-    tables = [("dimension",
-               {"name": "text"},
-               ("name",),
-               {},
-               [])]
-
     def __init__(self, name, db=None):
         """Return a dimension with the given name.
 

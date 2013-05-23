@@ -33,6 +33,16 @@ its effectdict."""
         if db is not None:
             db.effectdict[name] = self
 
+    def get_rowdict(self):
+        return {
+            "name": self.name,
+            "func": self.func,
+            "arg": self.arg}
+
+    def get_tabdict(self):
+        return {
+            "effect": self.get_rowdict()}
+
     def unravel(self, db):
         if stringlike(self.func):
             self.func = db.func[self.func]
@@ -92,6 +102,15 @@ class EffectDeck:
         self.effects = effects
         if db is not None:
             db.effectdeckdict[self.name] = self
+
+    def get_tabdict(self):
+        rowdicts = []
+        for i in xrange(0, len(self.effects)):
+            rowdicts.append({
+                "deck": self.name,
+                "idx": i,
+                "effect": self.effects[i].name})
+        return {"effect_deck_link": rowdicts}
 
     def unravel(self, db):
         for effn in self.effects:

@@ -71,6 +71,15 @@ success that strains a person terribly and causes them injury.
         if db is not None:
             db.eventdict[name] = self
 
+    def get_tabdict(self):
+        return {
+            "name": self.name,
+            "text": self.text,
+            "ongoing": self.ongoing,
+            "commence_effects": self.commence_effects.name,
+            "proceed_effects": self.proceed_effects.name,
+            "conclude_effects": self.conclude_effects.name}
+
     def unravel(self, db):
         if self.text[0] == "@":
             self.text = db.get_text(self.text[1:])
@@ -174,6 +183,20 @@ class EventDeck:
         self.events = event_list
         if db is not None:
             db.eventdeckdict[self.name] = self
+
+    def get_tabdict(self):
+        rowdicts = []
+        for i in xrange(0, len(self.events)):
+            rowdicts.append({
+                "deck": self.name,
+                "idx": i,
+                "event": self.events[i].name})
+        return {"event_deck_link": rowdicts}
+
+    def unravel(self, db):
+        for i in xrange(0, len(self.events)):
+            if stringlike(self.events[i]):
+                self.events[i] = db.eventdict[self.events[i]]
 
 
 evdl_qcol = ["event_deck_link." + coln for coln in EventDeck.colns]
