@@ -11,9 +11,6 @@ from util import SaveableMetaclass
 """Class and loaders for dimensions--the top of the world hierarchy."""
 
 
-__metaclass__ = SaveableMetaclass
-
-
 class Dimension:
     """Container for a given view on the game world, sharing no things,
 places, or portals with any other dimension, but possibly sharing

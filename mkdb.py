@@ -1,6 +1,5 @@
 import database
 import os
-from dimension import Dimension
 from item import Item, Thing, Place, Portal, Schedule, Journey
 from effect import Effect, EffectDeck
 from event import Event, EventDeck
@@ -13,7 +12,6 @@ from pawn import Pawn
 from board import Board
 
 tabclasses = [
-    Dimension,
     Schedule,
     Item,
     Thing,

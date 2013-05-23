@@ -1,5 +1,7 @@
 class SaveableMetaclass(type):
     def __new__(metaclass, clas, parents, attrs):
+        if clas in parents:
+            return clas
         tablenames = []
         primarykeys = {}
         foreignkeys = {}
@@ -10,9 +12,9 @@ class SaveableMetaclass(type):
         elif hasattr(clas, 'tables'):
             tablist = clas.tables
         else:
-            for clas in parents:
-                if hasattr(clas, 'tables'):
-                    tablist = clas.tables
+            for par in parents:
+                if hasattr(par, 'tables'):
+                    tablist = par.tables
                     break
             assert(tablist is not None)
         for tabtup in tablist:
@@ -236,7 +238,7 @@ class SaveableMetaclass(type):
                   'maintab': tablenames[0]}
         atrdic.update(attrs)
 
-        return super(
+        return type.__new__(metaclass, clas, parents, atrdic)
 
 
 def start_new_map(nope):

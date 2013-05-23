@@ -860,7 +860,7 @@ def load_places_in_dimensions(db, dimnames):
 portal_colstr = ", ".join(Portal.colnames["portal"])
 portal_dimension_qryfmt = (
     "SELECT {0} FROM portal WHERE dimension IN "
-    "({1})".format(portal_colstr), "{0}")
+    "({1})".format(portal_colstr, "{0}"))
 
 
 def read_portals_in_dimensions(db, dimnames):

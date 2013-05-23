@@ -2,6 +2,7 @@ from util import SaveableMetaclass, dictify_row, stringlike
 
 
 class Effect:
+    __metaclass__ = SaveableMetaclass
     """Curry a function name and a string argument.
 
     This is actually still good for function calls that don't have any
@@ -9,7 +10,6 @@ class Effect:
     table, which does in fact use these to describe effects.
 
     """
-    __metaclass__ = SaveableMetaclass
     tables = [
         ("effect",
          {"name": "text",
