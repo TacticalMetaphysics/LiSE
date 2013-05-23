@@ -89,12 +89,11 @@ class Portal(Item):
     tables = [
         ("portal",
          {"dimension": "text DEFAULT 'Physical'",
-          "name": "text DEFAULT dimension||'.'||from_place||'->'||to_place",
           "from_place": "text",
           "to_place": "text"},
-         ("dimension", "name"),
-         {"dimension, name": ("item", "dimension, name"),
-          "dimension, from_place": ("place", "dimension, name"),
+         ("dimension", "from_place", "to_place"),
+         # This schema relies on a trigger to create an appropriate item record.
+         {"dimension, from_place": ("place", "dimension, name"),
           "dimension, to_place": ("place", "dimension, name")},
          [])]
 

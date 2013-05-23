@@ -256,12 +256,12 @@ def parse_menu_item(rows):
 class Menu:
     tables = [
         ('menu',
-         {'board': "text default 'Physical'"
+         {'board': "text default 'Physical'",
           'name': 'text',
           'left': "float default 0.2",
           'bottom': "float default 0.0",
           'top': 'float default 1.0',
-          'right': 'float default 0.3'
+          'right': 'float default 0.3',
           'style': "text default 'SmallDark'",
           "main_for_window": "boolean default 0",
           "visible": "boolean default 0"},
