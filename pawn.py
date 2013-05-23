@@ -23,18 +23,18 @@ class Pawn:
 
     tables = [
         ("pawn",
-         {"board": "text",
+         {"dimension": "text",
           "thing": "text",
           "img": "text",
           "visible": "boolean",
           "interactive": "boolean"},
-         ("board", "thing"),
+         ("dimension", "thing"),
          {"img": ("img", "name"),
-          "board, thing": ("thing", "dimension, name")},
+          "dimension, thing": ("thing", "dimension, name")},
          [])]
 
-    def __init__(self, board, thing, img, visible, interactive, db=None):
-        self.board = board
+    def __init__(self, dimension, thing, img, visible, interactive, db=None):
+        self.dimension = dimension
         self.thing = thing
         self.img = img
         self.visible = visible
@@ -48,13 +48,10 @@ class Pawn:
         if db is not None:
             dimname = None
             thingname = None
-            if stringlike(self.board):
-                dimname = self.board
+            if stringlike(self.dimension):
+                dimname = self.dimension
             else:
-                if stringlike(self.board.dimension):
-                    dimname = self.board.dimension
-                else:
-                    dimname = self.board.dimension.name
+                dimname = self.dimension.name
             if stringlike(self.thing):
                 thingname = self.thing
             else:
@@ -75,8 +72,9 @@ class Pawn:
 
     def unravel(self, db):
         # Invariant: things have already been unraveled
-        if stringlike(self.board):
-            self.board = db.boarddict[self.board]
+        if stringlike(self.dimension):
+            self.dimension = db.dimensiondict[self.dimension]
+        self.board = db.boarddict[self.dimension.name]
         if stringlike(self.thing):
             self.thing = db.itemdict[self.board.dimension.name][self.thing]
         self.thing.pawn = self

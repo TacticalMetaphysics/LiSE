@@ -10,6 +10,7 @@ from event import (
     IrrelevantEvent,
     ImpracticalEvent,
     PortalTravelEvent)
+from location import Location
 from effect import Effect, EffectDeck
 import re
 

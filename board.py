@@ -43,8 +43,7 @@ time.
           "calendar_rows_on_screen": "integer DEFAULT 240",
           "calendar_scrolled_to": "integer DEFAULT 0"},
          ("dimension",),
-         {"dimension": ("dimension", "name"),
-          "wallpaper": ("image", "name")},
+         {"wallpaper": ("image", "name")},
          ["calendar_rows_on_screen > 0", "calendar_scrolled_to >= 0"])]
 
     def __init__(self, dimension, width, height, wallpaper,
