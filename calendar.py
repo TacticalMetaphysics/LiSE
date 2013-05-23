@@ -141,10 +141,10 @@ cells.
     __metaclass__ = SaveableMetaclass
     tables = [
         ("calendar_col",
-         {"dimension": "text",
+         {"dimension": "text DEFAULT 'Physical'",
           "item": "text",
-          "visible": "boolean",
-          "interactive": "boolean",
+          "visible": "boolean DEFAULT 1",
+          "interactive": "boolean DEFAULT 1",
           "style": "text DEFAULT 'BigLight'",
           "cel_style": "text DEFAULT 'SmallDark'"},
          ("dimension", "item"),

@@ -12,7 +12,7 @@ class Img:
         ("img",
          {"name": "text",
           "path": "text",
-          "rltile": "boolean"},
+          "rltile": "boolean DEFAULT 0"},
          ("name",),
          {},
          [])]

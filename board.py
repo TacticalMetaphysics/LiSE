@@ -30,8 +30,8 @@ time.
 """
     tables = [
         ("board",
-         {"dimension": "text",
-          "wallpaper": "text",
+         {"dimension": "text DEFAULT 'Physical'",
+          "wallpaper": "text DEFAULT 'default_wallpaper'",
           "width": "integer DEFAULT 1024",
           "height": "integer DEFAULT 768",
           "calendar_visible": "boolean DEFAULT 0",

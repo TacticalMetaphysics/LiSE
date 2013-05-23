@@ -21,7 +21,7 @@ __metaclass__ = SaveableMetaclass
 class Item:
     tables = [
         ("item",
-         {"dimension": "text",
+         {"dimension": "text DEFAULT 'Physical'",
           "name": "text"},
          ("dimension", "name"),
          {},
@@ -34,7 +34,7 @@ class Item:
 class Place(Item):
     tables = [
         ("place",
-         {"dimension": "text",
+         {"dimension": "text DEFAULT 'Physical'",
           "name": "text"},
          ("dimension", "name"),
          {},
@@ -88,8 +88,8 @@ class Place(Item):
 class Portal(Item):
     tables = [
         ("portal",
-         {"dimension": "text",
-          "name": "text",
+         {"dimension": "text DEFAULT 'Physical'",
+          "name": "text DEFAULT dimension||'.'||from_place||'->'||to_place",
           "from_place": "text",
           "to_place": "text"},
          ("dimension", "name"),
@@ -193,12 +193,12 @@ length. Does nothing by default."""
 class Thing(Item):
     tables = [
         ("thing",
-         {"dimension": "text",
+         {"dimension": "text DEFAULT 'Physical'",
           "name": "text",
-          "location": "text not null",
-          "journey_progress": "float default 0.0",
-          "journey_step": "integer default 0",
-          "age": "integer default 0"},
+          "location": "text DEFAULT ''",
+          "journey_progress": "float DEFAULT 0.0",
+          "journey_step": "integer DEFAULT 0",
+          "age": "integer DEFAULT 0"},
          ("dimension", "name"),
          {"dimension, location": ("item", "dimension, name")},
          [])]
@@ -369,7 +369,7 @@ class Journey:
     """
     tables = [
         ("journey_step",
-         {"dimension": "text",
+         {"dimension": "text default 'Physical'",
           "thing": "text",
           "idx": "integer",
           "portal": "text"},
@@ -520,11 +520,11 @@ Then return the schedule. Just for good measure.
 class Schedule:
     tables = [
         ("scheduled_event",
-         {"dimension": "text",
+         {"dimension": "text default 'Physical'",
           "item": "text",
           "start": "integer",
           "event": "text not null",
-          "length": "integer"},
+          "length": "integer default 1"},
          ("dimension", "item"),
          {"dimension, item": ("item", "dimension, name"),
           "event": ("event", "name")},

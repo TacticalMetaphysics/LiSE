@@ -19,14 +19,14 @@ CALENDAR_TOGGLER_RE = re.compile("toggle_calendar\((.*)\)")
 class MenuItem:
     tables = [
         ('menu_item',
-         {'board': 'text',
+         {'board': "text default 'Physical'",
           'menu': 'text',
           'idx': 'integer',
           'text': 'text',
           'effect_deck': 'text',
-          'closer': 'boolean',
-          'visible': 'boolean',
-          'interactive': 'boolean'},
+          'closer': "boolean default 1",
+          'visible': "boolean default 1",
+          'interactive': "boolean default 1"},
          ('board', 'menu', 'idx'),
          {"board, menu": ("menu", "board, name"),
           "effect_deck": ("effect_deck_link", "deck")},
@@ -256,13 +256,13 @@ def parse_menu_item(rows):
 class Menu:
     tables = [
         ('menu',
-         {'board': 'text',
+         {'board': "text default 'Physical'"
           'name': 'text',
-          'left': 'float not null',
-          'bottom': 'float not null',
-          'top': 'float not null',
-          'right': 'float not null',
-          'style': "text default 'Default'",
+          'left': "float default 0.2",
+          'bottom': "float default 0.0",
+          'top': 'float default 1.0',
+          'right': 'float default 0.3'
+          'style': "text default 'SmallDark'",
           "main_for_window": "boolean default 0",
           "visible": "boolean default 0"},
          ('name',),
