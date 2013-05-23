@@ -1,9 +1,6 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 
 
-__metaclass__ = SaveableMetaclass
-
-
 class Effect:
     """Curry a function name and a string argument.
 
@@ -12,6 +9,7 @@ class Effect:
     table, which does in fact use these to describe effects.
 
     """
+    __metaclass__ = SaveableMetaclass
     tables = [
         ("effect",
          {"name": "text",
@@ -88,6 +86,7 @@ in, incidentally taking it out of the portal."""
 
 
 class EffectDeck:
+    __metaclass__ = SaveableMetaclass
     tables = [
         ("effect_deck_link",
          {"deck": "text",

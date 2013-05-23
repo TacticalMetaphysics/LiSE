@@ -17,24 +17,6 @@ import re
 __metaclass__ = SaveableMetaclass
 
 
-class LocationException(Exception):
-    pass
-
-
-class ContainmentException(Exception):
-    """Exception raised when a Thing tried to go into or out of another
-Thing, and it made no sense.
-
-    """
-    pass
-
-
-class PortalException(Exception):
-    """Exception raised when a Thing tried to move into or out of or along
-a Portal, and it made no sense."""
-    pass
-
-
 class Item:
     tables = [
         ("item",
@@ -46,27 +28,6 @@ class Item:
 
     def __str__(self):
         return self.name
-
-
-class Location:
-    """Behaves just like the place (or thing, or portal) where a given
-thing is presently located.
-
-Call the get_real() method if you want the underlying object.
-
-    """
-    def __init__(self, db, dimname, itemname):
-        if dimname not in db.locdict:
-            db.locdict[dimname] = {}
-        if itemname not in db.locdict[dimname]:
-            db.locdict[dimname][itemname] = None
-        self.getreal = lambda self: db.locdict[dimname][itemname]
-
-    def __getattr__(self, attrn):
-        return getattr(self.get_real(), attr)
-
-    def __setattr__(self, att, val):
-        return self.get_real().__setattr__(att, val)
 
 
 class Place(Item):
@@ -121,6 +82,111 @@ class Place(Item):
     def can_contain(self, other):
         """Does it make sense for that to be here?"""
         return True
+
+
+class Portal(Item):
+    tables = [
+        ("portal",
+         {"dimension": "text",
+          "name": "text",
+          "from_place": "text",
+          "to_place": "text"},
+         ("dimension", "name"),
+         {"dimension, name": ("item", "dimension, name"),
+          "dimension, from_place": ("place", "dimension, name"),
+          "dimension, to_place": ("place", "dimension, name")},
+         [])]
+
+    def __init__(self, dimension, name, from_place, to_place, db=None):
+        self.dimension = dimension
+        self.name = name
+        self.orig = from_place
+        self.dest = to_place
+        if db is not None:
+            dimname = None
+            from_place_name = None
+            to_place_name = None
+            if stringlike(self.dimension):
+                dimname = self.dimension
+            else:
+                dimname = self.dimension.name
+            if stringlike(self.orig):
+                from_place_name = self.orig
+            else:
+                from_place_name = self.orig.name
+            if stringlike(self.dest):
+                to_place_name = self.dest
+            else:
+                to_place_name = self.dest.name
+            podd = db.portalorigdestdict
+            pdod = db.portaldestorigdict
+            for d in [db.itemdict, db.portaldict, podd, pdod]:
+                if dimname not in d:
+                    d[dimname] = {}
+            if from_place_name not in podd[dimname]:
+                podd[dimname][from_place_name] = {}
+            if to_place_name not in pdod[dimname]:
+                pdod[dimname][to_place_name] = {}
+            db.itemdict[dimname][self.name] = self
+            db.portaldict[dimname][self.name] = self
+            podd[dimname][from_place_name][to_place_name] = self
+            pdod[dimname][to_place_name][from_place_name] = self
+
+    def unravel(self, db):
+        if stringlike(self.dimension):
+            self.dimension = db.dimensiondict[self.dimension]
+        if stringlike(self.orig):
+            self.orig = db.itemdict[self.dimension.name][self.orig]
+        if stringlike(self.dest):
+            self.dest = db.itemdict[self.dimension.name][self.dest]
+
+    def __hash__(self):
+        return self.hsh
+
+    def get_weight(self):
+        return self.weight
+
+    def get_avatar(self):
+        return self.avatar
+
+    def is_passable_now(self):
+        return True
+
+    def admits(self, traveler):
+        """Return True if I want to let the given thing enter me, False
+otherwise."""
+        return True
+
+    def is_now_passable_by(self, traveler):
+        return self.isPassableNow() and self.admits(traveler)
+
+    def get_dest(self):
+        return self.dest
+
+    def get_orig(self):
+        return self.orig
+
+    def get_ends(self):
+        return [self.orig, self.dest]
+
+    def touches(self, place):
+        return self.orig is place or self.dest is place
+
+    def find_neighboring_portals(self):
+        return self.orig.portals + self.dest.portals
+
+    def notify_moving(self, thing, amount):
+        """Handler for when a thing moves through me by some amount of my
+length. Does nothing by default."""
+        pass
+
+    def add(self, thing):
+        """Add this thing to my contents if it's not there already."""
+        self.contents.add(thing)
+
+    def remove(self, thing):
+        """Remove this thing from my contents."""
+        self.contents.remove(thing)
 
 
 class Thing(Item):
@@ -600,111 +666,6 @@ member."""
                 self.conclusions_between(start, end))
 
 
-class Portal(Item):
-    tables = [
-        ("portal",
-         {"dimension": "text",
-          "name": "text",
-          "from_place": "text",
-          "to_place": "text"},
-         ("dimension", "name"),
-         {"dimension, name": ("item", "dimension, name"),
-          "dimension, from_place": ("place", "dimension, name"),
-          "dimension, to_place": ("place", "dimension, name")},
-         [])]
-
-    def __init__(self, dimension, name, from_place, to_place, db=None):
-        self.dimension = dimension
-        self.name = name
-        self.orig = from_place
-        self.dest = to_place
-        if db is not None:
-            dimname = None
-            from_place_name = None
-            to_place_name = None
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            if stringlike(self.orig):
-                from_place_name = self.orig
-            else:
-                from_place_name = self.orig.name
-            if stringlike(self.dest):
-                to_place_name = self.dest
-            else:
-                to_place_name = self.dest.name
-            podd = db.portalorigdestdict
-            pdod = db.portaldestorigdict
-            for d in [db.itemdict, db.portaldict, podd, pdod]:
-                if dimname not in d:
-                    d[dimname] = {}
-            if from_place_name not in podd[dimname]:
-                podd[dimname][from_place_name] = {}
-            if to_place_name not in pdod[dimname]:
-                pdod[dimname][to_place_name] = {}
-            db.itemdict[dimname][self.name] = self
-            db.portaldict[dimname][self.name] = self
-            podd[dimname][from_place_name][to_place_name] = self
-            pdod[dimname][to_place_name][from_place_name] = self
-
-    def unravel(self, db):
-        if stringlike(self.dimension):
-            self.dimension = db.dimensiondict[self.dimension]
-        if stringlike(self.orig):
-            self.orig = db.itemdict[self.dimension.name][self.orig]
-        if stringlike(self.dest):
-            self.dest = db.itemdict[self.dimension.name][self.dest]
-
-    def __hash__(self):
-        return self.hsh
-
-    def get_weight(self):
-        return self.weight
-
-    def get_avatar(self):
-        return self.avatar
-
-    def is_passable_now(self):
-        return True
-
-    def admits(self, traveler):
-        """Return True if I want to let the given thing enter me, False
-otherwise."""
-        return True
-
-    def is_now_passable_by(self, traveler):
-        return self.isPassableNow() and self.admits(traveler)
-
-    def get_dest(self):
-        return self.dest
-
-    def get_orig(self):
-        return self.orig
-
-    def get_ends(self):
-        return [self.orig, self.dest]
-
-    def touches(self, place):
-        return self.orig is place or self.dest is place
-
-    def find_neighboring_portals(self):
-        return self.orig.portals + self.dest.portals
-
-    def notify_moving(self, thing, amount):
-        """Handler for when a thing moves through me by some amount of my
-length. Does nothing by default."""
-        pass
-
-    def add(self, thing):
-        """Add this thing to my contents if it's not there already."""
-        self.contents.add(thing)
-
-    def remove(self, thing):
-        """Remove this thing from my contents."""
-        self.contents.remove(thing)
-
-
 def lookup_loc(db, it):
     """Return the item that the given one is inside, possibly None."""
     if stringlike(it.dimension):
@@ -895,10 +856,11 @@ def load_places_in_dimensions(db, dimnames):
         db, load_places_in_dimensions(db, dimnames))
 
 
+
+portal_colstr = ", ".join(Portal.colnames["portal"])
 portal_dimension_qryfmt = (
     "SELECT {0} FROM portal WHERE dimension IN "
-    "({1})".format(
-        ", ".join(Portal.colnames["portal"]), "{0}"))
+    "({1})".format(portal_colstr), "{0}")
 
 
 def read_portals_in_dimensions(db, dimnames):

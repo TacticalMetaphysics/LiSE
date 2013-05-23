@@ -5,7 +5,17 @@ class SaveableMetaclass(type):
         foreignkeys = {}
         coldecls = {}
         checks = {}
-        for tabtup in attrs['tables']:
+        if 'tables' in attrs:
+            tablist = attrs['tables']
+        elif hasattr(clas, 'tables'):
+            tablist = clas.tables
+        else:
+            for clas in parents:
+                if hasattr(clas, 'tables'):
+                    tablist = clas.tables
+                    break
+            assert(tablist is not None)
+        for tabtup in tablist:
             (name, decls, pkey, fkeys, cks) = tabtup
             tablenames.append(name)
             coldecls[name] = decls
@@ -226,7 +236,7 @@ class SaveableMetaclass(type):
                   'maintab': tablenames[0]}
         atrdic.update(attrs)
 
-        return type.__new__(metaclass, clas, parents, atrdic)
+        return super(
 
 
 def start_new_map(nope):
