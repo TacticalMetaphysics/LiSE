@@ -48,9 +48,9 @@ success that strains a person terribly and causes them injury.
     """
     tables = [
         ("event",
-         {"name": "text",
-          "text": "text",
-          "ongoing": "boolean",
+         {"name": "text not null",
+          "text": "text not null",
+          "ongoing": "boolean not null",
           "commence_effects": "text",
           "proceed_effects": "text",
           "conclude_effects": "text"},
@@ -171,9 +171,9 @@ one place to another."""
 class EventDeck:
     tables = [
         ("event_deck_link",
-         {"deck": "text",
-          "idx": "integer",
-          "event": "text"},
+         {"deck": "text not null",
+          "idx": "integer not null",
+          "event": "text not null"},
          ("deck", "idx"),
          {"event": ("event", "name")},
          [])]

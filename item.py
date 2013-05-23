@@ -21,8 +21,8 @@ __metaclass__ = SaveableMetaclass
 class Item:
     tables = [
         ("item",
-         {"dimension": "text DEFAULT 'Physical'",
-          "name": "text"},
+         {"dimension": "text not null DEFAULT 'Physical'",
+          "name": "text not null"},
          ("dimension", "name"),
          {},
          [])]
@@ -34,8 +34,8 @@ class Item:
 class Place(Item):
     tables = [
         ("place",
-         {"dimension": "text DEFAULT 'Physical'",
-          "name": "text"},
+         {"dimension": "text not null DEFAULT 'Physical'",
+          "name": "text not null"},
          ("dimension", "name"),
          {},
          [])]
@@ -88,9 +88,9 @@ class Place(Item):
 class Portal(Item):
     tables = [
         ("portal",
-         {"dimension": "text DEFAULT 'Physical'",
-          "from_place": "text",
-          "to_place": "text"},
+         {"dimension": "text not null DEFAULT 'Physical'",
+          "from_place": "text not null",
+          "to_place": "text not null"},
          ("dimension", "from_place", "to_place"),
          # This schema relies on a trigger to create an appropriate item record.
          {"dimension, from_place": ("place", "dimension, name"),
@@ -192,12 +192,12 @@ length. Does nothing by default."""
 class Thing(Item):
     tables = [
         ("thing",
-         {"dimension": "text DEFAULT 'Physical'",
-          "name": "text",
-          "location": "text DEFAULT ''",
-          "journey_progress": "float DEFAULT 0.0",
-          "journey_step": "integer DEFAULT 0",
-          "age": "integer DEFAULT 0"},
+         {"dimension": "text not null DEFAULT 'Physical'",
+          "name": "text not null",
+          "location": "text DEFAULT null",
+          "journey_progress": "float not null DEFAULT 0.0",
+          "journey_step": "integer not null DEFAULT 0",
+          "age": "integer not null DEFAULT 0"},
          ("dimension", "name"),
          {"dimension, location": ("item", "dimension, name")},
          [])]
@@ -368,10 +368,10 @@ class Journey:
     """
     tables = [
         ("journey_step",
-         {"dimension": "text default 'Physical'",
-          "thing": "text",
-          "idx": "integer",
-          "portal": "text"},
+         {"dimension": "text not null default 'Physical'",
+          "thing": "text not null",
+          "idx": "integer not null",
+          "portal": "text not null"},
          ("dimension", "thing", "idx"),
          {"dimension, thing": ("thing", "dimension, name"),
           "dimension, portal": ("portal", "dimension, name")},
@@ -519,11 +519,11 @@ Then return the schedule. Just for good measure.
 class Schedule:
     tables = [
         ("scheduled_event",
-         {"dimension": "text default 'Physical'",
-          "item": "text",
-          "start": "integer",
+         {"dimension": "text not null default 'Physical'",
+          "item": "text not null",
+          "start": "integer not null",
           "event": "text not null",
-          "length": "integer default 1"},
+          "length": "integer not null default 1"},
          ("dimension", "item"),
          {"dimension, item": ("item", "dimension, name"),
           "event": ("event", "name")},

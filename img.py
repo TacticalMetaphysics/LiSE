@@ -10,9 +10,9 @@ __metaclass__ = SaveableMetaclass
 class Img:
     tables = [
         ("img",
-         {"name": "text",
-          "path": "text",
-          "rltile": "boolean DEFAULT 0"},
+         {"name": "text not null",
+          "path": "text not null",
+          "rltile": "boolean not null DEFAULT 0"},
          ("name",),
          {},
          [])]

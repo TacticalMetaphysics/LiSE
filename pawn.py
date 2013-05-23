@@ -23,11 +23,11 @@ class Pawn:
 
     tables = [
         ("pawn",
-         {"dimension": "text default 'Physical'",
-          "thing": "text",
-          "img": "text default 'troll_m'",
-          "visible": "boolean default 1",
-          "interactive": "boolean default 1"},
+         {"dimension": "text not null default 'Physical'",
+          "thing": "text not null",
+          "img": "text not null default 'troll_m'",
+          "visible": "boolean not null default 1",
+          "interactive": "boolean not null default 1"},
          ("dimension", "thing"),
          {"img": ("img", "name"),
           "dimension, thing": ("thing", "dimension, name")},

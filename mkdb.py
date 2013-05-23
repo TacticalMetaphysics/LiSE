@@ -1,6 +1,7 @@
 import database
 import os
 from item import Item, Thing, Place, Portal, Schedule, Journey
+from character import Character
 from effect import Effect, EffectDeck
 from event import Event, EventDeck
 from style import Color, Style
@@ -14,6 +15,7 @@ from sqlite3 import OperationalError
 
 tabclasses = [
     Schedule,
+    Character,
     Item,
     Thing,
     Place,
@@ -44,7 +46,10 @@ db = database.Database(DB_NAME)
 
 for clas in tabclasses:
     for tab in clas.schemata:
-        db.c.execute(tab)
+        try:
+            db.c.execute(tab)
+        except OperationalError as oe:
+            raise Exception(repr(oe) + "\n" + tab)
 
 game_decl = """CREATE TABLE game
  (front_board TEXT DEFAULT 'Physical', age INTEGER DEFAULT 0,

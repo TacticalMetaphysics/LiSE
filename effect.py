@@ -12,9 +12,9 @@ class Effect:
     """
     tables = [
         ("effect",
-         {"name": "text",
-          "func": "text",
-          "arg": "text"},
+         {"name": "text not null",
+          "func": "text not null",
+          "arg": "text not null"},
          ("name",),
          {},
          [])]
@@ -89,9 +89,9 @@ class EffectDeck:
     __metaclass__ = SaveableMetaclass
     tables = [
         ("effect_deck_link",
-         {"deck": "text",
-          "idx": "integer",
-          "effect": "text"},
+         {"deck": "text not null",
+          "idx": "integer not null",
+          "effect": "text not null"},
          ("deck", "idx"),
          {"effect": ("effect", "name")},
          [])]

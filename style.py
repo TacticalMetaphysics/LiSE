@@ -14,11 +14,11 @@ tuples that Pyglet uses to identify colors.
     """
     tables = [
         ("color",
-         {'name': 'text',
+         {'name': 'text not null',
           'red': 'integer not null ',
           'green': 'integer not null ',
           'blue': 'integer not null ',
-          'alpha': 'integer default 255 '},
+          'alpha': 'integer not null default 255 '},
          ("name",),
          {},
          ["red between 0 and 255",
@@ -58,7 +58,7 @@ tuples that Pyglet uses to identify colors.
 class Style:
     tables = [
         ("style",
-         {"name": "text",
+         {"name": "text not null",
           "fontface": "text not null",
           "fontsize": "integer not null",
           "spacing": "integer default 6",
