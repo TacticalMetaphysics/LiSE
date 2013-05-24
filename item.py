@@ -22,7 +22,8 @@ class Item:
     tables = [
         ("item",
          {"dimension": "text not null DEFAULT 'Physical'",
-          "name": "text not null"},
+          "name": "text not null",
+          "character": "text default null"},
          ("dimension", "name"),
          {},
          [])]
@@ -194,7 +195,7 @@ class Thing(Item):
         ("thing",
          {"dimension": "text not null DEFAULT 'Physical'",
           "name": "text not null",
-          "location": "text DEFAULT null",
+          "location": "text not null",
           "journey_progress": "float not null DEFAULT 0.0",
           "journey_step": "integer not null DEFAULT 0",
           "age": "integer not null DEFAULT 0"},
@@ -371,10 +372,11 @@ class Journey:
          {"dimension": "text not null default 'Physical'",
           "thing": "text not null",
           "idx": "integer not null",
-          "portal": "text not null"},
+          "from_place": "text not null",
+          "to_place": "text not null"},
          ("dimension", "thing", "idx"),
          {"dimension, thing": ("thing", "dimension, name"),
-          "dimension, portal": ("portal", "dimension, name")},
+          "dimension, from_place, to_place": ("portal", "dimension, from_place, to_place")},
          [])]
 
     def __init__(self, dimension, thing, steps, db=None):

@@ -88,8 +88,12 @@ thing_trig_del = """CREATE TRIGGER del_thing AFTER DELETE ON thing
 BEGIN
 DELETE FROM item WHERE dimension=OLD.dimension AND name=OLD.name;
 END"""
+easy_effect = """CREATE VIEW easy_effect AS SELECT func, arg FROM effect"""
+easy_effect_trig_ins = """CREATE TRIGGER easy_effect_add INSTEAD OF INSERT ON easy_effect
+BEGIN INSERT INTO effect (name, func, arg) VALUES
+(NEW.func||'('||NEW.arg||')', NEW.func, NEW.arg); END"""
 
-extratabs = (game_decl, strs_decl, port_trig_ins, port_trig_upd, place_trig_ins, thing_trig_ins, place_trig_del, port_trig_del, thing_trig_del)
+extratabs = (game_decl, strs_decl, port_trig_ins, port_trig_upd, place_trig_ins, thing_trig_ins, place_trig_del, port_trig_del, thing_trig_del, easy_effect, easy_effect_trig_ins)
 
 for extratab in extratabs:
     try:

@@ -14,7 +14,7 @@ class Effect:
         ("effect",
          {"name": "text not null",
           "func": "text not null",
-          "arg": "text not null"},
+          "arg": "text not null default ''"},
          ("name",),
          {},
          [])]
