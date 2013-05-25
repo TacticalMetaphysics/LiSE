@@ -1,4 +1,7 @@
 import pyglet
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class GameWindow:
@@ -234,10 +237,6 @@ class GameWindow:
             self.resized = False
 
         @window.event
-        def on_key_press(sym, mods):
-            self.on_key_press(sym, mods)
-
-        @window.event
         def on_mouse_motion(x, y, dx, dy):
             if self.hovered is None:
                 for menu in self.menus:
@@ -253,6 +252,10 @@ class GameWindow:
                                     y > item.getbot() and
                                     y < item.gettop()):
                                 if hasattr(item, 'set_hovered'):
+                                    log.log(
+                                        logging.DEBUG,
+                                        "Menu item %d of menu %s hovered.",
+                                        item.idx, item.menu.name)
                                     item.set_hovered()
                                 self.hovered = item
                                 return
@@ -263,6 +266,10 @@ class GameWindow:
                             y > spot.getbot() and
                             y < spot.gettop()):
                         if hasattr(spot, 'set_hovered'):
+                            log.log(
+                                logging.DEBUG,
+                                "Spot for place %s hovered.",
+                                spot.place.name)
                             spot.set_hovered()
                         self.hovered = spot
                         return
@@ -273,6 +280,10 @@ class GameWindow:
                             y > pawn.getbot() and
                             y < pawn.gettop()):
                         if hasattr(pawn, 'set_hovered'):
+                            log.log(
+                                logging.DEBUG,
+                                "Pawn for thing %s hovered.",
+                                pawn.thing.name)
                             pawn.set_hovered()
                         self.hovered = pawn
                         return
@@ -283,6 +294,7 @@ class GameWindow:
                         y < self.hovered.getbot() or
                         y > self.hovered.gettop()):
                     if hasattr(self.hovered, 'unset_hovered'):
+                        log.log(logging.DEBUG, "Unhovered.")
                         self.hovered.unset_hovered()
                     self.hovered = None
 
@@ -293,12 +305,14 @@ class GameWindow:
             else:
                 self.pressed = self.hovered
                 if hasattr(self.pressed, 'set_pressed'):
+                    log.log(logging.DEBUG, "Pressed.")
                     self.pressed.set_pressed()
 
         @window.event
         def on_mouse_release(x, y, button, modifiers):
             if self.grabbed is not None:
                 if hasattr(self.grabbed, 'dropped'):
+                    log.log(logging.DEBUG, "Dropped.")
                     self.grabbed.dropped(x, y, button, modifiers)
                 self.grabbed = None
             elif (self.pressed is not None and
@@ -307,15 +321,18 @@ class GameWindow:
                   y > self.pressed.getbot() and
                   y < self.pressed.gettop() and
                   hasattr(self.pressed, 'onclick')):
-                    self.pressed.onclick(button, modifiers)
+                log.log(logging.DEBUG, "Clicked.")
+                self.pressed.onclick(button, modifiers)
             if self.pressed is not None:
                 if hasattr(self.pressed, 'unset_pressed'):
+                    log.log(logging.DEBUG, "Unpressed.")
                     self.pressed.unset_pressed()
                 self.pressed = None
 
         @window.event
         def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
             if self.grabbed is not None:
+                log.log(logging.DEBUG, "Moved %d by %d.", dx, dy)
                 self.grabbed.move_with_mouse(x, y, dx, dy, buttons, modifiers)
             elif (self.pressed is not None and
                   x > self.pressed.getleft() and
@@ -323,7 +340,8 @@ class GameWindow:
                   y > self.pressed.getbot() and
                   y < self.pressed.gettop() and
                   hasattr(self.pressed, 'move_with_mouse')):
-                    self.grabbed = self.pressed
+                log.log(logging.DEBUG, "Grabbed at %d, %d.", x, y)
+                self.grabbed = self.pressed
             else:
                 if self.pressed is not None:
                     self.pressed.unset_pressed()

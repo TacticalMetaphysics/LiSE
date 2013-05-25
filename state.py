@@ -45,7 +45,6 @@ state of the interface.
                     "i": i,
                     "old_age": self.age,
                     "new_age": newage}
-                log.debug("Updating game state.", extra=x)
             for ev in starts:
                 ev.commence()
             for ev in conts:

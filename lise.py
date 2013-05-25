@@ -5,6 +5,9 @@ from state import GameState
 from board import load_board
 from sys import argv, setrecursionlimit
 from sqlite3 import connect, DatabaseError
+from logging import basicConfig, getLogger, DEBUG
+
+basicConfig(level=DEBUG)
 
 i = 0
 lang = "English"
