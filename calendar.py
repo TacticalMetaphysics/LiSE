@@ -2,6 +2,9 @@ from util import SaveableMetaclass, stringlike, dictify_row
 from pyglet.image import SolidColorImagePattern as color_pattern
 from style import read_styles
 from collections import OrderedDict
+#from util import getLoggerIfLogging, DEBUG
+
+#logger = getLoggerIfLogging(__name__)
 
 
 """User's view on a given item's schedule.
@@ -197,6 +200,7 @@ cells.
                 "cel_style": self.cel_style.name}}
 
     def toggle_visibility(self):
+        #logger.log(DEBUG, "Toggling visibility of calendar column for %s.", self.item.name)
         if self in self.cal:
             self.cal.remove(self)
             self.visible = False

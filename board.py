@@ -34,7 +34,7 @@ time.
           "wallpaper": "text DEFAULT 'default_wallpaper'",
           "width": "integer not null DEFAULT 1024",
           "height": "integer not null DEFAULT 768",
-          "calendar_visible": "boolean not null DEFAULT 0",
+          "calendar_visible": "boolean not null DEFAULT 1",
           "calendar_interactive": "boolean not null DEFAULT 1",
           "calendar_left": "float not null DEFAULT 0.8",
           "calendar_right": "float not null DEFAULT 1.0",

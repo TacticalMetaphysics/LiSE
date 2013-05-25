@@ -5,9 +5,11 @@ from state import GameState
 from board import load_board
 from sys import argv, setrecursionlimit
 from sqlite3 import connect, DatabaseError
-from logging import basicConfig, getLogger, DEBUG
+from sys import argv
 
-basicConfig(level=DEBUG)
+if "--debug" in argv:
+    from logging import basicConfig, DEBUG
+    basicConfig(level=DEBUG)
 
 i = 0
 lang = "English"

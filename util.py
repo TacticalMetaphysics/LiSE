@@ -1,3 +1,7 @@
+from logging import getLogger, DEBUG
+
+logging = False
+
 class SaveableMetaclass(type):
     def __new__(metaclass, clas, parents, attrs):
         if clas in parents:
@@ -464,3 +468,24 @@ def compile_tabdicts(objs):
 
 def stringlike(o):
     return isinstance(o, str) or isinstance(o, unicode)
+
+class FakeLogger:
+    def isEnabledFor(*args):
+        return False
+    def log(*args):
+        pass
+
+def getLoggerIfLogging(loggern):
+    if logging:
+        return getLogger(loggern)
+    else:
+        return FakeLogger()
+
+def toggleLogging():
+    logging = not logging
+
+def enableLogging():
+    logging = True
+
+def disableLogging():
+    logging = False

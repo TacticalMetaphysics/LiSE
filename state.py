@@ -1,6 +1,6 @@
-import logging
+#from util import getLoggerIfLogging, DEBUG
 # do I want to handle the timer here? that might be good
-log = logging.getLogger(__name__)
+#log = getLoggerIfLogging(__name__)
 
 class GameState:
     """Class to hold the state of the game, specifically not including the
@@ -38,13 +38,13 @@ state of the interface.
                 ends = iter(self.db.endevdict[i])
             else:
                 ends = tuple()
-            if log.isEnabledFor(logging.DEBUG):
-                x = {
-                    "ts": ts,
-                    "st": st,
-                    "i": i,
-                    "old_age": self.age,
-                    "new_age": newage}
+            # if log.isEnabledFor(DEBUG):
+            #     x = {
+            #         "ts": ts,
+            #         "st": st,
+            #         "i": i,
+            #         "old_age": self.age,
+            #         "new_age": newage}
             for ev in starts:
                 ev.commence()
             for ev in conts:
