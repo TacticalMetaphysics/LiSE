@@ -33,6 +33,8 @@ represents to calculate its dimensions and coordinates.
             self.text = self.event.text
         self.oldstate = None
         self.sprite = None
+        self.visible = True
+        self.interactive = True
         self.tweaks = 0
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         if event is None:
@@ -61,7 +63,6 @@ represents to calculate its dimensions and coordinates.
         """Return a tuple containing information enough to tell the difference
 between any two states that should appear different on-screen."""
         return (
-            hash(self.col.get_state_tup()),
             self.gettop(),
             self.getbot(),
             self.text,
@@ -168,7 +169,7 @@ cells.
         self.cel_style = cel_style
         self.oldstate = None
         self.sprite = None
-        self.cells = {}
+        self.celldict = {}
         self.left = 0
         self.right = 0
         self.cell_cache = {}
@@ -186,7 +187,7 @@ cells.
             db.calcoldict[dimname][itname] = self
 
     def __iter__(self):
-        return self.cells.itervalues()
+        return self.celldict.itervalues()
 
     def get_tabdict(self):
         return {
@@ -206,6 +207,7 @@ cells.
         else:
             self.cal.add(self)
             self.visible = True
+        self.cal.adjust()
         self.tweaks += 1
 
     def hide(self):
@@ -248,7 +250,6 @@ cells.
     def set_cal(self, cal):
         if cal is not self.cal:
             self.cal = cal
-            self.adjust()
 
     def gettop(self):
         """Get the absolute Y value of my top edge."""
@@ -259,10 +260,10 @@ cells.
         return self.cal.getbot()
 
     def getleft(self):
-        return self.cal.getleft() + self.cal.index(self) * self.cal.colwidth()
+        return self.left_abs
 
     def getright(self):
-        return self.getleft() + self.cal.colwidth()
+        return self.right_abs
 
     def getwidth(self):
         return self.cal.colwidth()
@@ -270,38 +271,23 @@ cells.
     def getheight(self):
         return self.cal.getheight()
 
-    def adjust(self):
-        """Create calendar cells for all events in the schedule.
-
-Cells already here will be reused."""
-        schevs = iter(self.item.schedule)
-        for ev in schevs:
-            if ev.name not in self.cells:
-                self.cells[ev.name] = CalendarCell(self, ev)
-        for k in self.cells.iterkeys():
-            if k not in self.item.schedule.events:
-                try:
-                    ptr.sprite.delete()
-                except AttributeError:
-                    pass
-                try:
-                    ptr.label.delete()
-                except AttributeError:
-                    pass
-        self.tweaks += 1
-
-
     def __eq__(self, other):
         return (
             isinstance(other, CalendarCol) and
             other.board == self.board and
             other.item == self.item)
 
+    def celhash(self):
+        hashes = [hash(cel.get_state_tup()) for cel in self.celldict.itervalues()]
+        return hash(tuple(hashes))
+
     def get_state_tup(self):
         """Return a tuple containing information enough to tell the difference
 between any two states that should appear different on-screen."""
         return (
-            hash(self.cal.get_state_tup()),
+            self.celhash(),
+            self.dimension.name,
+            self.item.name,
             self.getleft(),
             self.getright(),
             self.gettop(),
@@ -331,6 +317,7 @@ method.
         self.interactive = interactive
         self.rows_on_screen = rows_on_screen
         self.scrolled_to = scrolled_to
+        self.oldstate = None
         self.tweaks = 0
         if db is not None:
             if stringlike(self.board):
@@ -348,11 +335,16 @@ method.
     def __len__(self):
         return len(self.coldict)
 
+    def colhash(self):
+        hashes = [hash(col.get_state_tup()) for col in self.coldict.itervalues()]
+        return hash(tuple(hashes))
+
     def get_state_tup(self):
         """Return a tuple containing information enough to tell the difference
 between any two states that should appear different on-screen."""
         return (
-            len(self),
+            self.board.dimension.name,
+            self.colhash(),
             self.getleft(),
             self.getright(),
             self.gettop(),
@@ -381,6 +373,33 @@ self.coldict being itself unraveled.
         for column in self.coldict.itervalues():
             column.unravel(db)
 
+    def adjust(self):
+        """Precompute my coordinates; create missing calendar cells; delete
+those whose events are no longer present."""
+        self.top_abs = int(self.top * self.gw.getheight())
+        self.bot_abs = int(self.bot * self.gw.getheight())
+        self.left_abs = int(self.left * self.gw.getwidth())
+        self.right_abs = int(self.right * self.gw.getwidth())
+        self.width_abs = self.right_abs - self.left_abs
+        self.height_abs = self.top_abs - self.bot_abs
+        if len(self.coldict) > 0:
+            self.col_width = self.width_abs / len(self.coldict)
+        else:
+            self.col_width = 0
+        self.row_height = self.height_abs / self.rows_on_screen
+        i = 0
+        for col in self.coldict.itervalues():
+            col.left_abs = self.left_abs + i * self.col_width
+            col.right_abs = col.left_abs + self.col_width
+            i += 1
+            for ev in iter(col.item.schedule):
+                if ev.name not in col.celldict:
+                    col.celldict[ev.name] = CalendarCell(col, ev)
+            for evname in col.celldict:
+                if evname not in col.item.schedule.events:
+                    del col.celldict[evname]
+                    
+
     def set_gw(self, gw):
         """Pair up with the given GameWindow.
 
@@ -396,30 +415,31 @@ their set_cal methods to make them adapt appropriately.
         self.gw.db.caldict[self.board.dimension.name] = self
         for col in self.coldict.itervalues():
             col.set_cal(self)
+        self.adjust()
 
     def gettop(self):
         """Get the absolute Y value of my top edge."""
-        return int(self.top * self.gw.getheight())
+        return self.top_abs
 
     def getbot(self):
         """Get the absolute Y value of my bottom edge."""
-        return int(self.bot * self.gw.getheight())
+        return self.bot_abs
 
     def getleft(self):
         """Get the absolute X value of my left edge."""
-        return int(self.left * self.gw.getwidth())
+        return self.left_abs
 
     def getright(self):
         """Get the absolute X value of my right edge."""
-        return int(self.right * self.gw.getwidth())
+        return self.right_abs
 
     def getwidth(self):
         """Get the width of this widget."""
-        return self.getright() - self.getleft()
+        return self.width_abs
 
     def getheight(self):
         """Get the height of this widget."""
-        return self.gettop() - self.getbot()
+        return self.height_abs
 
     def getstart(self):
         """Get the number of ticks between the start of the game and the time
@@ -440,14 +460,12 @@ the CalendarCol's set_cal() method.
         """
         if col.item.name not in self.coldict:
             self.coldict[col.item.name] = col
-        self.tweaks += 1
 
     def remove(self, col):
         """Remove a CalendarCol.
 
 This doesn't necessarily delete the CalendarCol's graphics."""
         del self.coldict[col.item.name]
-        self.tweaks += 1
 
     def discard(self, col):
         """Remove a CalendarCol if it's a member.
@@ -455,7 +473,6 @@ This doesn't necessarily delete the CalendarCol's graphics."""
 This doesn't necessarily delete the CalendarCol's graphics."""
         if col.item.name in self.coldict:
             del self.coldict[col.item.name]
-        self.tweaks += 1
 
     def index(self, col):
         """Get the index of the CalendarCol within the order of displayed
@@ -464,7 +481,9 @@ columns."""
 
     def pop(self, colname):
         """Return and remove the CalendarCol by the given name."""
-        return self.coldict.pop(colname)
+        r = self.coldict.pop(colname)
+        self.adjust()
+        return r
 
     def __getitem__(self, colname):
         """Return the CalendarCol by the given name."""
@@ -487,12 +506,12 @@ columns."""
 
     def colwidth(self):
         """Get the width that all CalendarCol herein should have."""
-        return self.getwidth() / len(self.coldict)
+        return self.col_width
 
     def rowheight(self):
         """Return the number of vertical pixels that a CalendarCell
 representing a single tick would take up."""
-        return self.getheight() / self.rows_on_screen
+        return self.row_height
 
     def is_visible(self):
         """Can I be seen?"""
