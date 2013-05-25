@@ -1,11 +1,9 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 
 
-__metaclass__ = SaveableMetaclass
-
-
 class Effect:
-    """Something that can happen.
+    __metaclass__ = SaveableMetaclass
+    """Curry a function name and a string argument.
 
 An effect is a function with a preselected string argument. These are
 stored together under a name describing the both of them. The effect
@@ -14,23 +12,34 @@ may be fired by calling the do() method.
     """
     tables = [
         ("effect",
-         {"name": "text",
-          "func": "text",
-          "arg": "text"},
+         {"name": "text not null",
+          "func": "text not null",
+          "arg": "text not null default ''"},
          ("name",),
          {},
          [])]
 
-    def __init__(self, name, func, arg, dict_hint=None, db=None):
+    def __init__(self, name, func, arg,  db=None):
         """Return an Effect of the given name, where the given function is
 called with the given argument. If a database is supplied, register in
 its effectdict."""
+        if name is None:
+            name = "{0}({1})".format(func, arg)
         self.name = name
         self.func = func
         self.arg = arg
-        self.dict_hint = dict_hint
         if db is not None:
             db.effectdict[name] = self
+
+    def get_rowdict(self):
+        return {
+            "name": self.name,
+            "func": self.func,
+            "arg": self.arg}
+
+    def get_tabdict(self):
+        return {
+            "effect": self.get_rowdict()}
 
     def unravel(self, db):
         """If the function was supplied as a string, look up what it refers
@@ -46,14 +55,47 @@ to."""
 NULL_EFFECT = Effect("null", "noop", "nope")
 
 
+class PortalEntryEffect(Effect):
+    """Effect to put an item in a portal when it wasn't before."""
+    def __init__(self, item, portal, db=None):
+        self.item = item
+        self.portal = portal
+        dimname = item.dimension.name
+        arg = "{0}.{1}->{2}".format(dimname, item.name, portal.name)
+        name = "thing_into_portal({0})".format(arg)
+        Effect.__init__(self, name, "thing_into_portal", arg, db)
+
+
+class PortalProgressEffect(Effect):
+    """Effect to move a thing some distance along a portal, but not out of
+it."""
+    def __init__(self, item, db=None):
+        self.item = item
+        arg = "{0}.{1}".format(item.dimension.name, item.name)
+        name = "thing_along_portal({0})".format(arg)
+        Effect.__init__(self, name, "thing_along_portal", arg, db)
+
+
+class PortalExitEffect(Effect):
+    """Effect to put an item into the destination of a portal it's already
+in, incidentally taking it out of the portal."""
+    def __init__(self, item, db=None):
+        self.item = item
+        self.portal = item.location.real
+        arg = "{0}.{1}".format(item.dimension.name, item.name)
+        name = "thing_out_of_portal({0})".format(arg)
+        Effect.__init__(self, name, "thing_out_of_portal", arg, db)
+
+
 class EffectDeck:
     """An ordered collection of Effects that may be executed in a
 batch."""
+    __metaclass__ = SaveableMetaclass
     tables = [
         ("effect_deck_link",
-         {"deck": "text",
-          "idx": "integer",
-          "effect": "text"},
+         {"deck": "text not null",
+          "idx": "integer not null",
+          "effect": "text not null"},
          ("deck", "idx"),
          {"effect": ("effect", "name")},
          [])]
@@ -70,6 +112,15 @@ If db is supplied, register with it.
         if db is not None:
             db.effectdeckdict[self.name] = self
 
+    def get_tabdict(self):
+        rowdicts = []
+        for i in xrange(0, len(self.effects)):
+            rowdicts.append({
+                "deck": self.name,
+                "idx": i,
+                "effect": self.effects[i].name})
+        return {"effect_deck_link": rowdicts}
+
     def unravel(self, db):
         """For all the effects I contain, if the effect is actually the *name*
 of an effect, look up the real effect object."""
@@ -80,6 +131,24 @@ of an effect, look up the real effect object."""
     def do(self):
         """Fire all the effects in order."""
         return [effect.do() for effect in self.effects]
+
+
+class PortalEntryEffectDeck(EffectDeck):
+    def __init__(self, item, portal, db=None):
+        effect = PortalEntryEffect(item, portal, db)
+        EffectDeck.__init__(self, effect.name, [effect], db)
+
+
+class PortalProgressEffectDeck(EffectDeck):
+    def __init__(self, item, db=None):
+        effect = PortalProgressEffect(item, db)
+        EffectDeck.__init__(self, effect.name, [effect], db)
+
+
+class PortalExitEffectDeck(EffectDeck):
+    def __init__(self, item, db=None):
+        effect = PortalExitEffect(item, db)
+        EffectDeck.__init__(self, effect.name, [effect], db)
 
 
 load_effect_qryfmt = (

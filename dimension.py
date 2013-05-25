@@ -11,19 +11,10 @@ from util import SaveableMetaclass
 """Class and loaders for dimensions--the top of the world hierarchy."""
 
 
-__metaclass__ = SaveableMetaclass
-
-
 class Dimension:
     """Container for a given view on the game world, sharing no things,
 places, or portals with any other dimension, but possibly sharing
 characters."""
-
-    tables = [("dimension",
-               {"name": "text"},
-               ("name",),
-               {},
-               [])]
 
     def __init__(self, name, db=None):
         """Return a dimension with the given name.
@@ -53,8 +44,6 @@ everything."""
             self.thingdict = db.thingdict[self.name]
         if not hasattr(self, 'placedict'):
             self.placedict = db.placedict[self.name]
-        if not hasattr(self, 'portaldict'):
-            self.portaldict = db.portaldict[self.name]
         if not hasattr(self, 'portalorigdestdict'):
             self.portalorigdestdict = db.portalorigdestdict[self.name]
         if not hasattr(self, 'portaldestorigdict'):
@@ -62,8 +51,9 @@ everything."""
         # this order is deliberate
         for place in self.placedict.itervalues():
             place.unravel(db)
-        for portal in self.portaldict.itervalues():
-            portal.unravel(db)
+        for dests in self.portalorigdestdict.itervalues():
+            for portal in dests.itervalues():
+                portal.unravel(db)
         for thing in self.thingdict.itervalues():
             thing.unravel(db)
             

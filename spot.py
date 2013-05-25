@@ -18,13 +18,13 @@ class Spot:
     """
     tables = [
         ("spot",
-         {"dimension": "text",
-          "place": "text",
-          "img": "text",
-          "x": "integer",
-          "y": "integer",
-          "visible": "boolean",
-          "interactive": "boolean"},
+         {"dimension": "text not null default 'Physical'",
+          "place": "text not null",
+          "img": "text not null default 'default_spot'",
+          "x": "integer not null default 50",
+          "y": "integer not null default 50",
+          "visible": "boolean not null default 1",
+          "interactive": "boolean not null default 1"},
          ("dimension", "place"),
          {"dimension, place": ("place", "dimension, name"),
           "img": ("img", "name")},
@@ -87,6 +87,7 @@ graphics calculations."""
             self.place = db.itemdict[self.dimension.name][self.place]
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
+        self.place.spot = self
         self.rx = self.img.getwidth() / 2
         self.ry = self.img.getheight() / 2
         self.left = self.x - self.rx

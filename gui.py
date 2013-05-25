@@ -1,4 +1,7 @@
 import pyglet
+#from util import getLoggerIfLogging, DEBUG
+
+#logger = getLoggerIfLogging(__name__)
 
 
 """All the graphics code unique to LiSE."""
@@ -54,10 +57,10 @@ class GameWindow:
         self.menus = self.board.menudict.values()
         self.spots = self.board.spotdict.values()
         self.pawns = self.board.pawndict.values()
-        self.portals = self.board.dimension.portaldict.values()
+
         self.calendar = self.board.calendar
         self.calendar.set_gw(self)
-        for menu in self.menus:
+        for menu in self.board.menudict.itervalues():
             menu.set_gw(self)
         self.drawn_board = None
         self.drawn_edges = None
@@ -87,9 +90,8 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen = set()
             self.prev_view_left = self.view_left
             self.prev_view_bot = self.view_bot
-            portal_todo = self.portals
             menus_todo = [
-                menu for menu in self.menus if
+                menu for menu in self.board.menudict.itervalues() if
                 menu.get_state_tup() not in self.onscreen]
             mi_todo = []
             for menu in self.menus:
@@ -97,18 +99,19 @@ board; all visible menus; and the calendar, if it's visible."""
                     it for it in menu.items if
                     it.get_state_tup() not in self.onscreen])
             pawn_todo = [
-                pawn for pawn in self.pawns if
+                pawn for pawn in self.board.pawndict.itervalues() if
                 pawn.get_state_tup() not in self.onscreen]
             spot_todo = [
-                spot for spot in self.spots if
+                spot for spot in self.board.spotdict.itervalues() if
                 spot.get_state_tup() not in self.onscreen]
             # draw the edges, representing portals
             e = []
-            for portal in portal_todo:
-                origspot = portal.orig.spot
-                destspot = portal.dest.spot
-                edge = (origspot.x, origspot.y, destspot.x, destspot.y)
-                e.extend(edge)
+            for dests in self.board.dimension.portalorigdestdict.itervalues():
+                for port in dests.itervalues():
+                    origspot = port.orig.spot
+                    destspot = port.dest.spot
+                    edge = (origspot.x, origspot.y, destspot.x, destspot.y)
+                    e.extend(edge)
             try:
                 self.drawn_edges.delete()
             except AttributeError:
@@ -240,10 +243,6 @@ board; all visible menus; and the calendar, if it's visible."""
             self.resized = False
 
         @window.event
-        def on_key_press(sym, mods):
-            self.on_key_press(sym, mods)
-
-        @window.event
         def on_mouse_motion(x, y, dx, dy):
             """Find the widget, if any, that the mouse is over, and highlight
 it."""
@@ -261,6 +260,10 @@ it."""
                                     y > item.getbot() and
                                     y < item.gettop()):
                                 if hasattr(item, 'set_hovered'):
+                                    # logger.log(
+                                    #     DEBUG,
+                                    #     "Menu item %d of menu %s hovered.",
+                                    #     item.idx, item.menu.name)
                                     item.set_hovered()
                                 self.hovered = item
                                 return
@@ -271,6 +274,10 @@ it."""
                             y > spot.getbot() and
                             y < spot.gettop()):
                         if hasattr(spot, 'set_hovered'):
+                            # logger.log(
+                            #     DEBUG,
+                            #     "Spot for place %s hovered.",
+                            #     spot.place.name)
                             spot.set_hovered()
                         self.hovered = spot
                         return
@@ -281,6 +288,10 @@ it."""
                             y > pawn.getbot() and
                             y < pawn.gettop()):
                         if hasattr(pawn, 'set_hovered'):
+                            # logger.log(
+                            #     DEBUG,
+                            #     "Pawn for thing %s hovered.",
+                            #     pawn.thing.name)
                             pawn.set_hovered()
                         self.hovered = pawn
                         return
@@ -291,6 +302,7 @@ it."""
                         y < self.hovered.getbot() or
                         y > self.hovered.gettop()):
                     if hasattr(self.hovered, 'unset_hovered'):
+                        # logger.log(DEBUG, "Unhovered.")
                         self.hovered.unset_hovered()
                     self.hovered = None
 
@@ -303,6 +315,7 @@ it when pressed, it's been half-way clicked; remember this."""
             else:
                 self.pressed = self.hovered
                 if hasattr(self.pressed, 'set_pressed'):
+                    # logger.log(DEBUG, "Pressed.")
                     self.pressed.set_pressed()
 
         @window.event
@@ -311,6 +324,7 @@ it when pressed, it's been half-way clicked; remember this."""
 pressed but not dragged, it's been clicked. Otherwise do nothing."""
             if self.grabbed is not None:
                 if hasattr(self.grabbed, 'dropped'):
+                    # logger.log(DEBUG, "Dropped.")
                     self.grabbed.dropped(x, y, button, modifiers)
                 self.grabbed = None
             elif (self.pressed is not None and
@@ -319,9 +333,11 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                   y > self.pressed.getbot() and
                   y < self.pressed.gettop() and
                   hasattr(self.pressed, 'onclick')):
-                    self.pressed.onclick(button, modifiers)
+                # logger.log(DEBUG, "Clicked.")
+                self.pressed.onclick(button, modifiers)
             if self.pressed is not None:
                 if hasattr(self.pressed, 'unset_pressed'):
+                    # logger.log(DEBUG, "Unpressed.")
                     self.pressed.unset_pressed()
                 self.pressed = None
 
@@ -330,6 +346,7 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
             """If the thing previously pressed has a move_with_mouse method, use
 it."""
             if self.grabbed is not None:
+                # logger.log(DEBUG, "Moved %d by %d.", dx, dy)
                 self.grabbed.move_with_mouse(x, y, dx, dy, buttons, modifiers)
             elif (self.pressed is not None and
                   x > self.pressed.getleft() and
@@ -337,7 +354,8 @@ it."""
                   y > self.pressed.getbot() and
                   y < self.pressed.gettop() and
                   hasattr(self.pressed, 'move_with_mouse')):
-                    self.grabbed = self.pressed
+                # logger.log(DEBUG, "Grabbed at %d, %d.", x, y)
+                self.grabbed = self.pressed
             else:
                 if self.pressed is not None:
                     self.pressed.unset_pressed()

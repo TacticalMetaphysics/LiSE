@@ -1,3 +1,7 @@
+from logging import getLogger, DEBUG
+
+logging = False
+
 class SaveableMetaclass(type):
     """Sort of an object relational mapper.
 
@@ -46,12 +50,24 @@ and your table will be ready.
 
     """
     def __new__(metaclass, clas, parents, attrs):
+        if clas in parents:
+            return clas
         tablenames = []
         primarykeys = {}
         foreignkeys = {}
         coldecls = {}
         checks = {}
-        for tabtup in attrs['tables']:
+        if 'tables' in attrs:
+            tablist = attrs['tables']
+        elif hasattr(clas, 'tables'):
+            tablist = clas.tables
+        else:
+            for par in parents:
+                if hasattr(par, 'tables'):
+                    tablist = par.tables
+                    break
+            assert(tablist is not None)
+        for tabtup in tablist:
             (name, decls, pkey, fkeys, cks) = tabtup
             tablenames.append(name)
             coldecls[name] = decls
@@ -210,11 +226,13 @@ and your table will be ready.
         def missing_tabdict(db, tabdict):
             return op_tabdict(db, tabdict, missing_keydicts_table)
 
-        def mkrow(self, tabname, rowdict=None):
+        def mkrow(self, tabn=None, rowdict=None):
+            if tabn is None:
+                tabn = self.maintab
             if rowdict is None:
-                rowdict = self.mkrowdict(tabname)
+                rowdict = self.mkrowdict(tabn)
             r = []
-            for coln in self.colnames[tabname]:
+            for coln in self.colnames[tabn]:
                 r.append(rowdict[coln])
             return tuple(r)
 
@@ -230,7 +248,10 @@ and your table will be ready.
                     for r in iter(getattr(self, tabname))]
             r = {}
             for colname in self.colnames[tabname]:
-                r[colname] = getattr(self, colname)
+                if getattr(self, colname).__class__ in (int, float, bool):
+                    r[colname] = getattr(self, colname)
+                else:
+                    r[colname] = str(getattr(self, colname))
             return r
 
         def mktabdict(self):
@@ -261,9 +282,9 @@ and your table will be ready.
                   'rowqms': rowqms,
                   'dbop': dbop,
                   'unravel': unravel,
-                  'mkrow': mkrow,
-                  'mkrowdict': mkrowdict,
-                  'mktabdict': mktabdict,
+                  'get_row': mkrow,
+                  'get_rowdict': mkrowdict,
+                  'get_tabdict': mktabdict,
                   'maintab': tablenames[0]}
         atrdic.update(attrs)
 
@@ -495,3 +516,24 @@ def stringlike(o):
     """Return True if I can easily cast this into a string, False
 otherwise."""
     return isinstance(o, str) or isinstance(o, unicode)
+
+class FakeLogger:
+    def isEnabledFor(*args):
+        return False
+    def log(*args):
+        pass
+
+def getLoggerIfLogging(loggern):
+    if logging:
+        return getLogger(loggern)
+    else:
+        return FakeLogger()
+
+def toggleLogging():
+    logging = not logging
+
+def enableLogging():
+    logging = True
+
+def disableLogging():
+    logging = False

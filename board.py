@@ -5,7 +5,6 @@ from style import read_styles
 from spot import read_spots_in_boards
 from calendar import Calendar, read_calendar_cols_in_boards
 from pawn import read_pawns_in_boards
-from menu import read_menus_in_boards
 from dimension import read_dimensions
 
 
@@ -31,21 +30,20 @@ time.
 """
     tables = [
         ("board",
-         {"dimension": "text",
-          "wallpaper": "text",
-          "width": "integer DEFAULT 1024",
-          "height": "integer DEFAULT 768",
-          "calendar_visible": "boolean DEFAULT 0",
-          "calendar_interactive": "boolean DEFAULT 1",
-          "calendar_left": "float DEFAULT 0.8",
-          "calendar_right": "float DEFAULT 1.0",
-          "calendar_top": "float DEFAULT 1.0",
-          "calendar_bot": "float DEFAULT 0.0",
-          "calendar_rows_on_screen": "integer DEFAULT 240",
-          "calendar_scrolled_to": "integer DEFAULT 0"},
+         {"dimension": "text not null DEFAULT 'Physical'",
+          "wallpaper": "text DEFAULT 'default_wallpaper'",
+          "width": "integer not null DEFAULT 1024",
+          "height": "integer not null DEFAULT 768",
+          "calendar_visible": "boolean not null DEFAULT 1",
+          "calendar_interactive": "boolean not null DEFAULT 1",
+          "calendar_left": "float not null DEFAULT 0.8",
+          "calendar_right": "float not null DEFAULT 1.0",
+          "calendar_top": "float not null DEFAULT 1.0",
+          "calendar_bot": "float not null DEFAULT 0.0",
+          "calendar_rows_on_screen": "integer not null DEFAULT 240",
+          "calendar_scrolled_to": "integer not null DEFAULT 0"},
          ("dimension",),
-         {"dimension": ("dimension", "name"),
-          "wallpaper": ("image", "name")},
+         {"wallpaper": ("image", "name")},
          ["calendar_rows_on_screen > 0", "calendar_scrolled_to >= 0"])]
 
     def __init__(self, dimension, width, height, wallpaper,
@@ -83,6 +81,22 @@ board later to get those pointers.
             else:
                 dimname = self.dimension.name
             db.boarddict[dimname] = self
+
+    def get_tabdict(self):
+        return {
+            "board": {
+                "dimension": self.dimension.name,
+                "wallpaper": self.wallpaper.name,
+                "width": self.width,
+                "height": self.height,
+                "calendar_visible": self.calendar.visible,
+                "calendar_interactive": self.calendar.interactive,
+                "calendar_left": self.calendar.left,
+                "calendar_right": self.calendar.right,
+                "calendar_top": self.calendar.top,
+                "calendar_bot": self.calendar.bot,
+                "calendar_rows_on_screen": self.calendar.rows_on_screen,
+                "calendar_scrolled_to": self.calendar.scrolled_to}}
 
     def unravel(self, db):
         """Grab the Python objects referred to by self.wallpaper and
@@ -135,6 +149,9 @@ dimension's hash.
             "dimension %s, containing %d spots, %d pawns, and %d menus."\
             % (self.width, self.height, self.dimension, len(self.spotdict),
                len(self.pawndict), len(self.menudict))
+
+    def __str__(self):
+        return self.name
 
 
 read_some_boards_format = (

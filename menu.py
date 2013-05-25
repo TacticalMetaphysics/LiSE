@@ -23,14 +23,14 @@ class MenuItem:
     """A thing in a menu that you can click to make something happen."""
     tables = [
         ('menu_item',
-         {'board': 'text',
-          'menu': 'text',
-          'idx': 'integer',
-          'text': 'text',
-          'effect_deck': 'text',
-          'closer': 'boolean',
-          'visible': 'boolean',
-          'interactive': 'boolean'},
+         {'board': "text default 'Physical'",
+          'menu': 'text not null',
+          'idx': 'integer not null',
+          'text': 'text not null',
+          'effect_deck': 'text not null',
+          'closer': "boolean not null default 1",
+          'visible': "boolean not null default 1",
+          'interactive': "boolean not null default 1"},
          ('board', 'menu', 'idx'),
          {"board, menu": ("menu", "board, name"),
           "effect_deck": ("effect_deck_link", "deck")},
@@ -302,19 +302,25 @@ class Menu:
     """Container for MenuItems; not interactive unto itself."""
     tables = [
         ('menu',
-         {'board': 'text',
-          'name': 'text',
-          'left': 'float not null',
-          'bottom': 'float not null',
-          'top': 'float not null',
-          'right': 'float not null',
-          'style': "text default 'Default'",
-          "main_for_window": "boolean default 0",
-          "visible": "boolean default 0"},
+         {'board': "text not null default 'Physical'",
+          'name': 'text not null',
+          'left': "float not null default 0.1",
+          'bottom': "float not null default 0.0",
+          'top': 'float not null default 1.0',
+          'right': 'float not null default 0.2',
+          'style': "text not null default 'SmallDark'",
+          "main_for_window": "boolean not null default 0",
+          "visible": "boolean not null default 0"},
          ('name',),
          {},
          [])]
     interactive = True
+
+    def get_tabdict(self):
+        return {
+            "menu": self.get_rowdict(),
+            "menu_item": [it.get_rowdict() for it in self.items]
+        }
 
     def __init__(self, board, name, left, bottom, top, right, style,
                  main_for_window, visible, db=None):

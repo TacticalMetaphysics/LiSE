@@ -2,6 +2,9 @@ from util import SaveableMetaclass, stringlike, dictify_row
 from pyglet.image import SolidColorImagePattern as color_pattern
 from style import read_styles
 from collections import OrderedDict
+#from util import getLoggerIfLogging, DEBUG
+
+#logger = getLoggerIfLogging(__name__)
 
 
 """User's view on a given item's schedule.
@@ -140,23 +143,23 @@ cells.
     __metaclass__ = SaveableMetaclass
     tables = [
         ("calendar_col",
-         {"board": "text",
-          "item": "text",
-          "visible": "boolean",
-          "interactive": "boolean",
-          "style": "text DEFAULT 'BigLight'",
-          "cel_style": "text DEFAULT 'SmallDark'"},
-         ("board", "item"),
-         {"board, item": ("item", "board, name"),
+         {"dimension": "text not null DEFAULT 'Physical'",
+          "item": "text not null",
+          "visible": "boolean not null DEFAULT 1",
+          "interactive": "boolean not null DEFAULT 1",
+          "style": "text not null DEFAULT 'BigLight'",
+          "cel_style": "text not null DEFAULT 'SmallDark'"},
+         ("dimension", "item"),
+         {"dimension, item": ("item", "dimension, name"),
           "style": ("style", "name"),
           "cel_style": ("style", "name")},
          []
          )]
 
-    def __init__(self, board, item, visible, interactive,
+    def __init__(self, dimension, item, visible, interactive,
                  style, cel_style,
                  db=None):
-        self.board = board
+        self.dimension = dimension
         self.item = item
         self.visible = visible
         self.tweaks = 0
@@ -170,29 +173,39 @@ cells.
         self.right = 0
         self.cell_cache = {}
         if db is not None:
-            if stringlike(self.board):
-                boardname = self.board
+            if stringlike(self.dimension):
+                dimname = self.dimension
             else:
-                if stringlike(self.board.dimension):
-                    boardname = self.board.dimension
-                else:
-                    boardname = self.board.dimension.name
+                dimname = self.dimension.name
             if stringlike(self.item):
                 itname = self.item
             else:
                 itname = self.item.name
-            if boardname not in db.calcoldict:
-                db.calcoldict[boardname] = {}
-            db.calcoldict[boardname][itname] = self
+            if dimname not in db.calcoldict:
+                db.calcoldict[dimname] = {}
+            db.calcoldict[dimname][itname] = self
 
     def __iter__(self):
         return self.cells.itervalues()
 
+    def get_tabdict(self):
+        return {
+            "calendar_col": {
+                "board": self.board.dimension.name,
+                "item": self.item.name,
+                "visible": self.visible,
+                "interactive": self.interactive,
+                "style": self.style.name,
+                "cel_style": self.cel_style.name}}
+
     def toggle_visibility(self):
+        #logger.log(DEBUG, "Toggling visibility of calendar column for %s.", self.item.name)
         if self in self.cal:
             self.cal.remove(self)
+            self.visible = False
         else:
             self.cal.add(self)
+            self.visible = True
         self.tweaks += 1
 
     def hide(self):
@@ -207,10 +220,11 @@ cells.
         return self.visible and self.item.name in self.cal.coldict
 
     def unravel(self, db):
-        if stringlike(self.board):
-            self.board = db.boarddict[self.board]
+        if stringlike(self.dimension):
+            self.dimension = db.dimensiondict[self.dimension]
+        self.board = db.boarddict[self.dimension.name]
         if stringlike(self.item):
-            self.item = db.itemdict[self.board.dimension.name][self.item]
+            self.item = db.itemdict[self.dimension.name][self.item]
         self.item.pawn.calcol = self
         if stringlike(self.style):
             self.style = db.styledict[self.style]
@@ -486,7 +500,7 @@ representing a single tick would take up."""
 
 
 rcib_format = (
-    "SELECT {0} FROM calendar_col WHERE board IN ({1})".format(
+    "SELECT {0} FROM calendar_col WHERE dimension IN ({1})".format(
         ", ".join(CalendarCol.colns), "{0}"))
 
 def read_calendar_cols_in_boards(db, boardnames):
@@ -499,5 +513,5 @@ def read_calendar_cols_in_boards(db, boardnames):
     for row in db.c:
         rowdict = dictify_row(row, CalendarCol.colns)
         rowdict["db"] = db
-        r[rowdict["board"]][rowdict["item"]] = CalendarCol(**rowdict)
+        r[rowdict["dimension"]][rowdict["item"]] = CalendarCol(**rowdict)
     return r

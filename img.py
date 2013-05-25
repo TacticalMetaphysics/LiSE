@@ -20,9 +20,9 @@ saving the path.
     """
     tables = [
         ("img",
-         {"name": "text",
-          "path": "text",
-          "rltile": "boolean"},
+         {"name": "text not null",
+          "path": "text not null",
+          "rltile": "boolean not null DEFAULT 0"},
          ("name",),
          {},
          [])]
@@ -35,6 +35,13 @@ saving the path.
         self.tex = None
         if db is not None:
             db.imgdict[name] = self
+
+    def get_tabdict(self):
+        return {
+            "img": {
+                "name": self.name,
+                "path": self.path,
+                "rltile": self.rltile}}
 
     def unravel(self, db):
         """Load the underlying texture using pyglet.

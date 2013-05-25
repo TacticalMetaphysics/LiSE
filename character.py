@@ -44,46 +44,55 @@ item's name, and the name of the attribute.
 """
     tables = [
         ("character_item_link",
-         {"character": "text",
-          "dimension": "text",
-          "item": "text"},
+         {"character": "text not null",
+          "dimension": "text not null",
+          "item": "text not null"},
          ("character", "dimension", "item"),
          {"dimension, item": ("item", "dimension, name")},
          []),
         ("character_skill_link",
-         {"character": "text",
-          "skill": "text",
-          "effect_deck": "text"},
+         {"character": "text not null",
+          "skill": "text not null",
+          "effect_deck": "text not null"},
          ("character", "skill"),
          {"effect_deck": ("effect_deck", "name")},
          []),
         ("attribution",
-         {"character": "text",
-          "attribute": "text",
-          "value": "text"},
+         {"character": "text not null",
+          "attribute": "text not null",
+          "value": "text not null"},
          ("character", "attribute"),
-         [],
+         {},
          [])]
 
     def __init__(self, name, db=None):
         self.name = name
-        self.character_item_link = set()
-        self.character_skill_link = set()
-        self.attribution = set()
         if db is not None:
             db.characterdict[self.name] = self
 
+    def get_tabdict(self):
+        items = [
+            {"character": self.name,
+             "dimension": it.dimension.name,
+             "item": it.name}
+            for it in iter(self.itemset)]
+        skills = [
+            {"character": self.name,
+             "skill": sk.name,
+             "effect_deck": sk.effect_deck.name}
+            for sk in iter(self.skillset)]
+        attributions = [
+            {"character": self.name,
+             "attribute": item[0],
+             "value": item[1]}
+            for item in self.attributiondict.iteritems()]
+        return {
+            "character_item_link": items,
+            "character_skill_link": skills,
+            "attribution": attributions}
+
     def unravel(self, db):
         # Assumes that everything it relies on has been pre-unraveled
-        self.itemdict = db.characteritemdict[self.name]
-        self.skilldict = db.skilldict[self.name]
+        self.itemset = db.characteritemdict[self.name]
+        self.skillset = db.skilldict[self.name]
         self.attributiondict = db.attributiondict[self.name]
-        for item in self.itemdict.iteritems():
-            (dimname, it) = item
-            self.character_item_link.add((self.name, dimname, it.name))
-        for item in self.skilldict.iteritems():
-            (skill, ed) = item
-            self.character_skill_link.add((self.name, skill, ed.name))
-        for item in self.attributiondict.iteritems():
-            (trib, val) = item
-            self.attribution.add((self.name, trib, val))

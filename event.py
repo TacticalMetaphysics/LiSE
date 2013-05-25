@@ -1,5 +1,9 @@
-from util import SaveableMetaclass, dictify_row
-from effect import load_effect_decks
+from util import SaveableMetaclass, dictify_row, stringlike
+from effect import (
+    load_effect_decks,
+    PortalEntryEffectDeck,
+    PortalProgressEffectDeck,
+    PortalExitEffectDeck)
 
 
 """Containers for EffectDecks that have beginnings, middles, and ends.
@@ -68,9 +72,9 @@ success that strains a person terribly and causes them injury.
     """
     tables = [
         ("event",
-         {"name": "text",
-          "text": "text",
-          "ongoing": "boolean",
+         {"name": "text not null",
+          "text": "text not null",
+          "ongoing": "boolean not null",
           "commence_effects": "text",
           "proceed_effects": "text",
           "conclude_effects": "text"},
@@ -96,6 +100,15 @@ If db is provided, register with its eventdict.
         self.conclude_effects = conclude_effects
         if db is not None:
             db.eventdict[name] = self
+
+    def get_tabdict(self):
+        return {
+            "name": self.name,
+            "text": self.text,
+            "ongoing": self.ongoing,
+            "commence_effects": self.commence_effects.name,
+            "proceed_effects": self.proceed_effects.name,
+            "conclude_effects": self.conclude_effects.name}
 
     def unravel(self, db):
         """Dereference the effect decks.
@@ -146,14 +159,6 @@ not."""
         else:
             return hash(self.name)
 
-    def scheduled_copy(self, start, length):
-        """Return a copy of myself with the given start time and length."""
-        new = Event(self.db, self.tabdict)
-        new.start = start
-        new.length = length
-        new.end = start + length
-        return new
-
     def commence(self):
         """Perform all commence effects, and set self.ongoing to True."""
         self.commence_effects.do()
@@ -176,13 +181,41 @@ it."""
         return self.name
 
 
+class PortalTravelEvent(Event):
+    """Event representing a thing's travel through a single portal, from
+one place to another."""
+    name_format = "PortalTravelEvent {0}: {1}: {2}-{3}->{4}"
+    text_format = "Travel from {0} to {1}"
+
+    def __init__(self, thing, portal, ongoing, db=None):
+        dimname = thing.dimension.name
+        if stringlike(portal.orig):
+            origname = portal.orig
+        else:
+            origname = portal.orig.name
+        if stringlike(portal.dest):
+            destname = portal.dest
+        else:
+            destname = portal.dest.name
+        name = self.name_format.format(
+            dimname, thing.name, origname, portal.name, destname)
+        text = self.text_format.format(origname, destname)
+        commence_effects = PortalEntryEffectDeck(thing, portal, db)
+        proceed_effects = PortalProgressEffectDeck(thing, db)
+        conclude_effects = PortalExitEffectDeck(thing, db)
+        Event.__init__(
+            self, name, text, ongoing,
+            commence_effects, proceed_effects, conclude_effects,
+            db)
+
+
 class EventDeck:
     """A deck representing events that might get scheduled at some point."""
     tables = [
         ("event_deck_link",
-         {"deck": "text",
-          "idx": "integer",
-          "event": "text"},
+         {"deck": "text not null",
+          "idx": "integer not null",
+          "event": "text not null"},
          ("deck", "idx"),
          {"event": ("event", "name")},
          [])]
@@ -198,6 +231,20 @@ If db is provided, register with its eventdeckdict.
         self.events = event_list
         if db is not None:
             db.eventdeckdict[self.name] = self
+
+    def get_tabdict(self):
+        rowdicts = []
+        for i in xrange(0, len(self.events)):
+            rowdicts.append({
+                "deck": self.name,
+                "idx": i,
+                "event": self.events[i].name})
+        return {"event_deck_link": rowdicts}
+
+    def unravel(self, db):
+        for i in xrange(0, len(self.events)):
+            if stringlike(self.events[i]):
+                self.events[i] = db.eventdict[self.events[i]]
 
 
 evdl_qcol = ["event_deck_link." + coln for coln in EventDeck.colns]
@@ -257,7 +304,8 @@ those keys falling between these bounds."""
 
 
 def get_all_starting_between(db, start, end):
-    """Look through all the events yet loaded by the database, and return a dictionary of those that start in the given range."""
+    """Look through all the events yet loaded by the database, and return
+a dictionary of those that start in the given range."""
     r = {}
     for item in db.startevdict.itervalues():
         r.update(lookup_between(item, start, end))

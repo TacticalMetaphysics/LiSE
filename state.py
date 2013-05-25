@@ -1,5 +1,3 @@
-from event import get_all_starting_ongoing_ending as gasoe
-import logging
 # do I want to handle the timer here? that might be good
 
 
@@ -26,7 +24,6 @@ passed, and ticks are supposed to pass every st seconds. Both are
 floats."""
         # assuming for now that time only goes forward, at a rate of
         # one tick every st seconds
-        log = logging.getLogger("state.update")
         extra = {
             "ts": ts,
             "st": st}
@@ -39,44 +36,24 @@ floats."""
         extra["new_age"] = newage
         if newage == self.age:
             return
-        starts = {}
-        conts = {}
-        ends = {}
-        for dimension in self.db.dimensiondict.itervalues():
-            for item in dimension.itemdict.itervalues():
-                if hasattr(item, 'schedule'):
-                    (s, c, e) = gasoe(self.db, self.age, newage)
-                    starts.update(s)
-                    conts.update(c)
-                    ends.update(e)
-        if log.isEnabledFor(logging.DEBUG):
-            startstrs = [str(ev) for ev in starts.itervalues()]
-            contstrs = [str(ev) for ev in conts.itervalues()]
-            endstrs = [str(ev) for ev in ends.itervalues()]
-            extra["starts"] = ", ".join(startstrs)
-            extra["conts"] = ", ".join(contstrs)
-            extra["ends"] = ", ".join(endstrs)
-            log.debug("Updating game state.", extra=extra)
         for i in xrange(self.age, newage):
-            if i in starts:
-                s = iter(starts[i])
-                for starter in s:
-                    starter.commence()
-            if i in conts:
-                c = iter(conts[i])
-                for continuer in c:
-                    continuer.proceed()
-            if i in ends:
-                e = iter(ends[i])
-                for ender in e:
-                    ender.conclude()
-        self.age = i
+            if i in self.db.startevdict:
+                starts = iter(self.db.startevdict[i])
+            else:
+                starts = tuple()
+            if i in self.db.contevdict:
+                conts = iter(self.db.contevdict[i])
+            else:
+                conts = tuple()
+            if i in self.db.endevdict:
+                ends = iter(self.db.endevdict[i])
+            else:
+                ends = tuple()
+            for ev in starts:
+                ev.commence()
+            for ev in conts:
+                ev.proceed()
+            for ev in ends:
+                ev.conclude()
+        self.age = newage
 
-    def add(self, dimension):
-        self.dimensions.add(dimension)
-
-    def discard(self, dimension):
-        self.dimensions.discard(dimension)
-
-    def remove(self, dimension):
-        self.dimensions.remove(dimension)

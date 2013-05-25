@@ -19,11 +19,11 @@ you that.
     """
     tables = [
         ("color",
-         {'name': 'text',
+         {'name': 'text not null',
           'red': 'integer not null ',
           'green': 'integer not null ',
           'blue': 'integer not null ',
-          'alpha': 'integer default 255 '},
+          'alpha': 'integer not null default 255 '},
          ("name",),
          {},
          ["red between 0 and 255",
@@ -48,6 +48,9 @@ With db, register in its colordict.
         if db is not None:
             db.colordict[self.name] = self
 
+    def __str__(self):
+        return self.name
+
     def __eq__(self, other):
         """Just check if they're both colors and their names are the same."""
         return (
@@ -62,7 +65,7 @@ With db, register in its colordict.
         """Iterator over my tuple."""
         return iter(self.tup)
 
-    def __str__(self):
+    def __repr__(self):
         """Looks just like the tuple."""
         return "(" + ", ".join(self.tup) + ")"
 
@@ -72,7 +75,7 @@ class Style:
 that contain text."""
     tables = [
         ("style",
-         {"name": "text",
+         {"name": "text not null",
           "fontface": "text not null",
           "fontsize": "integer not null",
           "spacing": "integer default 6",
@@ -108,6 +111,9 @@ With db, register in its styledict.
         self.fg_active = fg_active
         if db is not None:
             db.styledict[self.name] = self
+
+    def __str__(self):
+        return self.name
 
     def unravel(self, db):
         """Dereference all the colors"""

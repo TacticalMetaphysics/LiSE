@@ -1,7 +1,9 @@
 import sqlite3
 import board
 import dimension
+import re
 from collections import OrderedDict
+from location import LocationWiseDict
 
 
 """The database backend, with dictionaries of loaded objects.
@@ -18,6 +20,11 @@ SQL. That's in util.py, the class SaveableMetaclass.
 def noop(nope):
     """Do nothing."""
     pass
+
+ITEM_RE = re.compile("(.*)\.(.*)")
+THING_INTO_PORTAL_RE = re.compile("(.*)\.(.*)->(.*)")
+THING_ALONG_PORTAL_RE = re.compile("(.*)\.(.*), (.*)")
+THING_OUT_OF_PORTAL_RE = ITEM_RE
 
 
 class Database:
@@ -51,7 +58,8 @@ arguments.
 
         """
         self.conn = sqlite3.connect(dbfile)
-        self.c = self.conn.cursor()
+        self.cursor = self.conn.cursor()
+        self.c = self.cursor
         self.altered = set()
         self.removed = set()
         self.dimensiondict = {}
@@ -62,7 +70,7 @@ arguments.
         self.startevdict = {}
         self.contevdict = {}
         self.endevdict = {}
-        self.itemdict = {}
+        self.itemdict = LocationWiseDict()
         self.placedict = {}
         self.portaldict = {}
         self.thingdict = {}
@@ -76,25 +84,41 @@ arguments.
         self.colordict = {}
         self.journeydict = {}
         self.contentsdict = {}
-        self.containerdict = {}
-        self.placecontentsdict = {}
+        self.locdict = LocationWiseDict()
         self.portalorigdestdict = {}
         self.portaldestorigdict = {}
         self.effectdict = {}
         self.effectdeckdict = {}
         self.stringdict = {}
         self.func = {
-            'toggle_menu_visibility': self.toggle_menu_visibility,
-            'toggle_calendar_visibility': self.toggle_calendar_visibility,
-            'hide_menu': self.hide_menu,
-            'hide_calendar': self.hide_calendar,
-            'show_menu': self.show_menu,
-            'show_calendar': self.show_calendar,
-            'hide_menus_in_board': self.hide_menus_in_board,
-            'hide_calendars_in_board': self.hide_calendars_in_board,
-            'hide_other_menus_in_board': self.hide_other_menus_in_board,
+            'toggle_menu_visibility':
+            self.toggle_menu_visibility,
+            'toggle_calendar_visibility':
+            self.toggle_calendar_visibility,
+            'hide_menu':
+            self.hide_menu,
+            'hide_calendar':
+            self.hide_calendar,
+            'show_menu':
+            self.show_menu,
+            'show_calendar':
+            self.show_calendar,
+            'hide_menus_in_board':
+            self.hide_menus_in_board,
+            'hide_calendars_in_board':
+            self.hide_calendars_in_board,
+            'hide_other_menus_in_board':
+            self.hide_other_menus_in_board,
             'hide_other_calendars_in_board':
             self.hide_other_calendars_in_board,
+            'portal_progress':
+            self.portal_progress,
+            'thing_into_portal':
+            self.thing_into_portal,
+            'thing_along_portal':
+            self.thing_along_portal,
+            'thing_out_of_portal':
+            self.thing_out_of_portal,
             'start_new_map': noop,
             'open_map': noop,
             'save_map': noop,
@@ -480,8 +504,7 @@ This is game-world time. It doesn't always go forwards.
 Please use self.get_text() to lookup these strings later."""
         self.c.execute("SELECT * FROM strings;")
         for row in self.c:
-            (atstringn, lang, string) = row
-            stringn = atstringn[1:]
+            (stringn, lang, string) = row
             if stringn not in self.stringdict:
                 self.stringdict[stringn] = {}
             self.stringdict[stringn][lang] = string
@@ -499,10 +522,126 @@ Spell the lang argument the same way it's spelled in the strings table.
         self.load_strings()
         self.load_board(self.game[0])
 
+    def portal_progress(self, arg):
+        """Move a thing some distance along whatever portal it's in.
+
+arg is a string, formatted like:
+
+dimension.thing+0.42
+
+That means move the thing called "thing" in the dimension called
+"dimension" 0.42 portal lengths through the portal it's in.
+
+        """
+        dot = arg.find(".")
+        plus = arg.find("+")
+        dimname = arg[:dot]
+        thingname = arg[dot:plus]
+        amt = float(arg[:plus])
+        journey = self.journeydict[dimname][thingname]
+        return journey.move_thru(amt)
+
+    def add_event(self, ev):
+        """Add the event to the various dictionaries events go in."""
+        self.eventdict[ev.name] = ev
+        if hasattr(ev, 'start') and hasattr(ev, 'length'):
+            if ev.start not in self.startevdict:
+                self.startevdict[ev.start] = set()
+            self.startevdict[ev.start].add(ev)
+            ev_end = ev.start + ev.length
+            for i in xrange(ev.start+1, ev_end-1):
+                if i not in self.contevdict:
+                    self.contevdict[i] = set()
+                self.contevdict[i].add(ev)
+            if ev_end not in self.endevdict:
+                self.endevdict[ev_end] = set()
+            self.endevdict[ev_end].add(ev)
+
+    def remove_event(self, ev):
+        """Remove the event from all the dictionaries events go in."""
+        del self.eventdict[ev.name]
+        if hasattr(ev, 'start'):
+            self.startevdict[ev.start].remove(ev)
+            if hasattr(ev, 'length'):
+                ev_end = ev.start + ev.length
+                for i in xrange(ev.start+1, ev_end-1):
+                    self.contevdict[i].remove(ev)
+                self.endevdict[ev_end].remove(ev)
+
+    def discard_event(self, ev):
+        """Remove the event from all the relevant dictionaries here, if it is
+a member."""
+        if ev.name in self.eventdict:
+            del self.eventdict[ev.name]
+        if hasattr(ev, 'start') and ev.start in self.startevdict:
+            self.startevdict[ev.start].discard(ev)
+        if hasattr(ev, 'start') and hasattr(ev, 'length'):
+            ev_end = ev.start + ev.length
+            for i in xrange(ev.start+1, ev_end-1):
+                if i in self.contevdict:
+                    self.contevdict[i].discard(ev)
+            if ev_end in self.endevdict:
+                self.endevdict[ev_end].discard(ev)
+
+    def thing_into_portal(self, arg):
+        """Put the item into the portal.
+
+Argument is a mere string, structured as so:
+
+dimension.item->portal
+
+All of these are the names of their referents, and will be looked up
+in the appropriate dictionary.
+
+        """
+        rex = THING_INTO_PORTAL_RE
+        (dimname, itname, portname) = re.match(rex, arg).groups()
+        thing = self.thingdict[dimname][itname]
+        portal = self.portaldict[dimname][portname]
+        return thing.enter(portal)
+
+    def thing_along_portal(self, arg):
+        """Move the thing some amount along the portal it's in.
+
+Argument is a mere string, structured like:
+
+dimension.item
+
+The given item in the given dimension will be moved along the portal
+some amount, calculated by its speed_thru method.
+
+        """
+        rex = THING_ALONG_PORTAL_RE
+        (dimname, thingname) = re.match(rex, arg)
+        thing = self.thingdict[dimname][thingname]
+        port = thing.location.get_real()
+        speed = thing.speed_thru(port)
+        amount = 1 / float(speed)
+        return thing.move_thru_portal(amount)
+
+    def thing_out_of_portal(self, arg):
+        """Take the thing out of the portal it's in, and put it in the
+portal's destination.
+
+Argument is a string like:
+
+dimension.item
+
+The given item in the given dimension will be moved to the portal's
+destination.
+
+        """
+        rex = THING_OUT_OF_PORTAL_RE
+        (dimname, thingname) = re.match(rex, arg).groups()
+        thing = self.thingdict[dimname][thingname]
+        return thing.next()
+
 
 def load_game(dbfilen, language):
     """Load the game in the given SQLite3 database file. Load strings for
-the given language. Return a lise.Database object."""
+the given language. Return a lise.Database object.
+
+    """
     db = Database(dbfilen)
     db.load_game(language)
     return db
