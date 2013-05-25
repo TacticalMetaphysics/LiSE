@@ -179,6 +179,8 @@ cells.
                 itname = self.item
             else:
                 itname = self.item.name
+            if dimname not in db.calcoldict:
+                db.calcoldict[dimname] = {}
             db.calcoldict[dimname][itname] = self
 
     def __iter__(self):
@@ -439,7 +441,7 @@ method.
 
 
 rcib_format = (
-    "SELECT {0} FROM calendar_col WHERE board IN ({1})".format(
+    "SELECT {0} FROM calendar_col WHERE dimension IN ({1})".format(
         ", ".join(CalendarCol.colns), "{0}"))
 
 def read_calendar_cols_in_boards(db, boardnames):
@@ -452,5 +454,5 @@ def read_calendar_cols_in_boards(db, boardnames):
     for row in db.c:
         rowdict = dictify_row(row, CalendarCol.colns)
         rowdict["db"] = db
-        r[rowdict["board"]][rowdict["item"]] = CalendarCol(**rowdict)
+        r[rowdict["dimension"]][rowdict["item"]] = CalendarCol(**rowdict)
     return r

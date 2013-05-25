@@ -12,6 +12,7 @@ from spot import Spot
 from pawn import Pawn
 from board import Board
 from sqlite3 import OperationalError
+from rltileins import ins_rltiles
 
 tabclasses = [
     Schedule,
@@ -35,7 +36,7 @@ tabclasses = [
     Pawn,
     Board]
 
-DB_NAME = 'empty.sqlite'
+DB_NAME = 'default.sqlite'
 
 try:
     os.remove(DB_NAME)
@@ -54,8 +55,9 @@ for clas in tabclasses:
 game_decl = """CREATE TABLE game
  (front_board TEXT DEFAULT 'Physical', age INTEGER DEFAULT 0,
  seed INTEGER DEFAULT 0);"""
-strs_decl = """CREATE TABLE strings (stringname TEXT, language TEXT,
- string TEXT, PRIMARY KEY(stringname, language));"""
+strs_decl = """CREATE TABLE strings (stringname TEXT NOT NULL, language TEXT NOT
+ NULL DEFAULT 'English', string TEXT NOT NULL, PRIMARY KEY(stringname,
+ language));"""
 place_trig_ins = """CREATE TRIGGER name_place BEFORE INSERT ON place
 BEGIN
 INSERT INTO item (dimension, name) VALUES (NEW.dimension, NEW.name);
@@ -100,6 +102,17 @@ for extratab in extratabs:
         db.c.execute(extratab)
     except OperationalError as ope:
         raise Exception(repr(ope) + "\n" + extratab)
+
+ins_rltiles(db.c, 'rltiles')
+
+inserts = open("inserts.sql", "r")
+commands = inserts.read().split(";")
+inserts.close()
+for command in commands:
+    try:
+        db.c.execute(command)
+    except OperationalError as ope:
+        raise Exception(repr(ope) + "\n" + command)
 
 db.c.close()
 db.conn.commit()

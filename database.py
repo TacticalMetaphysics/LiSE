@@ -3,6 +3,7 @@ import board
 import dimension
 import re
 from collections import OrderedDict
+from location import LocationWiseDict
 
 
 """The database backend, with dictionaries of loaded objects."""
@@ -60,7 +61,7 @@ arguments.
         self.startevdict = {}
         self.contevdict = {}
         self.endevdict = {}
-        self.itemdict = {}
+        self.itemdict = LocationWiseDict()
         self.placedict = {}
         self.portaldict = {}
         self.thingdict = {}
@@ -74,7 +75,7 @@ arguments.
         self.colordict = {}
         self.journeydict = {}
         self.contentsdict = {}
-        self.locdict = {}
+        self.locdict = LocationWiseDict()
         self.portalorigdestdict = {}
         self.portaldestorigdict = {}
         self.effectdict = {}
@@ -461,8 +462,7 @@ for that item.
     def load_strings(self):
         self.c.execute("SELECT * FROM strings;")
         for row in self.c:
-            (atstringn, lang, string) = row
-            stringn = atstringn[1:]
+            (stringn, lang, string) = row
             if stringn not in self.stringdict:
                 self.stringdict[stringn] = {}
             self.stringdict[stringn][lang] = string

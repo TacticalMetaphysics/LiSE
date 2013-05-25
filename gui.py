@@ -50,10 +50,10 @@ class GameWindow:
         self.menus = self.board.menudict.values()
         self.spots = self.board.spotdict.values()
         self.pawns = self.board.pawndict.values()
-        self.portals = self.board.dimension.portaldict.values()
+
         self.calendar = self.board.calendar
         self.calendar.set_gw(self)
-        for menu in self.menus:
+        for menu in self.board.menudict.itervalues():
             menu.set_gw(self)
         self.drawn_board = None
         self.drawn_edges = None
@@ -81,9 +81,8 @@ class GameWindow:
                 self.onscreen = set()
             self.prev_view_left = self.view_left
             self.prev_view_bot = self.view_bot
-            portal_todo = self.portals
             menus_todo = [
-                menu for menu in self.menus if
+                menu for menu in self.board.menudict.itervalues() if
                 menu.get_state_tup() not in self.onscreen]
             mi_todo = []
             for menu in self.menus:
@@ -91,18 +90,19 @@ class GameWindow:
                     it for it in menu.items if
                     it.get_state_tup() not in self.onscreen])
             pawn_todo = [
-                pawn for pawn in self.pawns if
+                pawn for pawn in self.board.pawndict.itervalues() if
                 pawn.get_state_tup() not in self.onscreen]
             spot_todo = [
-                spot for spot in self.spots if
+                spot for spot in self.board.spotdict.itervalues() if
                 spot.get_state_tup() not in self.onscreen]
             # draw the edges, representing portals
             e = []
-            for portal in portal_todo:
-                origspot = portal.orig.spot
-                destspot = portal.dest.spot
-                edge = (origspot.x, origspot.y, destspot.x, destspot.y)
-                e.extend(edge)
+            for dests in self.board.dimension.portalorigdestdict.itervalues():
+                for port in dests.itervalues():
+                    origspot = port.orig.spot
+                    destspot = port.dest.spot
+                    edge = (origspot.x, origspot.y, destspot.x, destspot.y)
+                    e.extend(edge)
             try:
                 self.drawn_edges.delete()
             except AttributeError:

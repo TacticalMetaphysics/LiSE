@@ -1,6 +1,6 @@
 import logging
 # do I want to handle the timer here? that might be good
-
+log = logging.getLogger(__name__)
 
 class GameState:
     """Class to hold the state of the game, specifically not including the
@@ -26,9 +26,18 @@ state of the interface.
         if newage == self.age:
             return
         for i in xrange(self.age, newage):
-            starts = iter(self.db.startevdict[i])
-            conts = iter(self.db.contevdict[i])
-            ends = iter(self.db.endevdict[i])
+            if i in self.db.startevdict:
+                starts = iter(self.db.startevdict[i])
+            else:
+                starts = tuple()
+            if i in self.db.contevdict:
+                conts = iter(self.db.contevdict[i])
+            else:
+                conts = tuple()
+            if i in self.db.endevdict:
+                ends = iter(self.db.endevdict[i])
+            else:
+                ends = tuple()
             if log.isEnabledFor(logging.DEBUG):
                 x = {
                     "ts": ts,

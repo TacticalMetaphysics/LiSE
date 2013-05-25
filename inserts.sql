@@ -27,7 +27,7 @@ bg_inactive, bg_active, fg_inactive, fg_active) VALUES
      'solarized-base1',
      'solarized-base01'),
     ('SmallDark',
-     'DejaVu Sans', 12, 3,
+     'DejaVu Sans', 8, 3,
      'solarized-base03',
      'solarized-base2',
      'solarized-base1',
@@ -39,7 +39,7 @@ bg_inactive, bg_active, fg_inactive, fg_active) VALUES
      'solarized-base01',
      'solarized-base1'),
     ('SmallLight',
-     'DejaVu Serif', 12, 3,
+     'DejaVu Serif', 8, 3,
      'solarized-base3',
      'solarized-base02',
      'solarized-base01',
@@ -116,6 +116,8 @@ INSERT INTO easy_effect VALUES
 ('toggle_menu', 'Game'),
 ('toggle_menu', 'Editor'),
 ('toggle_menu', 'Place');
+INSERT INTO effect_deck_link (deck, idx, effect)
+SELECT name, 0, name FROM effect;
 INSERT INTO menu (name, bottom, left, right, top, main_for_window, style, visible) VALUES
 ('Main', 0.12, 0.0, 0.1, 1.0, 1, 'BigLight', 1);
 INSERT INTO menu (name) VALUES ('Game'), ('Editor'), ('Place'), ('Thing');
@@ -140,3 +142,39 @@ INSERT INTO menu_item (idx, menu, closer, effect_deck, text) VALUES
 (1, 'Main', 0, 'toggle_menu(Game)', '@game_menu'),
 (2, 'Main', 0, 'toggle_menu(Editor)', '@editor_menu'),
 (3, 'Main', 0, 'toggle_menu(Place)', '@place_menu');
+INSERT INTO spot (place, x, y) VALUES
+('myroom', 400, 100),
+('mybathroom', 450, 150),
+('guestroom', 400, 200),
+('livingroom', 300, 150),
+('diningoffice', 350, 200),
+('kitchen', 350, 150),
+('longhall', 250, 150),
+('momsroom', 250, 100),
+('momsbathroom', 250, 200),
+('outside', 300, 100);
+INSERT INTO pawn (thing) VALUES ('me'), ('mom');
+INSERT INTO img (name, path) VALUES 
+('default_wallpaper', 'wallpape.jpg'),
+('default_spot', 'orb.png');
+INSERT INTO strings (stringname, string) VALUES
+('game_menu', 'Game'),
+('editor_menu', 'Editor'),
+('place_menu', 'Place'),
+('thing_menu', 'Thing'),
+('new_map', 'New world'),
+('open_map', 'Open world...'),
+('save_map', 'Save'),
+('quit_maped', 'Quit'),
+('ed_select', 'Select...'),
+('ed_copy', 'Copy'),
+('ed_paste', 'Paste'),
+('ed_delete', 'Delete...'),
+('custplace', 'New place...'),
+('workplace', 'New workplace...'),
+('commonplace', 'New commons...'),
+('lairplace', 'New lair...'),
+('custthing', 'New thing...'),
+('decorthing', 'New decoration...'),
+('clothing', 'New clothing...'),
+('toolthing', 'New tool...');

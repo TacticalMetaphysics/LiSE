@@ -15,7 +15,7 @@ class Spot:
         ("spot",
          {"dimension": "text not null default 'Physical'",
           "place": "text not null",
-          "img": "text not null default 'orb'",
+          "img": "text not null default 'default_spot'",
           "x": "integer not null default 50",
           "y": "integer not null default 50",
           "visible": "boolean not null default 1",
@@ -71,6 +71,7 @@ class Spot:
             self.place = db.itemdict[self.dimension.name][self.place]
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
+        self.place.spot = self
         self.rx = self.img.getwidth() / 2
         self.ry = self.img.getheight() / 2
         self.left = self.x - self.rx

@@ -39,8 +39,6 @@ keyed with their names.
             self.thingdict = db.thingdict[self.name]
         if not hasattr(self, 'placedict'):
             self.placedict = db.placedict[self.name]
-        if not hasattr(self, 'portaldict'):
-            self.portaldict = db.portaldict[self.name]
         if not hasattr(self, 'portalorigdestdict'):
             self.portalorigdestdict = db.portalorigdestdict[self.name]
         if not hasattr(self, 'portaldestorigdict'):
@@ -48,8 +46,9 @@ keyed with their names.
         # this order is deliberate
         for place in self.placedict.itervalues():
             place.unravel(db)
-        for portal in self.portaldict.itervalues():
-            portal.unravel(db)
+        for dests in self.portalorigdestdict.itervalues():
+            for portal in dests.itervalues():
+                portal.unravel(db)
         for thing in self.thingdict.itervalues():
             thing.unravel(db)
             

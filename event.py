@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, dictify_row
+from util import SaveableMetaclass, dictify_row, stringlike
 from effect import (
     load_effect_decks,
     PortalEntryEffectDeck,
@@ -121,14 +121,6 @@ success that strains a person terribly and causes them injury.
         else:
             return hash(self.name)
 
-    def scheduled_copy(self, start, length):
-        # Return a copy of myself with the given start & end
-        new = Event(self.db, self.tabdict)
-        new.start = start
-        new.length = length
-        new.end = start + length
-        return new
-
     def commence(self):
         self.commence_effects.do()
         self.ongoing = True
@@ -154,8 +146,14 @@ one place to another."""
 
     def __init__(self, thing, portal, ongoing, db=None):
         dimname = thing.dimension.name
-        origname = portal.orig.name
-        destname = portal.dest.name
+        if stringlike(portal.orig):
+            origname = portal.orig
+        else:
+            origname = portal.orig.name
+        if stringlike(portal.dest):
+            destname = portal.dest
+        else:
+            destname = portal.dest.name
         name = self.name_format.format(
             dimname, thing.name, origname, portal.name, destname)
         text = self.text_format.format(origname, destname)

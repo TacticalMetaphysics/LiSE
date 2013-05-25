@@ -55,7 +55,6 @@ NULL_EFFECT = Effect("null", "noop", "nope")
 class PortalEntryEffect(Effect):
     """Effect to put an item in a portal when it wasn't before."""
     def __init__(self, item, portal, db=None):
-        assert(item.dimension == portal.dimension)
         self.item = item
         self.portal = portal
         dimname = item.dimension.name
@@ -79,7 +78,7 @@ class PortalExitEffect(Effect):
 in, incidentally taking it out of the portal."""
     def __init__(self, item, db=None):
         self.item = item
-        self.portal = item.location.getreal()
+        self.portal = item.location.real
         arg = "{0}.{1}".format(item.dimension.name, item.name)
         name = "thing_out_of_portal({0})".format(arg)
         Effect.__init__(self, name, "thing_out_of_portal", arg, db)
@@ -127,14 +126,14 @@ class PortalEntryEffectDeck(EffectDeck):
 
 
 class PortalProgressEffectDeck(EffectDeck):
-    def __init__(self, item, amount, db=None):
-        effect = PortalProgressEffect(item, amount, db)
+    def __init__(self, item, db=None):
+        effect = PortalProgressEffect(item, db)
         EffectDeck.__init__(self, effect.name, [effect], db)
 
 
 class PortalExitEffectDeck(EffectDeck):
-    def __init__(self, item, amount, db=None):
-        effect = PortalExitEffect(item, amount, db)
+    def __init__(self, item, db=None):
+        effect = PortalExitEffect(item, db)
         EffectDeck.__init__(self, effect.name, [effect], db)
 
 

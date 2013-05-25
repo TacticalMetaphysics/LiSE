@@ -98,9 +98,19 @@ class Portal(Item):
           "dimension, to_place": ("place", "dimension, name")},
          [])]
 
-    def __init__(self, dimension, name, from_place, to_place, db=None):
+    def __repr__(self):
+        if stringlike(self.orig):
+            origname = self.orig
+        else:
+            origname = self.orig.name
+        if stringlike(self.dest):
+            destname = self.dest
+        else:
+            destname = self.dest.name
+        return 'Portal({0}->{1})'.format(origname, destname)
+
+    def __init__(self, dimension, from_place, to_place, db=None):
         self.dimension = dimension
-        self.name = name
         self.orig = from_place
         self.dest = to_place
         if db is not None:
@@ -119,6 +129,7 @@ class Portal(Item):
                 to_place_name = self.dest
             else:
                 to_place_name = self.dest.name
+            self.name = "Portal({0}->{1})".format(from_place_name, to_place_name)
             podd = db.portalorigdestdict
             pdod = db.portaldestorigdict
             for d in [db.itemdict, db.portaldict, podd, pdod]:
@@ -129,7 +140,6 @@ class Portal(Item):
             if to_place_name not in pdod[dimname]:
                 pdod[dimname][to_place_name] = {}
             db.itemdict[dimname][self.name] = self
-            db.portaldict[dimname][self.name] = self
             podd[dimname][from_place_name][to_place_name] = self
             pdod[dimname][to_place_name][from_place_name] = self
 
@@ -216,7 +226,7 @@ Register with the database's itemdict and thingdict too.
         """
         self.dimension = dimension
         self.name = name
-        self.starting_location = location
+        self.start_location = location
         self.journey_step = journey_step
         self.journey_progress = journey_progress
         self.age = age
@@ -257,7 +267,7 @@ Also add self to location, if applicable.
             db.contentsdict[self.dimension.name] = {}
         if self.name not in db.contentsdict[self.dimension.name]:
             db.contentsdict[self.dimension.name][self.name] = set()
-        self.contents = db.contentsdict(self.dimension.name, self.name)
+        self.contents = db.contentsdict[self.dimension.name][self.name]
         if stringlike(self.schedule):
             self.schedule = db.scheduledict[self.dimension.name][self.name]
             self.schedule.unravel(db)
@@ -379,10 +389,24 @@ class Journey:
           "dimension, from_place, to_place": ("portal", "dimension, from_place, to_place")},
          [])]
 
-    def __init__(self, dimension, thing, steps, db=None):
+    def __init__(self, dimension, thing, steps, db):
         self.dimension = dimension
         self.thing = thing
-        self.steps = steps
+        self.steps = []
+        for st in steps:
+            if isinstance(st, tuple):
+                self.steps.append(st)
+            else:
+                if stringlike(st.orig):
+                    origname = st.orig
+                else:
+                    origname = st.orig.name
+                if stringlike(st.dest):
+                    destname = st.dest
+                else:
+                    destname = st.dest.name
+                self.steps.append((origname, destname))
+        self.db = db
         if db is not None:
             dimname = None
             thingname = None
@@ -436,10 +460,14 @@ class Journey:
         through after that, etc. __getitem__(-1) returns the step before
         this one, __getitem__(-2) the one before that, etc.
 
-        If i is out of range, returns None.
-
         """
-        return self.steps[i+self.thing.journey_step]
+        (orign, destn) = self.steps[i+self.thing.journey_step]
+        if stringlike(self.thing.dimension):
+            dimn = self.thing.dimension
+        else:
+            dimn = self.thing.dimension.name
+        return self.db.portalorigdestdict[dimn][orign][destn]
+        
 
     def speed_at_step(self, i):
         """Get the thing's speed at step i.
@@ -485,11 +513,11 @@ None.
         return (place, newport)
 
     def __setitem__(self, idx, port):
-        """Put given portal into the steplist at given index, padding steplist
+        """Put given portal into the step list at given index, padding steplist
 with None as needed."""
-        while idx >= len(self.steplist):
-            self.steplist.append(None)
-        self.steplist[idx] = port
+        while idx >= len(self.steps):
+            self.steps.append(None)
+        self.steps[idx] = port
 
     def schedule(self, db, delay=0):
         """Add events representing this journey to the very end of the thing's
@@ -503,17 +531,19 @@ that the thing will wait before starting the journey.
 Then return the schedule. Just for good measure.
 
         """
-        if not hasattr(self.thing, 'schedule'):
+        if not hasattr(self.thing, 'schedule') or self.thing.schedule is None:
             self.thing.schedule = Schedule(self.thing.dimension, self.thing, db)
         try:
             end = max(self.thing.schedule.events_ending.viewkeys())
         except ValueError:
             end = 0
         start = end + delay
-        for port in self.steplist:
+        for port in self:
             newev = PortalTravelEvent(self.thing, port, False, db)
             evlen = self.thing.speed_thru(port)
-            self.thing.schedule.add(newev.scheduled_copy(start, evlen))
+            newev.start = start
+            newev.length = evlen
+            self.thing.schedule.add(newev)
             start += evlen
         return self.thing.schedule
 
@@ -603,7 +633,6 @@ class Schedule:
             self.events_ongoing[i].add(ev)
         self.events_starting[ev.start].add(ev)
         self.events_ending[ev_end].add(ev)
-        self.add_global(ev)
         self.trash_cache(ev.start)
 
     def remove(self, ev):
@@ -795,7 +824,9 @@ def read_journeys_in_dimensions(db, dimnames):
         stepl = r[rowdict["dimension"]][rowdict["thing"]]["steps"]
         while len(stepl) <= rowdict["idx"]:
             stepl.append(None)
-        stepl[rowdict["idx"]] = rowdict["portal"]
+        f = rowdict["from_place"]
+        t = rowdict["to_place"]
+        stepl[rowdict["idx"]] = Portal(rowdict["dimension"], f, t, db)
     for item in r.iteritems():
         (dimname, journeys) = item
         for journey in journeys.iteritems():
@@ -875,22 +906,16 @@ def read_portals_in_dimensions(db, dimnames):
     for row in db.c:
         rowdict = dictify_row(row, Portal.colnames["portal"])
         rowdict["db"] = db
-        r[rowdict["dimension"]][rowdict["name"]] = Portal(**rowdict)
+        if rowdict["from_place"] not in r[rowdict["dimension"]]:
+            r[rowdict["dimension"]][rowdict["from_place"]] = {}
+        r[rowdict["dimension"]][rowdict["from_place"]][rowdict["to_place"]] = Portal(**rowdict)
     return r
 
 
-def unravel_portals(db, portd):
-    for port in portd.itervalues():
-        port.unravel(db)
-    return portd
-
-
-def unravel_portals_in_dimensions(db, portdd):
-    for ports in portdd.itervalues():
-        unravel_portals(db, ports)
-    return portdd
-
-
 def load_portals_in_dimensions(db, dimnames):
-    return unravel_portals_in_dimensions(
-        db, read_portals_in_dimensions(db, dimnames))
+    r = read_portals_in_dimensions(db, dimnames)
+    for origin in r.itervalues():
+        for destination in dimension.itervalues():
+            for portal in destination.itervalues():
+                portal.unravel(db)
+    return r

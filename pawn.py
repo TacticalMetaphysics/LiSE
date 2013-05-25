@@ -104,9 +104,12 @@ class Pawn:
         # not strings or numbers. Calculate self.rx to save some
         # division.
         if hasattr(self.thing, 'journey') and\
-           self.thing.journey.stepsleft() > 0:
+           self.thing.journey.steps_left() > 0:
             j = self.thing.journey
-            port = j.getstep(0)
+            port = j[0]
+            if stringlike(port.orig) or stringlike(port.dest):
+                # The portals haven't actually been loaded yet
+                raise Exception('Tried to draw a pawn {0} before loading portal {1} properly.'.format(repr(self), repr(port)))
             start = port.orig.spot
             end = port.dest.spot
             hdist = end.x - start.x
@@ -187,7 +190,7 @@ class Pawn:
 pawncolstr = ", ".join(Pawn.colnames["pawn"])
 
 pawn_dimension_qryfmt = (
-    "SELECT {0} FROM pawn WHERE board IN ({1})".format(pawncolstr, "{0}"))
+    "SELECT {0} FROM pawn WHERE dimension IN ({1})".format(pawncolstr, "{0}"))
 
 
 def read_pawns_in_boards(db, names):
@@ -200,7 +203,7 @@ def read_pawns_in_boards(db, names):
     for row in db.c:
         rowdict = dictify_row(row, Pawn.colnames["pawn"])
         rowdict["db"] = db
-        r[rowdict["board"]][rowdict["thing"]] = Pawn(**rowdict)
+        r[rowdict["dimension"]][rowdict["thing"]] = Pawn(**rowdict)
     return r
 
 
