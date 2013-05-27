@@ -260,9 +260,6 @@ and your table will be ready.
                 r[tabname] = self.mkrowdict(tabname)
             return r
 
-        def unravel(self, db):
-            pass
-
         dbop = {'insert': insert_tabdict,
                 'delete': delete_tabdict,
                 'detect': detect_tabdict,
@@ -281,7 +278,6 @@ and your table will be ready.
                   'keyqms': keyqms,
                   'rowqms': rowqms,
                   'dbop': dbop,
-                  'unravel': unravel,
                   'get_row': mkrow,
                   'get_rowdict': mkrowdict,
                   'get_tabdict': mktabdict,

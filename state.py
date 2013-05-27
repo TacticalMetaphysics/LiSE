@@ -32,6 +32,7 @@ floats."""
         if newage == self.age:
             return
         for i in xrange(self.age, newage):
+            print "At tick %d" % i
             if i in self.db.startevdict:
                 starts = iter(self.db.startevdict[i])
             else:
@@ -45,10 +46,13 @@ floats."""
             else:
                 ends = tuple()
             for ev in starts:
+                print "Commencing " + repr(ev)
                 ev.commence()
             for ev in conts:
+                print "Proceeding " + repr(ev)
                 ev.proceed()
             for ev in ends:
+                print "Concluding " + repr(ev)
                 ev.conclude()
         self.age = newage
 

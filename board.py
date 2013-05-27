@@ -5,7 +5,7 @@ from style import read_styles
 from spot import read_spots_in_boards
 from calendar import Calendar, read_calendar_cols_in_boards
 from pawn import read_pawns_in_boards
-from dimension import read_dimensions
+from dimension import read_dimensions, load_dimensions
 
 
 """Class for user's view on gameworld, and support functions."""
@@ -202,19 +202,45 @@ unraveled. If you want boards that do things, use load_boards().
     return r
 
 
-def unravel_boards(db, boardd):
-    """Unravel some boards previously read by read_boards(). Return the
-same dictionary that was input--now with the boards in useful form."""
-    for board in boardd.itervalues():
-        board.unravel(db)
-    return boardd
-
-
 def load_boards(db, boards):
     """From the given database, load the boards representing the
 dimensions by the given names, returning a dictionary keyed with the
 dimension names."""
-    return unravel_boards(db, read_boards(db, boards))
+    qryfmt = read_some_boards_format
+    qrystr = qryfmt.format(", ".join(["?"] * len(boards)))
+    db.c.execute(qrystr, boards)
+    r = {}
+    imgs = set()
+    styles = set()
+    for row in db.c:
+        rowdict = dictify_row(row, Board.colns)
+        rowdict["db"] = db
+        r[rowdict["dimension"]] = Board(**rowdict)
+        imgs.add(rowdict["wallpaper"])
+    load_dimensions(db, boards)
+    for menus in read_menus_in_boards(db, boards).itervalues():
+        for menu in menus.itervalues():
+            if stringlike(menu.style):
+                styles.add(menu.style)
+    for spots in read_spots_in_boards(db, boards).itervalues():
+        for spot in spots.itervalues():
+            if stringlike(spot.img):
+                imgs.add(spot.img)
+    for pawns in read_pawns_in_boards(db, boards).itervalues():
+        for pawn in pawns.itervalues():
+            if stringlike(pawn.img):
+                imgs.add(pawn.img)
+    for calcols in read_calendar_cols_in_boards(db, boards).itervalues():
+        for calcol in calcols.itervalues():
+            if stringlike(calcol.style):
+                styles.add(calcol.style)
+            if stringlike(calcol.cel_style):
+                styles.add(calcol.cel_style)
+    load_imgs(db, list(imgs))
+    read_styles(db, list(styles))
+    for board in r.itervalues():
+        board.unravel(db)
+    return r
 
 
 def load_board(db, boardn):

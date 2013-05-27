@@ -22,7 +22,7 @@ def noop(nope):
     pass
 
 ITEM_RE = re.compile("(.*)\.(.*)")
-THING_INTO_PORTAL_RE = re.compile("(.*)\.(.*)->Portal(.*->.*)")
+THING_INTO_PORTAL_RE = re.compile("(.*)\.(.*)->Portal\((.*)->(.*)\)")
 THING_ALONG_PORTAL_RE = ITEM_RE
 THING_OUT_OF_PORTAL_RE = ITEM_RE
 
@@ -72,7 +72,6 @@ arguments.
         self.endevdict = {}
         self.itemdict = LocationWiseDict()
         self.placedict = {}
-        self.portaldict = {}
         self.thingdict = {}
         self.spotdict = {}
         self.imgdict = {}
@@ -612,7 +611,7 @@ some amount, calculated by its speed_thru method.
 
         """
         rex = THING_ALONG_PORTAL_RE
-        (dimname, thingname) = re.match(rex, arg)
+        (dimname, thingname) = re.match(rex, arg).groups()
         thing = self.thingdict[dimname][thingname]
         port = thing.location.real
         speed = thing.speed_thru(port)

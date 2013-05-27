@@ -99,7 +99,11 @@ If db is provided, register with its eventdict.
         self.proceed_effects = proceed_effects
         self.conclude_effects = conclude_effects
         if db is not None:
-            db.eventdict[name] = self
+            db.add_event(self)
+
+    def __repr__(self):
+        if hasattr(self, 'start') and hasattr(self, 'length'):
+            return "{0}[{1}->{2}]".format(self.name, self.start, self.start + self.length)
 
     def get_tabdict(self):
         return {
@@ -119,10 +123,9 @@ value in the db.
         """
         if self.text[0] == "@":
             self.text = db.get_text(self.text[1:])
-        for deck in [self.commence_tests, self.proceed_tests,
-                     self.conclude_tests]:
-            for effect in deck:
-                effect = db.effectdict[effect]
+        for deck in (self.commence_effects, self.proceed_effects,
+                     self.conclude_effects):
+            deck.unravel(db)
 
     def cmpcheck(self, other):
         """Check if this event is comparable to the other. Raise TypeError if

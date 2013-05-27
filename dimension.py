@@ -44,6 +44,10 @@ everything."""
             self.thingdict = db.thingdict[self.name]
         if not hasattr(self, 'placedict'):
             self.placedict = db.placedict[self.name]
+        if not hasattr(self, 'scheduledict'):
+            self.scheduledict = db.scheduledict[self.name]
+        if not hasattr(self, 'journeydict'):
+            self.journeydict = db.journeydict[self.name]
         if not hasattr(self, 'portalorigdestdict'):
             self.portalorigdestdict = db.portalorigdestdict[self.name]
         if not hasattr(self, 'portaldestorigdict'):
@@ -54,6 +58,10 @@ everything."""
         for dests in self.portalorigdestdict.itervalues():
             for portal in dests.itervalues():
                 portal.unravel(db)
+        for journey in self.journeydict.itervalues():
+            journey.unravel(db)
+        for schedule in self.scheduledict.itervalues():
+            schedule.unravel(db)
         for thing in self.thingdict.itervalues():
             thing.unravel(db)
             
@@ -103,15 +111,8 @@ thereof will be returned, but the objects won't be unraveled yet.
         r[name] = Dimension(name, db)
     return r
 
-
-def unravel_dimensions(db, dd):
-    """Unravel dimensions previously read in by read_dimensions."""
-    for dim in dd.itervalues():
-        dim.unravel(db)
-    return dd
-
-
 def load_dimensions(db, names):
-    """Load the dimensions of the given names, along with everything in
-them."""
-    return unravel_dimensions(db, read_dimensions(db, names))
+    r = read_dimensions(db, names)
+    for dim in r.itervalues():
+        dim.unravel(db)
+    return r

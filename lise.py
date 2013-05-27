@@ -26,7 +26,6 @@ for arg in argv:
     i += 1
 
 db = load_game(dbfn, lang)
-b = load_board(db, "Physical")
 s = GameState(db)
 gw = GameWindow(s, "Physical")
 if DEBUG:

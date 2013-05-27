@@ -11,8 +11,13 @@ from event import (
     ImpracticalEvent,
     PortalTravelEvent)
 from location import Location
+from contents import Contents
 from effect import Effect, EffectDeck
 import re
+
+
+class PortalException(Exception):
+    pass
 
 
 """Items that exist in the simulated world. Their graphical
@@ -33,9 +38,15 @@ much."""
          ("dimension", "name"),
          {},
          [])]
+    def __init__(self, db=None):
+        if db is not None:
+            self.contents = Contents(self, db)
 
     def __str__(self):
         return self.name
+
+    def assert_can_contain(self, other):
+        pass
 
 
 class Place(Item):
@@ -55,6 +66,7 @@ it with the placedict and itemdict in the db."""
         self.dimension = dimension
         self.name = name
         if db is not None:
+            self.contents = Contents(self, db)
             dimname = None
             if stringlike(self.dimension):
                 dimname = self.dimension
@@ -66,6 +78,10 @@ it with the placedict and itemdict in the db."""
                 db.placedict[dimname] = {}
             db.itemdict[dimname][self.name] = self
             db.placedict[dimname][self.name] = self
+        Item.__init__(self, db)
+
+    def __repr__(self):
+        return self.name
 
     def unravel(self, db):
         """Get myself a real Dimension object if I don't have one."""
@@ -76,7 +92,6 @@ it with the placedict and itemdict in the db."""
                 db.contentsdict[self.dimension.name] = {}
             if self.name not in db.contentsdict[self.dimension.name]:
                 db.contentsdict[self.dimension.name][self.name] = set()
-            self.contents = db.contentsdict[self.dimension.name][self.name]
 
     def __eq__(self, other):
         if not isinstance(other, Place):
@@ -89,11 +104,6 @@ it with the placedict and itemdict in the db."""
         """Put a Thing in this Place, but don't check if it makes sense. Be
 careful!"""
         self.contents.add(other)
-
-    def remove(self, other):
-        """Remove a Thing from this Place, but don't check if it makes
-sense. Be careful!"""
-        self.contents.remove(other)
 
     def can_contain(self, other):
         """Does it make sense for that to be here?"""
@@ -146,7 +156,7 @@ class Portal(Item):
             self.name = "Portal({0}->{1})".format(from_place_name, to_place_name)
             podd = db.portalorigdestdict
             pdod = db.portaldestorigdict
-            for d in [db.itemdict, db.portaldict, podd, pdod]:
+            for d in (db.itemdict, podd, pdod):
                 if dimname not in d:
                     d[dimname] = {}
             if from_place_name not in podd[dimname]:
@@ -156,6 +166,7 @@ class Portal(Item):
             db.itemdict[dimname][self.name] = self
             podd[dimname][from_place_name][to_place_name] = self
             pdod[dimname][to_place_name][from_place_name] = self
+        Item.__init__(self, db)
 
     def unravel(self, db):
         if stringlike(self.dimension):
@@ -208,10 +219,6 @@ length. Does nothing by default."""
     def add(self, thing):
         """Add this thing to my contents if it's not there already."""
         self.contents.add(thing)
-
-    def remove(self, thing):
-        """Remove this thing from my contents."""
-        self.contents.remove(thing)
 
 
 class Thing(Item):
@@ -277,6 +284,7 @@ Register with the database's itemdict and thingdict too.
             db.itemdict[dimname][self.name] = self
             db.thingdict[dimname][self.name] = self
             db.locdict[dimname][self.name] = location
+        Item.__init__(self, db)
 
     def unravel(self, db):
         """Dereference stringlike attributes.
@@ -293,11 +301,7 @@ Also add self to location, if applicable.
             location = self.start_location
         db.locdict[self.dimension.name][self.name] = location
         self.location = Location(db, self.dimension.name, self.name)
-        if self.dimension.name not in db.contentsdict:
-            db.contentsdict[self.dimension.name] = {}
-        if self.name not in db.contentsdict[self.dimension.name]:
-            db.contentsdict[self.dimension.name][self.name] = set()
-        self.contents = db.contentsdict[self.dimension.name][self.name]
+        self.location.add(self)
         if stringlike(self.schedule):
             self.schedule = db.scheduledict[self.dimension.name][self.name]
             self.schedule.unravel(db)
@@ -305,10 +309,10 @@ Also add self to location, if applicable.
                 self.dimension.name in db.journeydict and
                 self.name in db.journeydict[self.dimension.name]):
             self.journey = db.journeydict[self.dimension.name][self.name]
-            self.journey.unravel(db)
+            self.journey.dimension = self.dimension
+            self.journey.thing = self
             if self.schedule is None:
                 self.schedule = self.journey.schedule(db)
-                self.schedule.unravel(db)
 
     def __hash__(self):
         return self.hsh
@@ -330,19 +334,8 @@ Also add self to location, if applicable.
         """Add an item to my contents without caring if it makes any sense to
 do so.
 
-This will not, for instance, remove the item from wherever it currently is.
-
 """
         self.contents.add(it)
-
-    def remove(self, it):
-        """Remove an item from my contents without putting it anywhere else.
-
-The item might end up not being contained in anything, leaving it
-inaccessible. Beware.
-
-"""
-        self.contents.remove(it)
 
     def assert_can_enter(self, it):
         """If I can't enter the given location, raise a LocationException.
@@ -364,18 +357,18 @@ LocationException."""
 immediately. Else raise exception as appropriate."""
         self.assert_can_enter(it)
         it.assert_can_contain(self)
-        if self.location is not None:
-            self.location.remove(self)
         it.add(self)
 
     def move_thru_portal(self, amount):
         """Move this amount through the portal I'm in"""
+        if not isinstance(self.location.real, Portal):
+            raise PortalException("The location of {0} is {1}, which is not a portal.".format(repr(self), repr(self.location)))
         self.location.notify_moving(self, amount)
         self.journey_progress += amount
 
     def leave_portal(self):
-        """Leave whatever portal I'm in, thus entering its destination."""
-        oldloc = self.location
+        """Leave whatever portal I'm in, thus entering its destination. Return the portal."""
+        oldloc = self.location.real
         self.enter(self.location.dest)
         return oldloc
 
@@ -383,6 +376,9 @@ immediately. Else raise exception as appropriate."""
         """Given a portal, return an integer for the number of ticks it would
 take me to pass through it."""
         return 60
+
+
+thing_qvals = ["thing." + valn for valn in Thing.valns]
 
 
 class Journey:
@@ -455,12 +451,7 @@ class Journey:
             db.journeydict[dimname][thingname] = self
 
     def unravel(self, db):
-        """Dereference dimension, thing, and all steps."""
-        if stringlike(self.dimension):
-            self.dimension = db.dimensiondict[self.dimension]
-        if stringlike(self.thing):
-            self.thing = db.itemdict[self.dimension.name][self.thing]
-        self.thing.journey = self
+        """Dereference all steps."""
         i = 0
         while i < len(self.steps):
             if stringlike(self.steps[i]):
@@ -527,6 +518,7 @@ the thing isn't in a portal at all.
         """
         return self.thing.move_thru_portal(prop)
 
+
     def next(self):
         """Teleport the thing to the destination of the portal it's in, and
 advance the journey.
@@ -537,11 +529,11 @@ None.
 
         """
         oldport = self.thing.leave_portal()
-        place = self.thing.enter_place(oldport.dest)
+        place = self.thing.enter(oldport.dest)
         self.thing.journey_step += 1
         self.thing.journey_progress = 0.0
         try:
-            newport = self.get_step()
+            newport = self[0]
         except IndexError:
             newport = None
         return (place, newport)
@@ -578,8 +570,12 @@ Then return the schedule. Just for good measure.
             newev.start = start
             newev.length = evlen
             self.thing.schedule.add(newev)
-            start += evlen
+            start += evlen + 1
+        self.thing.schedule.unravel(db)
         return self.thing.schedule
+
+
+journey_qvals = ["journey_step." + valn for valn in Journey.valns]
 
 
 class Schedule:
@@ -629,15 +625,7 @@ contevdict, and endevdict."""
             if dimname not in db.scheduledict:
                 db.scheduledict[dimname] = {}
             db.scheduledict[dimname][itemname] = self
-            if dimname not in db.startevdict:
-                db.startevdict[dimname] = {}
-            db.startevdict[dimname][itemname] = self.events_starting
-            if dimname not in db.contevdict:
-                db.contevdict[dimname] = {}
-            db.contevdict[dimname][itemname] = self.events_ongoing
-            if dimname not in db.endevdict:
-                db.endevdict[dimname] = {}
-            db.endevdict[dimname][itemname] = self.events_ending
+            self.db = db
 
     def __iter__(self):
         """Return iterator over my events in order of their start times."""
@@ -655,6 +643,8 @@ contevdict, and endevdict."""
         self.add_global = db.add_event
         self.remove_global = db.remove_event
         self.discard_global = db.discard_event
+        for ev in self.events.itervalues():
+            ev.unravel(db)
 
     def trash_cache(self, start):
         """Trash all cached results for commencements_between,
@@ -684,6 +674,8 @@ length already."""
         self.events_starting[ev.start].add(ev)
         self.events_ending[ev_end].add(ev)
         self.trash_cache(ev.start)
+        if self.db is not None:
+            self.db.add_event(ev)
 
     def remove(self, ev):
         """Remove an event from all my dictionaries."""
@@ -758,6 +750,9 @@ timeframe."""
                 self.conclusions_between(start, end))
 
 
+schedule_qvals = ["scheduled_event.item"] + ["scheduled_event." + valn for valn in Schedule.valns]
+
+
 def lookup_loc(db, it):
     """Return the item that the given one is inside, possibly None."""
     if stringlike(it.dimension):
@@ -821,71 +816,87 @@ things keyed by dimension name, then thing name."""
     return unravel_things_in_dimensions(
         db, read_things_in_dimensions(db, dimnames))
 
-
+schedule_dimension_qcols = (
+    """scheduled_event.dimension, scheduled_event.item,
+scheduled_event.start, scheduled_event.length, scheduled_event.event,
+event.text, event.ongoing, event.commence_effects,
+event.proceed_effects, event.conclude_effects, effect_deck_link.deck,
+effect_deck_link.idx, effect_deck_link.effect, effect.func,
+effect.arg""")
+schedule_dimension_cols = (
+    "dimension", "item", "start", "length", "event", "text", "ongoing",
+    "commence_effects", "proceed_effects", "conclude_effects", "deck",
+    "idx", "effect", "func", "arg")
 schedule_dimension_qryfmt = (
-    "SELECT {0} FROM scheduled_event WHERE dimension IN "
-    "({1})".format(
-        ", ".join(Schedule.colnames["scheduled_event"]), "{0}"))
+    """SELECT {0} FROM scheduled_event
+JOIN event ON scheduled_event.event=event.name
+JOIN effect_deck_link ON effect_deck_link.deck IN
+(event.commence_effects, event.proceed_effects, event.conclude_effects)
+JOIN effect ON effect.name=effect_deck_link.effect
+WHERE scheduled_event.dimension IN ({1})""".format(
+    schedule_dimension_qcols, "{0}"))
 
 
 def read_schedules_in_dimensions(db, dimnames):
-    """Read and instantiate, but do not unravel, all schedules in the
-given dimensions.
-
-Return a 2D dictionary of schedules keyed by dimension name, then item name.
-
-    """
     qryfmt = schedule_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
     db.c.execute(qrystr, dimnames)
     r = {}
-    for dimname in dimnames:
-        r[dimname] = {}
+    for name in dimnames:
+        if name not in db.scheduledict:
+            db.scheduledict[name] = {}
+        r[name] = db.scheduledict[name]
+    eventdict = {}
+    for name in dimnames:
+        if name not in db.eventdict:
+            db.eventdict[name] = {}
+        eventdict[name] = db.eventdict[name]
+    effectdeckdict = {}
+    for name in dimnames:
+        if name not in db.effectdeckdict:
+            db.effectdeckdict[name] = {}
+        effectdeckdict[name] = db.effectdeckdict[name]
+    effectdict = {}
     for row in db.c:
-        rowdict = dictify_row(row, Item.colnames["scheduled_event"])
-        if rowdict["item"] not in r[rowdict["dimension"]]:
-            r[rowdict["dimension"]][rowdict["item"]] = {
-                "db": db,
-                "dimension": rowdict["dimension"],
-                "item": rowdict["item"],
-                "events": {}}
-        rptr = r[rowdict["dimension"]][rowdict["item"]]
-        rptr["events"][rowdict["start"]] = {
-            "event": rptr["event"],
-            "start": rptr["start"],
-            "length": rptr["length"]}
-    for level0 in r.iteritems():
-        (dimn, its) = level0
-        for it in its.iteritems():
-            (itn, sched) = it
-            r[dimn][itn] = Schedule(**sched)
+        rowdict = dictify_row(row, schedule_dimension_cols)
+        dimn = rowdict["dimension"]
+        effn = rowdict["effect"]
+        deckn = rowdict["deck"]
+        evn = rowdict["event"]
+        itn = rowdict["item"]
+        if effn not in effectdict[dimn]:
+            funcn = rowdict["func"]
+            argn = rowdict["arg"]
+            Effect(effn, funcn, argn, db)
+        eff = effectdeckdict[dimn][effn]
+        if deckn not in effectdeckdict[dimn]:
+            EffectDeck(dimn, [], db)
+        deck = effectdeckdict[dimn][deckn]
+        if eff not in deck:
+            idx = rowdict[idx]
+            while len(deck) <= idx:
+                deck.append(None)
+            deck[idx] = eff
+        if evn not in eventdict[dimn]:
+            text = rowdict["text"]
+            ongoing = rowdict["ongoing"]
+            edn_commence = rowdict["commence_effects"]
+            edn_proceed = rowdict["proceed_effects"]
+            edn_conclude = rowdict["conclude_effects"]
+            Event(
+                evn, text, ongoing,
+                edn_commence, edn_proceed, edn_conclude, db)
+        if itn not in r[dimn]:
+            Schedule(dimn, itn, db)
     return r
 
 
-def unravel_schedules(db, schd):
-    """Unravel schedules in a dict keyed by their items' names. Return the
-same dict."""
-    for sched in schd.itervalues():
-        sched.unravel(db)
-    return schd
-
-
-def unravel_schedules_in_dimensions(db, schdd):
-    """Unravel schedules previously read in by read_schedules or
-read_schedules_in_dimensions."""
-    for scheds in schdd.itervalues():
-        unravel_schedules(db, scheds)
-    return schdd
-
-
 def load_schedules_in_dimensions(db, dimnames):
-    """Load every schedule in the given dimensions.
-
-Return a 2D dict keyed by dimension name, then item name.
-
-    """
-    return unravel_schedules_in_dimensions(
-        db, read_schedules_in_dimensions(db, dimnames))
+    r = read_schedules_in_dimensions(db, dimnames)
+    for dim in r.itervalues():
+        for sched in dim.itervalues():
+            sched.unravel(db)
+    return r
 
 
 journey_dimension_qryfmt = (

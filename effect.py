@@ -49,6 +49,11 @@ to."""
 
     def do(self):
         """Call the function with the argument."""
+        if stringlike(self.func):
+            funname = self.func
+        else:
+            funname = self.func.__name__
+        print "Doing effect {0} by calling function {1} on argument {2}".format(self.name, funname, self.arg)
         return self.func(self.arg)
 
 
@@ -115,6 +120,30 @@ If db is supplied, register with it.
     def __getitem__(self, i):
         return self.effects[i]
 
+    def __setitem__(self, i, to):
+        self.effects[i] = to
+
+    def __iter__(self):
+        return iter(self.effects)
+
+    def __contains__(self, that):
+        return that in self.effects
+
+    def append(self, that):
+        self.effects.append(that)
+
+    def insert(self, i, that):
+        self.effects.insert(i, that)
+
+    def remove(self, that):
+        self.effects.remove(that)
+
+    def pop(self, i=None):
+        if i is None:
+            return self.effects.pop()
+        else:
+            return self.effects.pop(i)
+
     def get_tabdict(self):
         rowdicts = []
         for i in xrange(0, len(self.effects)):
@@ -126,13 +155,19 @@ If db is supplied, register with it.
 
     def unravel(self, db):
         """For all the effects I contain, if the effect is actually the *name*
-of an effect, look up the real effect object."""
-        for effn in self.effects:
-            if stringlike(effn):
-                effn = db.effectdict[effn]
+of an effect, look up the real effect object. Then unravel it."""
+        i = 0
+        while i < len(self.effects):
+            eff = self.effects[i]
+            if stringlike(eff):
+                eff = db.effectdict[eff]
+                self.effects[i] = eff
+            eff.unravel(db)
+            i += 1
 
     def do(self):
         """Fire all the effects in order."""
+        print "Doing EffectDeck " + self.name
         return [effect.do() for effect in self.effects]
 
 
