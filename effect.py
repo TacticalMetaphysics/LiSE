@@ -61,7 +61,7 @@ class PortalEntryEffect(Effect):
         self.item = item
         self.portal = portal
         dimname = item.dimension.name
-        arg = "{0}.{1}->{2}".format(dimname, item.name, portal.name)
+        arg = "{0}.{1}->Portal({2}->{3})".format(dimname, item.name, portal.orig.name, portal.dest.name)
         name = "thing_into_portal({0})".format(arg)
         Effect.__init__(self, name, "thing_into_portal", arg, db)
 
@@ -111,6 +111,9 @@ If db is supplied, register with it.
         self.effects = effects
         if db is not None:
             db.effectdeckdict[self.name] = self
+
+    def __getitem__(self, i):
+        return self.effects[i]
 
     def get_tabdict(self):
         rowdicts = []

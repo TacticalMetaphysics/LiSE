@@ -375,7 +375,9 @@ immediately. Else raise exception as appropriate."""
 
     def leave_portal(self):
         """Leave whatever portal I'm in, thus entering its destination."""
+        oldloc = self.location
         self.enter(self.location.dest)
+        return oldloc
 
     def speed_thru(self, port):
         """Given a portal, return an integer for the number of ticks it would
@@ -458,6 +460,7 @@ class Journey:
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.thing):
             self.thing = db.itemdict[self.dimension.name][self.thing]
+        self.thing.journey = self
         i = 0
         while i < len(self.steps):
             if stringlike(self.steps[i]):

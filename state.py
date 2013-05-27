@@ -1,7 +1,7 @@
 # do I want to handle the timer here? that might be good
 
 
-"""Controller for the whole thing, more or less."""
+"""Looper over all the various update functions."""
 
 
 class GameState:

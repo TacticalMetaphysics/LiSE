@@ -22,8 +22,8 @@ def noop(nope):
     pass
 
 ITEM_RE = re.compile("(.*)\.(.*)")
-THING_INTO_PORTAL_RE = re.compile("(.*)\.(.*)->(.*)")
-THING_ALONG_PORTAL_RE = re.compile("(.*)\.(.*), (.*)")
+THING_INTO_PORTAL_RE = re.compile("(.*)\.(.*)->Portal(.*->.*)")
+THING_ALONG_PORTAL_RE = ITEM_RE
 THING_OUT_OF_PORTAL_RE = ITEM_RE
 
 
@@ -595,9 +595,9 @@ in the appropriate dictionary.
 
         """
         rex = THING_INTO_PORTAL_RE
-        (dimname, itname, portname) = re.match(rex, arg).groups()
+        (dimname, itname, orig, dest) = re.match(rex, arg).groups()
         thing = self.thingdict[dimname][itname]
-        portal = self.portaldict[dimname][portname]
+        portal = self.portalorigdestdict[dimname][orig][dest]
         return thing.enter(portal)
 
     def thing_along_portal(self, arg):
@@ -614,7 +614,7 @@ some amount, calculated by its speed_thru method.
         rex = THING_ALONG_PORTAL_RE
         (dimname, thingname) = re.match(rex, arg)
         thing = self.thingdict[dimname][thingname]
-        port = thing.location.get_real()
+        port = thing.location.real
         speed = thing.speed_thru(port)
         amount = 1 / float(speed)
         return thing.move_thru_portal(amount)
@@ -634,7 +634,7 @@ destination.
         rex = THING_OUT_OF_PORTAL_RE
         (dimname, thingname) = re.match(rex, arg).groups()
         thing = self.thingdict[dimname][thingname]
-        return thing.next()
+        return thing.journey.next()
 
 
 def load_game(dbfilen, language):
