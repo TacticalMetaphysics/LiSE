@@ -24,16 +24,11 @@ passed, and ticks are supposed to pass every st seconds. Both are
 floats."""
         # assuming for now that time only goes forward, at a rate of
         # one tick every st seconds
-        extra = {
-            "ts": ts,
-            "st": st}
         self.since += ts
         newage = self.age
         while self.since > st:
             self.since -= st
             newage += 1
-        extra["old_age"] = self.age
-        extra["new_age"] = newage
         if newage == self.age:
             return
         for i in xrange(self.age, newage):
