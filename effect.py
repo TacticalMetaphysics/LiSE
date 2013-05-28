@@ -45,9 +45,7 @@ its effectdict."""
         """If the function was supplied as a string, look up what it refers
 to."""
         if stringlike(self.func):
-            funcn = self.func
-            self.func = db.func[funcn]
-            self.func.name = funcn
+            self.func = db.func[self.func]
 
     def do(self):
         """Call the function with the argument."""
@@ -57,13 +55,6 @@ to."""
             funname = self.func.__name__
         print "Doing effect {0} by calling function {1} on argument {2}".format(self.name, funname, self.arg)
         return self.func(self.arg)
-
-    def tabdict(self):
-        return {
-            "effect":
-            {"name": self.name,
-             "func": self.func.name,
-             "arg": self.arg}}
 
 
 NULL_EFFECT = Effect("null", "noop", "nope")
@@ -178,17 +169,6 @@ of an effect, look up the real effect object. Then unravel it."""
         """Fire all the effects in order."""
         print "Doing EffectDeck " + self.name
         return [effect.do() for effect in self.effects]
-
-    def tabdict(self):
-        effects = []
-        i = 0
-        while i < len(self.effects):
-            effects.append({
-                "deck": self.name,
-                "idx": i,
-                "effect": self.effects[i].name})
-            i += 1
-        return {"effect_deck_link": effects}
 
 
 class PortalEntryEffectDeck(EffectDeck):
