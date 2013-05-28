@@ -4,6 +4,7 @@ from util import (
     stringlike)
 from event import (
     lookup_between,
+    read_events,
     Event,
     SenselessEvent,
     ImpossibleEvent,
@@ -14,6 +15,7 @@ from location import Location
 from contents import Contents
 from effect import Effect, EffectDeck
 import re
+
 
 
 class PortalException(Exception):
@@ -458,6 +460,12 @@ class Journey:
             if dimname not in db.journeydict:
                 db.journeydict[dimname] = {}
             db.journeydict[dimname][thingname] = self
+    
+    def insert(self, i, step):
+        self.steps.insert(i, step)
+        
+    def remove(self, step):
+        self.steps.remove(step)
 
     def unravel(self, db):
         """Dereference all steps."""
@@ -599,23 +607,13 @@ true of events in different schedules.
         ("scheduled_event",
          {"dimension": "text not null default 'Physical'",
           "item": "text not null",
-          "start": "integer not null",
           "event": "text not null",
+          "start": "integer not null",
           "length": "integer not null default 1"},
          ("dimension", "item"),
          {"dimension, item": ("item", "dimension, name"),
           "event": ("event", "name")},
          [])]
-
-    def tabdict(self):
-        return {
-            "scheduled_event": [{
-                "dimension": self.dimension.name,
-                "item": self.item.name,
-                "start": ev.start,
-                "event": ev.name,
-                "length": ev.length}
-                                for ev in self.events_starting.itervalues()]}
 
     def __init__(self, dimension, item, db=None):
         """Return an empty event for the given item in the given
@@ -631,8 +629,6 @@ contevdict, and endevdict."""
         self.cached_processions = {}
         self.cached_conclusions = {}
         if db is not None:
-            dimname = None
-            itemname = None
             if stringlike(self.dimension):
                 dimname = self.dimension
             else:
@@ -646,12 +642,38 @@ contevdict, and endevdict."""
             db.scheduledict[dimname][itemname] = self
             self.db = db
 
+    def tabdict(self):
+        return {
+            "scheduled_event": [
+                {
+                    "dimension": self.dimension.name,
+                    "item": self.item.name,
+                    "start": ev.start,
+                    "event": ev.name,
+                    "length": ev.length}
+                for ev in self.events_starting.itervalues()]}
+
     def __iter__(self):
         """Return iterator over my events in order of their start times."""
         return self.events.itervalues()
 
     def __len__(self):
         return max(self.events_ongoing.viewkeys())
+    
+    def __contains__(self, ev):
+        if not (
+            hasattr(ev, 'start') and hasattr(ev, 'length')):
+            return False
+        ev_end = ev.start + ev.length
+        if not (
+            ev.start in self.events_starting and
+            ev_end in self.events_ending):
+            return False
+        # Assume that self.add did its job right and I don't have to check all 
+        # the inbetween periods.
+        return (
+            ev in self.events_starting[ev.start] and
+            ev in self.events_ending[ev_end])
 
     def unravel(self, db):
         """Dereference dimension and item."""
@@ -768,8 +790,29 @@ timeframe."""
                 self.processions_between(start, end),
                 self.conclusions_between(start, end))
 
+SCHEDULE_DIMENSION_QRYFMT = """SELECT {0} FROM scheduled_event WHERE dimension 
+IN ({1})""".format(", ".join(Schedule.colns), "{0}")
 
-schedule_qvals = ["scheduled_event.item"] + ["scheduled_event." + valn for valn in Schedule.valns]
+def read_schedules_in_dimensions(db, dimnames):
+    qryfmt = SCHEDULE_DIMENSION_QRYFMT
+    qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
+    db.c.execute(qrystr, dimnames)
+    r = {}
+    events = set()
+    for name in dimnames:
+        r[name] = {}
+    for row in db.c:
+        rowdict = dictify_row(row, Schedule.colns)
+        dimn = rowdict["dimension"]
+        itn = rowdict["item"]
+        if itn not in r[dimn]:
+            r[dimn][itn] = Schedule(dimn, itn, db)
+        events.add(rowdict["event"])
+    read_events(db, events)
+    return r
+
+schedule_qvals = ["scheduled_event.item"] + [
+    "scheduled_event." + valn for valn in Schedule.valns]
 
 
 def lookup_loc(db, it):
@@ -835,79 +878,79 @@ things keyed by dimension name, then thing name."""
     return unravel_things_in_dimensions(
         db, read_things_in_dimensions(db, dimnames))
 
-schedule_dimension_qcols = (
-    """scheduled_event.dimension, scheduled_event.item,
-scheduled_event.start, scheduled_event.length, scheduled_event.event,
-event.text, event.ongoing, event.commence_effects,
-event.proceed_effects, event.conclude_effects, effect_deck_link.deck,
-effect_deck_link.idx, effect_deck_link.effect, effect.func,
-effect.arg""")
-schedule_dimension_cols = (
-    "dimension", "item", "start", "length", "event", "text", "ongoing",
-    "commence_effects", "proceed_effects", "conclude_effects", "deck",
-    "idx", "effect", "func", "arg")
-schedule_dimension_qryfmt = (
-    """SELECT {0} FROM scheduled_event
-JOIN event ON scheduled_event.event=event.name
-JOIN effect_deck_link ON effect_deck_link.deck IN
-(event.commence_effects, event.proceed_effects, event.conclude_effects)
-JOIN effect ON effect.name=effect_deck_link.effect
-WHERE scheduled_event.dimension IN ({1})""".format(
-    schedule_dimension_qcols, "{0}"))
+#schedule_dimension_qcols = (
+    #"""scheduled_event.dimension, scheduled_event.item,
+#scheduled_event.start, scheduled_event.length, scheduled_event.event,
+#event.text, event.ongoing, event.commence_effects,
+#event.proceed_effects, event.conclude_effects, effect_deck_link.deck,
+#effect_deck_link.idx, effect_deck_link.effect, effect.func,
+#effect.arg""")
+#schedule_dimension_cols = (
+    #"dimension", "item", "start", "length", "event", "text", "ongoing",
+    #"commence_effects", "proceed_effects", "conclude_effects", "deck",
+    #"idx", "effect", "func", "arg")
+#schedule_dimension_qryfmt = (
+    #"""SELECT {0} FROM scheduled_event
+#JOIN event ON scheduled_event.event=event.name
+#JOIN effect_deck_link ON effect_deck_link.deck IN
+#(event.commence_effects, event.proceed_effects, event.conclude_effects)
+#JOIN effect ON effect.name=effect_deck_link.effect
+#WHERE scheduled_event.dimension IN ({1})""".format(
+    #schedule_dimension_qcols, "{0}"))
 
 
-def read_schedules_in_dimensions(db, dimnames):
-    qryfmt = schedule_dimension_qryfmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
-    db.c.execute(qrystr, dimnames)
-    r = {}
-    for name in dimnames:
-        if name not in db.scheduledict:
-            db.scheduledict[name] = {}
-        r[name] = db.scheduledict[name]
-    eventdict = {}
-    for name in dimnames:
-        if name not in db.eventdict:
-            db.eventdict[name] = {}
-        eventdict[name] = db.eventdict[name]
-    effectdeckdict = {}
-    for name in dimnames:
-        if name not in db.effectdeckdict:
-            db.effectdeckdict[name] = {}
-        effectdeckdict[name] = db.effectdeckdict[name]
-    effectdict = {}
-    for row in db.c:
-        rowdict = dictify_row(row, schedule_dimension_cols)
-        dimn = rowdict["dimension"]
-        effn = rowdict["effect"]
-        deckn = rowdict["deck"]
-        evn = rowdict["event"]
-        itn = rowdict["item"]
-        if effn not in effectdict[dimn]:
-            funcn = rowdict["func"]
-            argn = rowdict["arg"]
-            Effect(effn, funcn, argn, db)
-        eff = effectdeckdict[dimn][effn]
-        if deckn not in effectdeckdict[dimn]:
-            EffectDeck(dimn, [], db)
-        deck = effectdeckdict[dimn][deckn]
-        if eff not in deck:
-            idx = rowdict[idx]
-            while len(deck) <= idx:
-                deck.append(None)
-            deck[idx] = eff
-        if evn not in eventdict[dimn]:
-            text = rowdict["text"]
-            ongoing = rowdict["ongoing"]
-            edn_commence = rowdict["commence_effects"]
-            edn_proceed = rowdict["proceed_effects"]
-            edn_conclude = rowdict["conclude_effects"]
-            Event(
-                evn, text, ongoing,
-                edn_commence, edn_proceed, edn_conclude, db)
-        if itn not in r[dimn]:
-            Schedule(dimn, itn, db)
-    return r
+#def read_schedules_in_dimensions(db, dimnames):
+    #qryfmt = schedule_dimension_qryfmt
+    #qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
+    #db.c.execute(qrystr, dimnames)
+    #r = {}
+    #for name in dimnames:
+        #if name not in db.scheduledict:
+            #db.scheduledict[name] = {}
+        #r[name] = db.scheduledict[name]
+    #eventdict = {}
+    #for name in dimnames:
+        #if name not in db.eventdict:
+            #db.eventdict[name] = {}
+        #eventdict[name] = db.eventdict[name]
+    #effectdeckdict = {}
+    #for name in dimnames:
+        #if name not in db.effectdeckdict:
+            #db.effectdeckdict[name] = {}
+        #effectdeckdict[name] = db.effectdeckdict[name]
+    #effectdict = {}
+    #for row in db.c:
+        #rowdict = dictify_row(row, schedule_dimension_cols)
+        #dimn = rowdict["dimension"]
+        #effn = rowdict["effect"]
+        #deckn = rowdict["deck"]
+        #evn = rowdict["event"]
+        #itn = rowdict["item"]
+        #if effn not in effectdict[dimn]:
+            #funcn = rowdict["func"]
+            #argn = rowdict["arg"]
+            #Effect(effn, funcn, argn, db)
+        #eff = effectdeckdict[dimn][effn]
+        #if deckn not in effectdeckdict[dimn]:
+            #EffectDeck(dimn, [], db)
+        #deck = effectdeckdict[dimn][deckn]
+        #if eff not in deck:
+            #idx = rowdict[idx]
+            #while len(deck) <= idx:
+                #deck.append(None)
+            #deck[idx] = eff
+        #if evn not in eventdict[dimn]:
+            #text = rowdict["text"]
+            #ongoing = rowdict["ongoing"]
+            #edn_commence = rowdict["commence_effects"]
+            #edn_proceed = rowdict["proceed_effects"]
+            #edn_conclude = rowdict["conclude_effects"]
+            #Event(
+                #evn, text, ongoing,
+                #edn_commence, edn_proceed, edn_conclude, db)
+        #if itn not in r[dimn]:
+            #Schedule(dimn, itn, db)
+    #return r
 
 
 def load_schedules_in_dimensions(db, dimnames):
@@ -933,29 +976,20 @@ Return a 2D dict keyed by dimension name, then item name.
     """
     qryfmt = journey_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
-    db.c.execute(qrystr, dimnames)
+    db.c.execute(qrystr, tuple(dimnames))
     r = {}
     for name in dimnames:
         r[name] = {}
     for row in db.c:
         rowdict = dictify_row(row, Journey.colnames["journey_step"])
-        if rowdict["thing"] not in r[rowdict["dimension"]]:
-            r[rowdict["dimension"]][rowdict["thing"]] = {
-                "db": db,
-                "dimension": rowdict["dimension"],
-                "thing": rowdict["thing"],
-                "steps": []}
-        stepl = r[rowdict["dimension"]][rowdict["thing"]]["steps"]
-        while len(stepl) <= rowdict["idx"]:
-            stepl.append(None)
-        f = rowdict["from_place"]
-        t = rowdict["to_place"]
-        stepl[rowdict["idx"]] = Portal(rowdict["dimension"], f, t, db)
-    for item in r.iteritems():
-        (dimname, journeys) = item
-        for journey in journeys.iteritems():
-            (thingname, jo) = journey
-            r[dimname][thingname] = Journey(**jo)
+        thingn = rowdict["thing"]
+        dimn = rowdict["dimension"]
+        idx = rowdict["idx"]
+        orig = rowdict["from_place"]
+        dest = rowdict["to_place"]
+        if thingn not in r[dimn]:
+            r[dimn][thingn] = Journey(dimn, thingn, [], db)
+        r[dimn][thingn][idx] = (orig, dest)
     return r
 
 

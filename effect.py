@@ -203,7 +203,7 @@ Return a dictionary keyed by name.
     """
     qryfmt = load_effect_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, names)
+    db.c.execute(qrystr, tuple(names))
     r = {}
     for row in db.c:
         rowdict = dictify_row(row, Effect.colnames["effect"])
@@ -257,28 +257,22 @@ Return a dictionary of EffectDeck keyed by name.
     """
     qryfmt = load_deck_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, names)
+    db.c.execute(qrystr, tuple(names))
     r = {}
     effectnames = set()
     for row in db.c:
         rowdict = dictify_row(row, effect_join_cols)
         rowdict["db"] = db
         effectnames.add(rowdict["effect"])
-        if rowdict["deck"] not in r:
-            r[rowdict["deck"]] = []
-        short = rowdict["idx"] + 1 - len(r[rowdict["deck"]])
-        if short > 0:
-            nothing = [None] * short
-            r[rowdict["deck"]].extend(nothing)
-        r[rowdict["deck"]][rowdict["idx"]] = rowdict["effect"]
-    efs = load_effects(db, list(effectnames))
-    for effect_deck in r.iteritems():
-        (deckname, effects) = effect_deck
-        i = 0
-        while i < len(effects):
-            effects[i] = efs[effects[i]]
-            i += 1
-        r[deckname] = EffectDeck(deckname, effects, db)
+        if rowdict["name"] not in r:
+            r[rowdict["name"]] = EffectDeck(rowdict["name"], [], db)
+        ed = r[rowdict["name"]]
+        eff = rowdict["effect"]
+        idx = rowdict["idx"]
+        while len(ed) <= idx:
+            ed.append(None)
+        ed[idx] = eff
+    read_effects(db, effectnames)
     return r
 
 

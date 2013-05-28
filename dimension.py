@@ -39,18 +39,32 @@ constrains it to be unique."""
 database. Then iterate over the values therein and unravel
 everything."""
         if not hasattr(self, 'itemdict'):
+            if self.name not in db.itemdict:
+                db.itemdict[self.name] = {}
             self.itemdict = db.itemdict[self.name]
         if not hasattr(self, 'thingdict'):
+            if self.name not in db.thingdict:
+                db.thingdict[self.name] = {}
             self.thingdict = db.thingdict[self.name]
         if not hasattr(self, 'placedict'):
+            if self.name not in db.placedict:
+                db.placedict[self.name] = {}
             self.placedict = db.placedict[self.name]
         if not hasattr(self, 'scheduledict'):
+            if self.name not in db.scheduledict:
+                db.scheduledict[self.name] = {}
             self.scheduledict = db.scheduledict[self.name]
         if not hasattr(self, 'journeydict'):
+            if self.name not in db.journeydict:
+                db.journeydict[self.name] = {}
             self.journeydict = db.journeydict[self.name]
         if not hasattr(self, 'portalorigdestdict'):
+            if self.name not in db.portalorigdestdict:
+                db.portalorigdestdict[self.name] = {}
             self.portalorigdestdict = db.portalorigdestdict[self.name]
         if not hasattr(self, 'portaldestorigdict'):
+            if self.name not in db.portaldestorigdict:
+                db.portaldestorigdict[self.name] = {}
             self.portaldestorigdict = db.portaldestorigdict[self.name]
         # this order is deliberate
         for place in self.placedict.itervalues():
@@ -101,11 +115,11 @@ Objects will be instantiated to represent the lot, and a dictionary
 thereof will be returned, but the objects won't be unraveled yet.
 
     """
-    read_schedules_in_dimensions(db, names)
-    read_journeys_in_dimensions(db, names)
     read_things_in_dimensions(db, names)
     read_places_in_dimensions(db, names)
     read_portals_in_dimensions(db, names)
+    read_schedules_in_dimensions(db, names)
+    read_journeys_in_dimensions(db, names)
     r = {}
     for name in names:
         r[name] = Dimension(name, db)
