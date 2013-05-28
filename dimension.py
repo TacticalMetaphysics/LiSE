@@ -11,19 +11,10 @@ from util import SaveableMetaclass
 """Class and loaders for dimensions--the top of the world hierarchy."""
 
 
-__metaclass__ = SaveableMetaclass
-
-
 class Dimension:
     """Container for a given view on the game world, sharing no things,
 places, or portals with any other dimension, but possibly sharing
 characters."""
-
-    tables = [("dimension",
-               {"name": "text"},
-               ("name",),
-               {},
-               [])]
 
     def __init__(self, name, db=None):
         """Return a dimension with the given name.
@@ -39,24 +30,41 @@ keyed with their names.
             db.dimensiondict[name] = self
 
     def __hash__(self):
+        """Return the hash of this dimension's name, since the database
+constrains it to be unique."""
         return hash(self.name)
 
     def unravel(self, db):
+        """Get the dictionaries of the items in this dimension from the given
+database. Then iterate over the values therein and unravel
+everything."""
         if not hasattr(self, 'itemdict'):
             self.itemdict = db.itemdict[self.name]
         if not hasattr(self, 'thingdict'):
             self.thingdict = db.thingdict[self.name]
         if not hasattr(self, 'placedict'):
             self.placedict = db.placedict[self.name]
-        if not hasattr(self, 'portaldict'):
-            self.portaldict = db.portaldict[self.name]
+        if not hasattr(self, 'scheduledict'):
+            self.scheduledict = db.scheduledict[self.name]
+        if not hasattr(self, 'journeydict'):
+            self.journeydict = db.journeydict[self.name]
         if not hasattr(self, 'portalorigdestdict'):
             self.portalorigdestdict = db.portalorigdestdict[self.name]
         if not hasattr(self, 'portaldestorigdict'):
             self.portaldestorigdict = db.portaldestorigdict[self.name]
-        for it in self.itemdict.itervalues():
-            it.unravel(db)
-
+        # this order is deliberate
+        for place in self.placedict.itervalues():
+            place.unravel(db)
+        for dests in self.portalorigdestdict.itervalues():
+            for portal in dests.itervalues():
+                portal.unravel(db)
+        for journey in self.journeydict.itervalues():
+            journey.unravel(db)
+        for schedule in self.scheduledict.itervalues():
+            schedule.unravel(db)
+        for thing in self.thingdict.itervalues():
+            thing.unravel(db)
+            
     def get_edges(self):
         """Return pairs of hashes, where each hash represents a portal
 herein."""
@@ -82,6 +90,7 @@ this dimension."""
         """Return a Graph layout, of the kind that igraph uses, representing
 this dimension, and laid out nicely."""
         return self.get_igraph_graph().layout(layout=layout_type)
+                
 
 
 def read_dimensions(db, names):
@@ -102,12 +111,8 @@ thereof will be returned, but the objects won't be unraveled yet.
         r[name] = Dimension(name, db)
     return r
 
-
-def unravel_dimensions(db, dd):
-    for dim in dd.itervalues():
-        dim.unravel(db)
-    return dd
-
-
 def load_dimensions(db, names):
-    return unravel_dimensions(db, read_dimensions(db, names))
+    r = read_dimensions(db, names)
+    for dim in r.itervalues():
+        dim.unravel(db)
+    return r

@@ -2,23 +2,28 @@ from util import SaveableMetaclass, dictify_row, stringlike
 import pyglet
 
 
+"""Simple data structures to hold style information for text and
+things that contain text."""
+
+
 __metaclass__ = SaveableMetaclass
 
 
 class Color:
-    """Color(red=0, green=0, blue=0, alpha=255) => color
+    """Red, green, blue, and alpha values.
 
     This is just a container class for the (red, green, blue, alpha)
-tuples that Pyglet uses to identify colors.
+tuples that Pyglet uses to identify colors. The tup attribute will get
+you that.
 
     """
     tables = [
         ("color",
-         {'name': 'text',
+         {'name': 'text not null',
           'red': 'integer not null ',
           'green': 'integer not null ',
           'blue': 'integer not null ',
-          'alpha': 'integer default 255 '},
+          'alpha': 'integer not null default 255 '},
          ("name",),
          {},
          ["red between 0 and 255",
@@ -36,6 +41,12 @@ tuples that Pyglet uses to identify colors.
                 "alpha": self.alpha}}
 
     def __init__(self, name, red, green, blue, alpha, db=None):
+        """Return a color with the given name, and the given values for red,
+green, blue, and alpha.
+
+With db, register in its colordict.
+
+        """
         self.name = name
         self.red = red
         self.green = green
@@ -46,25 +57,34 @@ tuples that Pyglet uses to identify colors.
         if db is not None:
             db.colordict[self.name] = self
 
+    def __str__(self):
+        return self.name
+
     def __eq__(self, other):
+        """Just check if they're both colors and their names are the same."""
         return (
             isinstance(other, Color) and
             self.name == other.name)
 
     def __hash__(self):
+        """Hash of my name."""
         return hash(self.name)
 
     def __iter__(self):
+        """Iterator over my tuple."""
         return iter(self.tup)
 
-    def __str__(self):
+    def __repr__(self):
+        """Looks just like the tuple."""
         return "(" + ", ".join(self.tup) + ")"
 
 
 class Style:
+    """A collection of cogent information for rendering text and things
+that contain text."""
     tables = [
         ("style",
-         {"name": "text",
+         {"name": "text not null",
           "fontface": "text not null",
           "fontsize": "integer not null",
           "spacing": "integer default 6",
@@ -83,6 +103,13 @@ class Style:
     def __init__(self, name, fontface, fontsize, spacing,
                  bg_inactive, bg_active, fg_inactive, fg_active,
                  db=None):
+        """Return a style by the given name, with the given face, font size,
+spacing, and four colors: active and inactive variants for each of the
+foreground and the background.
+
+With db, register in its styledict.
+
+        """
         self.name = name
         self.fontface = fontface
         self.fontsize = fontsize
@@ -94,7 +121,11 @@ class Style:
         if db is not None:
             db.styledict[self.name] = self
 
+    def __str__(self):
+        return self.name
+
     def unravel(self, db):
+        """Dereference all the colors"""
         for colorcol in self.color_cols:
             colorname = getattr(self, colorcol)
             if stringlike(colorname):
@@ -102,11 +133,14 @@ class Style:
                 setattr(self, colorcol, color)
 
     def __eq__(self, other):
+        """Check we're both Style instances and we have the same name"""
         return (
             isinstance(other, Style) and
             self.name == other.name)
 
     def __hash__(self):
+        """Hash a tuple with all the colors, name, fontface, fontsize,
+spacing"""
         return hash((self.name, self.fontface, self.fontsize, self.spacing,
                      self.bg_inactive, self.bg_active, self.fg_inactive,
                      self.fg_active))
@@ -116,6 +150,8 @@ read_colors_fmt = (
 
 
 def read_colors(db, colornames):
+    """Read and instantiate colors of the given names. Don't unravel just
+yet. Returns dict keyed with color names."""
     qryfmt = read_colors_fmt
     qrystr = qryfmt.format(", ".join(["?"] * len(colornames)))
     db.c.execute(qrystr, colornames)
@@ -132,6 +168,8 @@ read_styles_fmt = (
 
 
 def read_styles(db, stylenames):
+    """Read styles by the given names and their colors, but don't unravel
+just yet. Return a dict keyed by style name."""
     qryfmt = read_styles_fmt
     qrystr = qryfmt.format(", ".join(["?"] * len(stylenames)))
     db.c.execute(qrystr, stylenames)

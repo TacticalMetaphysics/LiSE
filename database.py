@@ -1,13 +1,30 @@
 import sqlite3
 import board
 import dimension
+import re
+from collections import OrderedDict
+from location import LocationWiseDict
 
 
-"""The database backend, with dictionaries of loaded objects."""
+"""The database backend, with dictionaries of loaded objects.
+
+This is a caching database connector. There are dictionaries for all
+objects that can be loaded from the database.
+
+This module does not contain the code used to generate
+SQL. That's in util.py, the class SaveableMetaclass.
+
+"""
 
 
 def noop(nope):
+    """Do nothing."""
     pass
+
+ITEM_RE = re.compile("(.*)\.(.*)")
+THING_INTO_PORTAL_RE = re.compile("(.*)\.(.*)->Portal\((.*)->(.*)\)")
+THING_ALONG_PORTAL_RE = ITEM_RE
+THING_OUT_OF_PORTAL_RE = ITEM_RE
 
 
 class Database:
@@ -21,7 +38,7 @@ The database container has various dictionary attributes. Normally
 these hold objects loaded from the database, and have the same key as
 the main table for that object class. Storing an object there does not
 mean it will be saved. Mark objects to be saved by passing them to the
-remember(_) method. It's best to do this for objects already saved
+remember() method. It's best to do this for objects already saved
 that you want to change, as well.
 
 Call the sync() method to write remembered objects to disk. This
@@ -41,56 +58,86 @@ arguments.
 
         """
         self.conn = sqlite3.connect(dbfile)
-        self.c = self.conn.cursor()
+        self.cursor = self.conn.cursor()
+        self.c = self.cursor
         self.altered = set()
         self.removed = set()
         self.dimensiondict = {}
-        self.calendardict = {}
+        self.caldict = {}
+        self.calcoldict = OrderedDict()
         self.scheduledict = {}
-        self.itemdict = {}
+        self.eventdict = {}
+        self.startevdict = {}
+        self.contevdict = {}
+        self.endevdict = {}
+        self.itemdict = LocationWiseDict()
         self.placedict = {}
-        self.portaldict = {}
         self.thingdict = {}
         self.spotdict = {}
         self.imgdict = {}
         self.boarddict = {}
         self.menudict = {}
         self.menuitemdict = {}
-        self.boardmenudict = {}
         self.pawndict = {}
         self.styledict = {}
         self.colordict = {}
         self.journeydict = {}
         self.contentsdict = {}
-        self.containerdict = {}
-        self.placecontentsdict = {}
+        self.locdict = LocationWiseDict()
         self.portalorigdestdict = {}
         self.portaldestorigdict = {}
         self.effectdict = {}
         self.effectdeckdict = {}
-        self.func = {'toggle_menu_visibility': self.toggle_menu_visibility,
-                     'toggle_calendar_visibility': self.toggle_calendar_visibility,
-                     'hide_menu': self.hide_menu,
-                     'hide_calendar': self.hide_calendar,
-                     'show_menu': self.show_menu,
-                     'show_calendar': self.show_calendar,
-                     'hide_menus_in_board': self.hide_menus_in_board,
-                     'hide_calendars_in_board': self.hide_calendars_in_board,
-                     'hide_other_menus_in_board': self.hide_other_menus_in_board,
-                     'hide_other_calendars_in_board': self.hide_other_calendars_in_board,
-                     'start_new_map': noop,
-                     'open_map': noop,
-                     'save_map': noop,
-                     'quit_map_editor': noop,
-                     'editor_select': noop,
-                     'editor_copy': noop,
-                     'editor_paste': noop,
-                     'editor_delete': noop,
-                     'new_place': noop,
-                     'new_thing': noop}
+        self.stringdict = {}
+        self.func = {
+            'toggle_menu_visibility':
+            self.toggle_menu_visibility,
+            'toggle_calendar_visibility':
+            self.toggle_calendar_visibility,
+            'hide_menu':
+            self.hide_menu,
+            'hide_calendar':
+            self.hide_calendar,
+            'show_menu':
+            self.show_menu,
+            'show_calendar':
+            self.show_calendar,
+            'hide_menus_in_board':
+            self.hide_menus_in_board,
+            'hide_calendars_in_board':
+            self.hide_calendars_in_board,
+            'hide_other_menus_in_board':
+            self.hide_other_menus_in_board,
+            'hide_other_calendars_in_board':
+            self.hide_other_calendars_in_board,
+            'portal_progress':
+            self.portal_progress,
+            'thing_into_portal':
+            self.thing_into_portal,
+            'thing_along_portal':
+            self.thing_along_portal,
+            'thing_out_of_portal':
+            self.thing_out_of_portal,
+            'start_new_map': noop,
+            'open_map': noop,
+            'save_map': noop,
+            'quit_map_editor': noop,
+            'editor_select': noop,
+            'editor_copy': noop,
+            'editor_paste': noop,
+            'editor_delete': noop,
+            'new_place': noop,
+            'new_thing': noop}
         self.func.update(xfuncs)
 
     def __del__(self):
+        """Try to write changes to disk before dying.
+
+Python doesn't necessarily finish deleting all objects before
+exiting. You'd probably better call self.sync() on your own before
+then.
+
+        """
         self.sync()
         self.c.close()
         self.conn.close()
@@ -179,7 +226,7 @@ list.
 
     def load_board(self, dimname):
         """Load and return the board representing the named dimension."""
-        return self.load_boards([dimname])[0]
+        return self.load_boards([dimname])[dimname]
 
     def remember(self, obj):
         """Indicate that the object should be saved to disk on next sync."""
@@ -370,51 +417,230 @@ toggle the visibility of that menu.
 
         """
         (boardn, itn) = menuspec.split('.')
-        self.boardmenudict[boardn][itn].toggle_visibility()
+        self.menudict[boardn][itn].toggle_visibility()
 
     def toggle_calendar_visibility(self, calspec):
         """Given a string consisting of a dimension name, a dot, and an item
 name, toggle the visibility of the calendar representing the schedule
-for that item.
-
-        """
+for that item."""
         (boardn, itn) = calspec.split('.')
         self.calendardict[boardn][itn].toggle_visibility()
 
     def hide_menu(self, menuspec):
-        (boardn, itn) = menuspec.split('.')
-        self.boardmenudict[boardn][menun].hide()
+        """Given a string consisting of a board dimension name, a dot, and a
+menu name, hide the menu in that board by that name."""
+        (boardn, menun) = menuspec.split('.')
+        self.menudict[boardn][menun].hide()
 
     def hide_calendar(self, calspec):
+        """Given a string consisting of a board dimension name, a dot, and an
+item name, hide the calendar representing the schedule of that item in
+that board."""
         (boardn, itn) = calspec.split('.')
         self.calendardict[boardn][itn].hide()
 
     def show_menu(self, menuspec):
+        """Given a string consisting of a board dimension name, a dot, and a
+menu name, show the menu of that name in that board."""
         (boardn, menun) = menuspec.split('.')
-        self.boardmenudict[boardn][menun].show()
+        self.menudict[boardn][menun].show()
 
     def show_calendar(self, calspec):
+        """Given a string consisting of a board dimension name, a dot, and an
+item name, show the calendar representing the item's schedule in that
+board."""
         (boardn, itn) = calspec.split('.')
         self.calendardict[boardn][itn].show()
 
     def hide_menus_in_board(self, boardn):
-        for menu in self.boardmenudict[boardn].itervalues():
+        """Hide every menu, apart from the main menu, in the board with the
+given dimension name."""
+        for menu in self.menudict[boardn].itervalues():
             if not menu.main_for_window:
                 menu.hide()
 
     def hide_other_menus_in_board(self, menuspec):
+        """Given a string consisting of a board dimension name, a dot, and a
+menu name, hide every menu apart from that one in that board, except
+the main menu."""
         (boardn, menun) = menuspec.split('.')
-        for menu in self.boardmenudict[boardn].itervalues():
+        for menu in self.menudict[boardn].itervalues():
             if not menu.main_for_window and menu.name != menun:
                 menu.hide()
 
     def hide_calendars_in_board(self, boardn):
+        """Hide every calendar in the board with the given dimension name."""
         for calendar in self.calendardict[boardn].itervalues():
             calendar.hide()
 
     def hide_other_calendars_in_board(self, calspec):
+        """Given a string consisting of a board dimension name, a dot, and an
+item name, hide every calendar apart from that one in that board."""
         (boardn, itn) = calspec.split('.')
         for calendar in self.calendardict[boardn].iteritems():
             (itname, cal) = calendar
             if itname != itn:
                 cal.hide()
+
+    def get_age(self):
+        """Get the number of ticks since the start of the game. Persists
+between sessions.
+
+This is game-world time. It doesn't always go forwards.
+
+        """
+        if not hasattr(self, 'game'):
+            self.load_game()
+        return self.game[1]
+
+    def get_text(self, strname):
+        """Get the string of the given name in the language set at startup."""
+        return self.stringdict[strname][self.lang]
+
+    def load_strings(self):
+        """Load all the named strings and keep them in a dictionary.
+
+Please use self.get_text() to lookup these strings later."""
+        self.c.execute("SELECT * FROM strings;")
+        for row in self.c:
+            (stringn, lang, string) = row
+            if stringn not in self.stringdict:
+                self.stringdict[stringn] = {}
+            self.stringdict[stringn][lang] = string
+
+    def load_game(self, lang):
+        """Load the metadata, the strings, and the main board for the game in
+this database.
+
+Spell the lang argument the same way it's spelled in the strings table.
+
+        """
+        self.c.execute("SELECT * FROM game;")
+        self.game = self.c.fetchone()
+        self.lang = lang
+        self.load_strings()
+        self.load_board(self.game[0])
+
+    def portal_progress(self, arg):
+        """Move a thing some distance along whatever portal it's in.
+
+arg is a string, formatted like:
+
+dimension.thing+0.42
+
+That means move the thing called "thing" in the dimension called
+"dimension" 0.42 portal lengths through the portal it's in.
+
+        """
+        dot = arg.find(".")
+        plus = arg.find("+")
+        dimname = arg[:dot]
+        thingname = arg[dot:plus]
+        amt = float(arg[:plus])
+        journey = self.journeydict[dimname][thingname]
+        return journey.move_thru(amt)
+
+    def add_event(self, ev):
+        """Add the event to the various dictionaries events go in."""
+        self.eventdict[ev.name] = ev
+        if hasattr(ev, 'start') and hasattr(ev, 'length'):
+            if ev.start not in self.startevdict:
+                self.startevdict[ev.start] = set()
+            self.startevdict[ev.start].add(ev)
+            ev_end = ev.start + ev.length
+            for i in xrange(ev.start+1, ev_end-1):
+                if i not in self.contevdict:
+                    self.contevdict[i] = set()
+                self.contevdict[i].add(ev)
+            if ev_end not in self.endevdict:
+                self.endevdict[ev_end] = set()
+            self.endevdict[ev_end].add(ev)
+
+    def remove_event(self, ev):
+        """Remove the event from all the dictionaries events go in."""
+        del self.eventdict[ev.name]
+        if hasattr(ev, 'start'):
+            self.startevdict[ev.start].remove(ev)
+            if hasattr(ev, 'length'):
+                ev_end = ev.start + ev.length
+                for i in xrange(ev.start+1, ev_end-1):
+                    self.contevdict[i].remove(ev)
+                self.endevdict[ev_end].remove(ev)
+
+    def discard_event(self, ev):
+        """Remove the event from all the relevant dictionaries here, if it is
+a member."""
+        if ev.name in self.eventdict:
+            del self.eventdict[ev.name]
+        if hasattr(ev, 'start') and ev.start in self.startevdict:
+            self.startevdict[ev.start].discard(ev)
+        if hasattr(ev, 'start') and hasattr(ev, 'length'):
+            ev_end = ev.start + ev.length
+            for i in xrange(ev.start+1, ev_end-1):
+                if i in self.contevdict:
+                    self.contevdict[i].discard(ev)
+            if ev_end in self.endevdict:
+                self.endevdict[ev_end].discard(ev)
+
+    def thing_into_portal(self, arg):
+        """Put the item into the portal.
+
+Argument is a mere string, structured as so:
+
+dimension.item->portal
+
+All of these are the names of their referents, and will be looked up
+in the appropriate dictionary.
+
+        """
+        rex = THING_INTO_PORTAL_RE
+        (dimname, itname, orig, dest) = re.match(rex, arg).groups()
+        thing = self.thingdict[dimname][itname]
+        portal = self.portalorigdestdict[dimname][orig][dest]
+        return thing.enter(portal)
+
+    def thing_along_portal(self, arg):
+        """Move the thing some amount along the portal it's in.
+
+Argument is a mere string, structured like:
+
+dimension.item
+
+The given item in the given dimension will be moved along the portal
+some amount, calculated by its speed_thru method.
+
+        """
+        rex = THING_ALONG_PORTAL_RE
+        (dimname, thingname) = re.match(rex, arg).groups()
+        thing = self.thingdict[dimname][thingname]
+        port = thing.location.real
+        speed = thing.speed_thru(port)
+        amount = 1 / float(speed)
+        return thing.move_thru_portal(amount)
+
+    def thing_out_of_portal(self, arg):
+        """Take the thing out of the portal it's in, and put it in the
+portal's destination.
+
+Argument is a string like:
+
+dimension.item
+
+The given item in the given dimension will be moved to the portal's
+destination.
+
+        """
+        rex = THING_OUT_OF_PORTAL_RE
+        (dimname, thingname) = re.match(rex, arg).groups()
+        thing = self.thingdict[dimname][thingname]
+        return thing.journey.next()
+
+
+def load_game(dbfilen, language):
+    """Load the game in the given SQLite3 database file. Load strings for
+the given language. Return a lise.Database object.
+
+    """
+    db = Database(dbfilen)
+    db.load_game(language)
+    return db
