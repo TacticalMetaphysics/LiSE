@@ -65,6 +65,7 @@ db = database.Database(DB_NAME)
 for clas in tabclasses:
     for tab in clas.schemata:
         try:
+            print tab
             db.c.execute(tab)
         except OperationalError as oe:
             raise Exception(repr(oe) + "\n" + tab)
@@ -72,7 +73,8 @@ for clas in tabclasses:
 oldhome = os.getcwd()
 os.chdir('init')
 for initfile in sorted(os.listdir('.')):
-    if initfile[:-3] == "sql":  # weed out automatic backups and so forth
+    if initfile[-3:] == "sql":  # weed out automatic backups and so forth
+        print "reading SQL from file " + initfile
         read_sql(db, initfile)
 os.chdir(oldhome)
 
