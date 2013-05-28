@@ -15,8 +15,12 @@ from sqlite3 import OperationalError
 from rltileins import ins_rltiles
 
 
-"""Make an empty database of LiSE's schema. It will be called
-empty.sqlite. popdb.py will make a copy of that and put data in."""
+"""Make an empty database of LiSE's schema. By default it will be
+called default.sqlite and include the RLTiles (in folder
+./rltiles). Put sql files in the folder ./init and they'll be executed
+in their sort order, after the schema is defined.
+
+"""
 
 
 tabclasses = [
@@ -43,6 +47,14 @@ tabclasses = [
 
 DB_NAME = 'default.sqlite'
 
+
+def read_sql(db, filen):
+    sqlfile = open(filen, "r")
+    sql = sqlfile.read()
+    sqlfile.close()
+    db.c.executescript(sql)
+
+
 try:
     os.remove(DB_NAME)
 except OSError:
@@ -57,67 +69,14 @@ for clas in tabclasses:
         except OperationalError as oe:
             raise Exception(repr(oe) + "\n" + tab)
 
-game_decl = """CREATE TABLE game
- (front_board TEXT DEFAULT 'Physical', age INTEGER DEFAULT 0,
- seed INTEGER DEFAULT 0);"""
-strs_decl = """CREATE TABLE strings (stringname TEXT NOT NULL, language TEXT NOT
- NULL DEFAULT 'English', string TEXT NOT NULL, PRIMARY KEY(stringname,
- language));"""
-place_trig_ins = """CREATE TRIGGER name_place BEFORE INSERT ON place
-BEGIN
-INSERT INTO item (dimension, name) VALUES (NEW.dimension, NEW.name);
-END"""
-port_trig_ins = """CREATE TRIGGER name_portal BEFORE INSERT ON portal 
-BEGIN
-INSERT INTO item (dimension, name)
-VALUES (NEW.dimension, 'Portal('||NEW.from_place||'->'||NEW.to_place||')');
-END"""
-thing_trig_ins = """CREATE TRIGGER name_thing BEFORE INSERT ON thing
-BEGIN
-INSERT INTO item (dimension, name) VALUES (NEW.dimension, NEW.name);
-END"""
-port_trig_upd = """CREATE TRIGGER move_portal BEFORE UPDATE OF
-from_place, to_place ON portal
-BEGIN
-UPDATE item SET name='Portal('||NEW.from_place||'->'||NEW.to_place||')'
-WHERE dimension=old.dimension AND name='Portal('||OLD.from_place||'->'||OLD.to_place||')';
-END"""
-place_trig_del = """CREATE TRIGGER del_place AFTER DELETE ON place
-BEGIN
-DELETE FROM item WHERE dimension=OLD.dimension AND name=OLD.name;
-END"""
-port_trig_del = """CREATE TRIGGER del_port AFTER DELETE ON portal
-BEGIN
-DELETE FROM item WHERE dimension=OLD.dimension AND
-name='Portal('||OLD.from_place||'->'||OLD.to_place||')';
-END"""
-thing_trig_del = """CREATE TRIGGER del_thing AFTER DELETE ON thing
-BEGIN
-DELETE FROM item WHERE dimension=OLD.dimension AND name=OLD.name;
-END"""
-easy_effect = """CREATE VIEW easy_effect AS SELECT func, arg FROM effect"""
-easy_effect_trig_ins = """CREATE TRIGGER easy_effect_add INSTEAD OF INSERT ON easy_effect
-BEGIN INSERT INTO effect (name, func, arg) VALUES
-(NEW.func||'('||NEW.arg||')', NEW.func, NEW.arg); END"""
-
-extratabs = (game_decl, strs_decl, port_trig_ins, port_trig_upd, place_trig_ins, thing_trig_ins, place_trig_del, port_trig_del, thing_trig_del, easy_effect, easy_effect_trig_ins)
-
-for extratab in extratabs:
-    try:
-        db.c.execute(extratab)
-    except OperationalError as ope:
-        raise Exception(repr(ope) + "\n" + extratab)
+oldhome = os.getcwd()
+os.chdir('init')
+for initfile in sorted(os.listdir('.')):
+    if initfile[:-3] == "sql":  # weed out automatic backups and so forth
+        read_sql(db, initfile)
+os.chdir(oldhome)
 
 ins_rltiles(db.c, 'rltiles')
-
-inserts = open("inserts.sql", "r")
-commands = inserts.read().split(";")
-inserts.close()
-for command in commands:
-    try:
-        db.c.execute(command)
-    except OperationalError as ope:
-        raise Exception(repr(ope) + "\n" + command)
 
 db.c.close()
 db.conn.commit()
