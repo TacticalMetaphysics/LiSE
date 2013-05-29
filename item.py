@@ -1,7 +1,10 @@
 from util import (
     SaveableMetaclass,
     dictify_row,
-    stringlike)
+    stringlike,
+    LocationException,
+    ContainmentException,
+    PortalException)
 from event import (
     lookup_between,
     Event,
@@ -10,14 +13,8 @@ from event import (
     IrrelevantEvent,
     ImpracticalEvent,
     PortalTravelEvent)
-from location import Location
-from contents import Contents
 from effect import Effect, EffectDeck
 import re
-
-
-class PortalException(Exception):
-    pass
 
 
 """Items that exist in the simulated world. Their graphical
@@ -40,10 +37,62 @@ much."""
          [])]
     def __init__(self, db=None):
         if db is not None:
-            self.contents = Contents(self, db)
+            if stringlike(self.dimension):
+                dimname = self.dimension
+            else:
+                dimname = self.dimension.name
+            if dimname not in db.locdict:
+                db.locdict[dimname] = {}
+            if dimname not in db.itemdict:
+                db.itemdict[dimname] = {}
+            self.db = db
+            self.updcontents()
+            self.contents_fresh = True
 
     def __str__(self):
         return self.name
+
+    def __contains__(self, that):
+        if stringlike(that):
+            thatname = that
+        else:
+            thatname = that.name
+        return self.db.locdict[that.dimension][thatname] == self
+
+    def __len__(self):
+        i = 0
+        for loc in self.db.locdict[self.dimension].itervalues():
+            if loc == self:
+                i += 1
+        return i
+
+    def __iter__(self):
+        r = []
+        for pair in self.db.locdict[self.dimension].iteritems():
+            if pair[1] == self:
+                r.append(self.itemdict[pair[0]])
+        return iter(r)
+
+    def __getattr__(self, attrn):
+        if attrn == 'contents':
+            if not self.contents_fresh:
+                self.updcontents()
+            return self.real_contents
+
+    def updcontents(self):
+        self.real_contents = set()
+        for pair in self.db.locdict[self.dimension].iteritems():
+            if pair[1] == self:
+                self.real_contents.add(pair[0])
+        self.contents_fresh = True
+
+    def add(self, that):
+        if stringlike(that.dimension):
+            dimn = that.dimension
+        else:
+            dimn = that.dimension.name
+        self.db.locdict[dimn][that.name] = self
+        self.contents_fresh = False
 
     def assert_can_contain(self, other):
         pass
@@ -66,7 +115,6 @@ it with the placedict and itemdict in the db."""
         self.dimension = dimension
         self.name = name
         if db is not None:
-            self.contents = Contents(self, db)
             dimname = None
             if stringlike(self.dimension):
                 dimname = self.dimension
@@ -78,10 +126,22 @@ it with the placedict and itemdict in the db."""
                 db.placedict[dimname] = {}
             db.itemdict[dimname][self.name] = self
             db.placedict[dimname][self.name] = self
+            self.db = db
         Item.__init__(self, db)
 
-    def __repr__(self):
+    def __str__(self):
         return self.name
+
+    def __repr__(self):
+        return str(self)
+
+    def __getattr__(self, attrn):
+        if attrn == 'spot':
+            if stringlike(self.dimension):
+                dimn = self.dimension
+            else:
+                dimn = self.dimension.name
+            return self.db.spotdict[dimn][self.name]
 
     def unravel(self, db):
         """Get myself a real Dimension object if I don't have one."""
@@ -99,11 +159,6 @@ it with the placedict and itemdict in the db."""
         else:
             # The name is the key in the database. Must be unique.
             return self.name == other.name
-
-    def add(self, other):
-        """Put a Thing in this Place, but don't check if it makes sense. Be
-careful!"""
-        self.contents.add(other)
 
     def can_contain(self, other):
         """Does it make sense for that to be here?"""
@@ -216,10 +271,6 @@ otherwise."""
 length. Does nothing by default."""
         pass
 
-    def add(self, thing):
-        """Add this thing to my contents if it's not there already."""
-        self.contents.add(thing)
-
 
 class Thing(Item):
     """The sort of item that has a particular location at any given time.
@@ -284,6 +335,7 @@ Register with the database's itemdict and thingdict too.
             db.itemdict[dimname][self.name] = self
             db.thingdict[dimname][self.name] = self
             db.locdict[dimname][self.name] = location
+            self.db = db.locdict
         Item.__init__(self, db)
 
     def unravel(self, db):
@@ -300,7 +352,6 @@ Also add self to location, if applicable.
         else:
             location = self.start_location
         db.locdict[self.dimension.name][self.name] = location
-        self.location = Location(db, self.dimension.name, self.name)
         self.location.add(self)
         if stringlike(self.schedule):
             self.schedule = db.scheduledict[self.dimension.name][self.name]
@@ -313,6 +364,14 @@ Also add self to location, if applicable.
             self.journey.thing = self
             if self.schedule is None:
                 self.schedule = self.journey.schedule(db)
+
+    def __getattr__(self, attrn):
+        if attrn == 'location':
+            if stringlike(self.dimension):
+                dimn = self.dimension
+            else:
+                dimn = self.dimension.name
+            return self.db.locdict[dimn][self.name]
 
     def __hash__(self):
         return self.hsh
@@ -329,13 +388,6 @@ Also add self to location, if applicable.
         else:
             loc = str(self.location)
         return self.name + "@" + loc
-
-    def add(self, it):
-        """Add an item to my contents without caring if it makes any sense to
-do so.
-
-"""
-        self.contents.add(it)
 
     def assert_can_enter(self, it):
         """If I can't enter the given location, raise a LocationException.
@@ -361,16 +413,10 @@ immediately. Else raise exception as appropriate."""
 
     def move_thru_portal(self, amount):
         """Move this amount through the portal I'm in"""
-        if not isinstance(self.location.real, Portal):
+        if not isinstance(self.location, Portal):
             raise PortalException("The location of {0} is {1}, which is not a portal.".format(repr(self), repr(self.location)))
         self.location.notify_moving(self, amount)
         self.journey_progress += amount
-
-    def leave_portal(self):
-        """Leave whatever portal I'm in, thus entering its destination. Return the portal."""
-        oldloc = self.location.real
-        self.enter(self.location.dest)
-        return oldloc
 
     def speed_thru(self, port):
         """Given a portal, return an integer for the number of ticks it would
@@ -528,7 +574,7 @@ place is the destination of the journey, the new portal will be
 None.
 
         """
-        oldport = self.thing.leave_portal()
+        oldport = self.thing.location
         place = self.thing.enter(oldport.dest)
         self.thing.journey_step += 1
         self.thing.journey_progress = 0.0
@@ -562,7 +608,7 @@ Then return the schedule. Just for good measure.
         try:
             end = max(self.thing.schedule.events_ending.viewkeys())
         except ValueError:
-            end = 0
+            end = 1
         start = end + delay
         for port in self:
             newev = PortalTravelEvent(self.thing, port, False, db)
@@ -570,7 +616,7 @@ Then return the schedule. Just for good measure.
             newev.start = start
             newev.length = evlen
             self.thing.schedule.add(newev)
-            start += evlen + 1
+            start += evlen + delay + 1
         self.thing.schedule.unravel(db)
         return self.thing.schedule
 

@@ -129,7 +129,7 @@ make a new, hidden calendar column to represent the schedule.
             return (x, y)
         else:
             ls = self.thing.location.spot
-            return (ls.x, ls.y)
+            return ls.getcenter()
 
     def getcenter(self):
         """Return the x and y of my centerpoint in a pair."""

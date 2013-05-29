@@ -2,6 +2,23 @@ from logging import getLogger, DEBUG
 
 logging = False
 
+class LocationException(Exception):
+    pass
+
+
+class ContainmentException(Exception):
+    """Exception raised when a Thing tried to go into or out of another
+Thing, and it made no sense.
+
+    """
+    pass
+
+
+class PortalException(Exception):
+    """Exception raised when a Thing tried to move into or out of or along
+a Portal, and it made no sense."""
+    pass
+
 class SaveableMetaclass(type):
     """Sort of an object relational mapper.
 
