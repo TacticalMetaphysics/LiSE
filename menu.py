@@ -79,15 +79,17 @@ With db, register in db's menuitemdict.
         while len(ptr) <= self.idx:
             ptr.append(None)
         ptr[self.idx] = self
+        self.db = db
 
-    def unravel(self, db):
+    def unravel(self):
         """Dereference the board, the menu, the effect deck, and the text if
 it starts with an @ character."""
+        db = self.db
         if stringlike(self.board):
             self.board = db.boarddict[self.board]
         if stringlike(self.menu):
             self.menu = db.menudict[self.board.dimension.name][self.menu]
-        self.parse_effect_deck(db)
+        self.parse_effect_deck()
         while len(self.menu.items) < self.idx:
             self.menu.items.append(None)
         if self.text[0] == "@":
@@ -226,9 +228,10 @@ just how to display this widget"""
             self.pressed,
             self.tweaks)
 
-    def parse_effect_deck(self, db):
+    def parse_effect_deck(self):
         """Dereference the effect deck, possibly making a new one if it's
 named a certain way."""
+        db = self.db
         efd = self.effect_deck
         if isinstance(efd, EffectDeck) or db is None:
             self.effect_deck = efd
@@ -320,8 +323,8 @@ class Menu:
             "menu_item": [it.get_rowdict() for it in self.items]
         }
 
-    def __init__(self, board, name, left, bottom, top, right, style,
-                 main_for_window, visible, db=None):
+    def __init__(self, db, board, name, left, bottom, top, right, style,
+                 main_for_window, visible):
         """Return a menu in the given board, with the given name, bounds,
 style, and flags main_for_window and visible.
 
@@ -361,13 +364,15 @@ With db, register with db's menudict.
         if boardname not in db.menudict:
             db.menudict[boardname] = {}
         db.menudict[boardname][self.name] = self
+        self.db = db
 
-    def unravel(self, db):
+    def unravel(self):
         """Dereference style and board; fetch items from db's menuitemdict;
 and unravel style and all items."""
+        db = self.db
         if stringlike(self.style):
             self.style = db.styledict[self.style]
-        self.style.unravel(db)
+        self.style.unravel()
         self.rowheight = self.style.fontsize + self.style.spacing
         bgi = self.style.bg_inactive.tup
         bga = self.style.bg_active.tup
@@ -379,7 +384,7 @@ and unravel style and all items."""
             boardname = self.board.name
         self.items = db.menuitemdict[boardname][self.name]
         for item in self.items:
-            item.unravel(db)
+            item.unravel()
 
     def set_gw(self, gw):
         """Remember the given gamewindow for use in later graphics
@@ -558,24 +563,24 @@ def read_items_in_menus(db, menus):
     return r
 
 
-def unravel_items(db, itd):
+def unravel_items(itd):
     """Unravel items from a given board"""
     for it in itd.itervalues():
-        it.unravel(db)
+        it.unravel()
     return itd
 
 
-def unravel_items_in_menus(db, mitd):
+def unravel_items_in_menus(mitd):
     """Unravel items from read_items_in_menus"""
     for its in mitd.itervalues():
-        unravel_items(db, its)
+        unravel_items(its)
     return mitd
 
 
 def load_items_in_menus(db, menus):
     """Load items in the named menus. Return a 2D dict keyed by menu, then
 index."""
-    return unravel_items_in_menus(db, read_items_in_menus(db, menus))
+    return unravel_items_in_menus(read_items_in_menus(db, menus))
 
 
 menu_qcols = ["menu." + coln for coln in Menu.colns]
@@ -621,18 +626,18 @@ Return a 2D dict keyed first by board dimension name, then by menu name.
     return r
 
 
-def unravel_menus(db, md):
+def unravel_menus(md):
     """Unravel a dict of menus keyed by name"""
     for menu in md.itervalues():
-        menu.unravel(db)
+        menu.unravel()
     return md
 
 
-def unravel_menus_in_boards(db, bmd):
+def unravel_menus_in_boards(bmd):
     """Unravel a 2D dict of menus keyed by board dimension name, then menu
 name"""
     for menus in bmd.itervalues():
-        unravel_menus(db, menus)
+        unravel_menus(menus)
     return bmd
 
 
@@ -643,7 +648,7 @@ Return them in a 2D dict keyed first by board dimension name, then by
 menu name.
 
     """
-    return unravel_menus_in_boards(db, read_menus_in_boards(db, boards))
+    return unravel_menus_in_boards(read_menus_in_boards(db, boards))
 
 
 def make_menu_toggler_menu_item(
@@ -673,6 +678,6 @@ item."""
     else:
         dimname = item.dimension.name
     itname = item.name
-    togdeck = make_calendar_toggler(dimname, itname, db)
-    return MenuItem(menu, idx, txt, togdeck,
-                    closer, visible, interactive, db)
+    togdeck = make_calendar_toggler(db, dimname, itname)
+    return MenuItem(db, menu, idx, txt, togdeck,
+                    closer, visible, interactive)

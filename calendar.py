@@ -69,9 +69,6 @@ between any two states that should appear different on-screen."""
             self.interactive,
             self.tweaks)
 
-    def getstart(self):
-        return self.event.start
-
     def gettop(self):
         """Get the absolute Y value of my top edge."""
         return (self.getstart() -
@@ -182,6 +179,7 @@ cells.
         if dimname not in db.calcoldict:
             db.calcoldict[dimname] = {}
         db.calcoldict[dimname][itname] = self
+        self.db = db
 
     def __iter__(self):
         return self.celldict.itervalues()
@@ -221,7 +219,8 @@ cells.
     def is_visible(self):
         return self.visible and self.item.name in self.cal.coldict
 
-    def unravel(self, db):
+    def unravel(self):
+        db = self.db
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         self.board = db.boarddict[self.dimension.name]
@@ -230,11 +229,11 @@ cells.
         self.item.pawn.calcol = self
         if stringlike(self.style):
             self.style = db.styledict[self.style]
-        self.style.unravel(db)
+        self.style.unravel()
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         if stringlike(self.cel_style):
             self.cel_style = db.styledict[self.cel_style]
-        self.cel_style.unravel(db)
+        self.cel_style.unravel()
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         self.active_pattern = color_pattern(self.style.bg_active.tup)
         self.cal = self.board.calendar
@@ -322,15 +321,15 @@ method.
         self.scrolled_to = scrolled_to
         self.oldstate = None
         self.tweaks = 0
-        if db is not None:
-            if stringlike(self.board):
-                boardname = self.board
+        if stringlike(self.board):
+            boardname = self.board
+        else:
+            if stringlike(self.board.dimension):
+                boardname = board.dimension
             else:
-                if stringlike(self.board.dimension):
-                    boardname = board.dimension
-                else:
-                    boardname = board.dimension.name
-            db.caldict[boardname] = self
+                boardname = board.dimension.name
+        db.caldict[boardname] = self
+        self.db = db
 
     def __iter__(self):
         return self.coldict.itervalues()
@@ -360,7 +359,7 @@ between any two states that should appear different on-screen."""
             self.scrolled_to,
             self.tweaks)
 
-    def unravel(self, db):
+    def unravel(self):
         """Dereference contained strings into Python objects.
 
 Results in self.board being a Board object, self.coldict being the
@@ -368,6 +367,7 @@ OrderedDict containing the columns herein, and every CalendarCol in
 self.coldict being itself unraveled.
 
         """
+        db = self.db
         if stringlike(self.board):
             self.board = db.boarddict[self.board]
         if self.board.dimension.name in db.calcoldict:
@@ -375,7 +375,7 @@ self.coldict being itself unraveled.
         else:
             self.coldict = OrderedDict()
         for column in self.coldict.itervalues():
-            column.unravel(db)
+            column.unravel()
 
     def adjust(self):
         """Precompute my coordinates; create missing calendar cells; delete
@@ -402,7 +402,7 @@ those whose events are no longer present."""
             for evname in col.celldict:
                 if evname not in col.item.schedule.events:
                     del col.celldict[evname]
-                    
+
     def set_gw(self, gw):
         """Pair up with the given GameWindow.
 

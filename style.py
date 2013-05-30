@@ -106,12 +106,14 @@ With db, register in its styledict.
         self.fg_inactive = fg_inactive
         self.fg_active = fg_active
         db.styledict[self.name] = self
+        self.db = db
 
     def __str__(self):
         return self.name
 
-    def unravel(self, db):
+    def unravel(self):
         """Dereference all the colors"""
+        db = self.db
         for colorcol in self.color_cols:
             colorname = getattr(self, colorcol)
             if stringlike(colorname):

@@ -53,6 +53,7 @@ With db, register in db's pawndict.
         if dimname not in db.pawndict:
             db.pawndict[dimname] = {}
         db.pawndict[dimname][thingname] = self
+        self.db = db
 
     def __eq__(self, other):
         """Essentially, compare the state tuples of the two pawns."""
@@ -65,7 +66,7 @@ With db, register in db's pawndict.
             self.interactive == other.interactive and
             self.grabpoint == other.grabpoint)
 
-    def unravel(self, db):
+    def unravel(self):
         """On the assumption that my thing has already been unraveled,
 dereference it, the board, and the image.
 
@@ -77,6 +78,7 @@ make a new, hidden calendar column to represent the schedule.
 
         """
         # Invariant: things have already been unraveled
+        db = self.db
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         self.board = db.boarddict[self.dimension.name]
@@ -89,7 +91,7 @@ make a new, hidden calendar column to represent the schedule.
                     db, self.board.dimension.name,
                     self.thing.name, True, True, "BigLight", "SmallDark")
         if hasattr(self, 'calcol'):
-            self.calcol.unravel(db)
+            self.calcol.unravel()
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
         self.rx = self.img.getwidth() / 2
@@ -234,22 +236,22 @@ thing name.
     return r
 
 
-def unravel_pawns(db, pawnd):
+def unravel_pawns(pawnd):
     """Unravel pawns in a dictionary keyed by thing name, and return
 it."""
     for pawn in pawnd.itervalues():
-        pawn.unravel(db)
+        pawn.unravel()
     return pawnd
 
 
-def unravel_pawns_in_boards(db, pawnd):
+def unravel_pawns_in_boards(pawnd):
     """Unravel pawns read in by read_pawns_in_boards"""
     for pawns in pawnd.itervalues():
-        unravel_pawns(db, pawns)
+        unravel_pawns(pawns)
     return pawnd
 
 
 def load_pawns_in_boards(db, names):
     """Load all pawns in the given boards, and return them in a 2D
 dictionary keyed first by board name, then by thing name."""
-    return unravel_pawns_in_boards(db, read_pawns_in_boards(db, names))
+    return unravel_pawns_in_boards(read_pawns_in_boards(db, names))

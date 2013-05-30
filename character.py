@@ -68,6 +68,7 @@ item's name, and the name of the attribute.
     def __init__(self, db, name):
         self.name = name
         db.characterdict[self.name] = self
+        self.db = db
 
     def get_tabdict(self):
         items = [
@@ -90,8 +91,9 @@ item's name, and the name of the attribute.
             "character_skill_link": skills,
             "attribution": attributions}
 
-    def unravel(self, db):
+    def unravel(self):
         # Assumes that everything it relies on has been pre-unraveled
+        db = self.db
         self.itemset = db.characteritemdict[self.name]
         self.skillset = db.skilldict[self.name]
         self.attributiondict = db.attributiondict[self.name]

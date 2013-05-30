@@ -96,12 +96,15 @@ the three given effect decks. Register with db.eventdict.
         self.commence_effects = commence_effects
         self.proceed_effects = proceed_effects
         self.conclude_effects = conclude_effects
-        if db is not None:
-            db.add_event(self)
+        db.add_event(self)
+        self.db = db
 
     def __repr__(self):
         if hasattr(self, 'start') and hasattr(self, 'length'):
-            return "{0}[{1}->{2}]".format(self.name, self.start, self.start + self.length)
+            return "{0}[{1}->{2}]".format(
+                self.name,
+                self.start,
+                self.start + self.length)
 
     def get_tabdict(self):
         return {
@@ -112,7 +115,7 @@ the three given effect decks. Register with db.eventdict.
             "proceed_effects": self.proceed_effects.name,
             "conclude_effects": self.conclude_effects.name}
 
-    def unravel(self, db):
+    def unravel(self):
         """Dereference the effect decks.
 
 If the event text begins with @, it's a pointer; look up the real
@@ -120,10 +123,10 @@ value in the db.
 
         """
         if self.text[0] == "@":
-            self.text = db.get_text(self.text[1:])
+            self.text = self.db.get_text(self.text[1:])
         for deck in (self.commence_effects, self.proceed_effects,
                      self.conclude_effects):
-            deck.unravel(db)
+            deck.unravel()
 
     def cmpcheck(self, other):
         """Check if this event is comparable to the other. Raise TypeError if
@@ -227,8 +230,8 @@ events. Register with db.eventdeckdict.
         """
         self.name = name
         self.events = event_list
-        if db is not None:
-            db.eventdeckdict[self.name] = self
+        db.eventdeckdict[self.name] = self
+        self.db = db
 
     def get_tabdict(self):
         rowdicts = []
@@ -239,10 +242,10 @@ events. Register with db.eventdeckdict.
                 "event": self.events[i].name})
         return {"event_deck_link": rowdicts}
 
-    def unravel(self, db):
+    def unravel(self):
         for i in xrange(0, len(self.events)):
             if stringlike(self.events[i]):
-                self.events[i] = db.eventdict[self.events[i]]
+                self.events[i] = self.db.eventdict[self.events[i]]
 
 
 evdl_qcol = ["event_deck_link." + coln for coln in EventDeck.colns]
@@ -283,7 +286,7 @@ Return a dictionary, keyed by the event deck name."""
         r[name] = EventDeck(name, l, db)
     load_effect_decks(db, list(effect_deck_names))
     for val in r.itervalues():
-        val.unravel(db)
+        val.unravel()
     return r
 
 

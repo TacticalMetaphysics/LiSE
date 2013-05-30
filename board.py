@@ -74,6 +74,7 @@ time.
         else:
             dimname = self.dimension.name
         db.boarddict[dimname] = self
+        self.db = db
 
     def get_tabdict(self):
         return {
@@ -91,28 +92,28 @@ time.
                 "calendar_rows_on_screen": self.calendar.rows_on_screen,
                 "calendar_scrolled_to": self.calendar.scrolled_to}}
 
-    def unravel(self, db):
+    def unravel(self):
         """Grab the Python objects referred to by self.wallpaper and
 self.dimension, if they are strings; then unravel all pawns, spots,
 and menus herein.
 
         """
+        db = self.db
         if stringlike(self.wallpaper):
             self.wallpaper = db.imgdict[self.wallpaper]
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
-        self.dimension.unravel(db)
+        self.dimension.unravel()
         self.pawndict = db.pawndict[self.dimension.name]
         self.spotdict = db.spotdict[self.dimension.name]
         self.menudict = db.menudict[self.dimension.name]
         for pwn in self.pawndict.itervalues():
-            pwn.unravel(db)
+            pwn.unravel()
         for spt in self.spotdict.itervalues():
-            spt.unravel(db)
+            spt.unravel()
         for mnu in self.menudict.itervalues():
-            mnu.unravel(db)
-        self.calendar.unravel(db)
-        
+            mnu.unravel()
+        self.calendar.unravel()
 
     def __eq__(self, other):
         return (
@@ -232,7 +233,7 @@ dimension names."""
     load_imgs(db, list(imgs))
     read_styles(db, list(styles))
     for board in r.itervalues():
-        board.unravel(db)
+        board.unravel()
     return r
 
 

@@ -63,6 +63,7 @@ With db, register the spot with spotdict.
         if dimname not in db.spotdict:
             db.spotdict[dimname] = {}
         db.spotdict[dimname][placename] = self
+        self.db = db
 
     def __repr__(self):
         """Represent the coordinates and the name of the place"""
@@ -75,9 +76,10 @@ With db, register the spot with spotdict.
             self.dimension == other.dimension and
             self.name == other.name)
 
-    def unravel(self, db):
+    def unravel(self):
         """Dereference dimension, place, and image. Compute some constants for
 graphics calculations."""
+        db = self.db
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.place):
@@ -218,18 +220,18 @@ Return a 2D dictionary keyed with dimension name, then thing name.
     return r
 
 
-def unravel_spots(db, spd):
+def unravel_spots(spd):
     """Take a dictionary of spots keyed by place name. Return it with the
 contents unraveled."""
     for spot in spd.itervalues():
-        spot.unravel(db)
+        spot.unravel()
     return spd
 
 
 def unravel_spots_in_boards(db, spdd):
     """Unravel the output of read_spots_in_boards."""
     for spots in spdd.itervalues():
-        unravel_spots(db, spots)
+        unravel_spots(spots)
     return spdd
 
 
@@ -240,4 +242,4 @@ Return a 2D dictionary keyed first by board dimension name, then by
 place name.
 
     """
-    return unravel_spots_in_boards(db, read_spots_in_boards(db, names))
+    return unravel_spots_in_boards(read_spots_in_boards(db, names))

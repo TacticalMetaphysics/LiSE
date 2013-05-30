@@ -26,16 +26,18 @@ keyed with their names.
         """
         self.name = name
         db.dimensiondict[name] = self
+        self.db = db
 
     def __hash__(self):
         """Return the hash of this dimension's name, since the database
 constrains it to be unique."""
         return hash(self.name)
 
-    def unravel(self, db):
+    def unravel(self):
         """Get the dictionaries of the items in this dimension from the given
 database. Then iterate over the values therein and unravel
 everything."""
+        db = self.db
         if not hasattr(self, 'itemdict'):
             self.itemdict = db.itemdict[self.name]
         if not hasattr(self, 'thingdict'):
@@ -52,17 +54,17 @@ everything."""
             self.portaldestorigdict = db.portaldestorigdict[self.name]
         # this order is deliberate
         for place in self.placedict.itervalues():
-            place.unravel(db)
+            place.unravel()
         for dests in self.portalorigdestdict.itervalues():
             for portal in dests.itervalues():
-                portal.unravel(db)
+                portal.unravel()
         for journey in self.journeydict.itervalues():
-            journey.unravel(db)
+            journey.unravel()
         for schedule in self.scheduledict.itervalues():
-            schedule.unravel(db)
+            schedule.unravel()
         for thing in self.thingdict.itervalues():
-            thing.unravel(db)
-            
+            thing.unravel()
+
     def get_edges(self):
         """Return pairs of hashes, where each hash represents a portal
 herein."""
@@ -88,7 +90,6 @@ this dimension."""
         """Return a Graph layout, of the kind that igraph uses, representing
 this dimension, and laid out nicely."""
         return self.get_igraph_graph().layout(layout=layout_type)
-                
 
 
 def read_dimensions(db, names):
@@ -113,5 +114,5 @@ thereof will be returned, but the objects won't be unraveled yet.
 def load_dimensions(db, names):
     r = read_dimensions(db, names)
     for dim in r.itervalues():
-        dim.unravel(db)
+        dim.unravel()
     return r

@@ -28,6 +28,7 @@ called with the given argument. Register in db.effectdict."""
         self.func = func
         self.arg = arg
         db.effectdict[name] = self
+        self.db = db
 
     def get_rowdict(self):
         return {
@@ -39,18 +40,14 @@ called with the given argument. Register in db.effectdict."""
         return {
             "effect": self.get_rowdict()}
 
-    def unravel(self, db):
+    def unravel(self):
         """If the function was supplied as a string, look up what it refers
 to."""
         if stringlike(self.func):
-            self.func = db.func[self.func]
+            self.func = self.db.func[self.func]
 
     def do(self):
         """Call the function with the argument."""
-        if stringlike(self.func):
-            funname = self.func
-        else:
-            funname = self.func.__name__
         return self.func(self.arg)
 
 
@@ -109,8 +106,8 @@ If db is supplied, register with it.
         """
         self.name = name
         self.effects = effects
-        if db is not None:
-            db.effectdeckdict[self.name] = self
+        db.effectdeckdict[self.name] = self
+        self.db = db
 
     def __getitem__(self, i):
         return self.effects[i]
@@ -148,7 +145,7 @@ If db is supplied, register with it.
                 "effect": self.effects[i].name})
         return {"effect_deck_link": rowdicts}
 
-    def unravel(self, db):
+    def unravel(self):
         """For all the effects I contain, if the effect is actually the *name*
 of an effect, look up the real effect object. Then unravel it."""
         i = 0
@@ -157,7 +154,7 @@ of an effect, look up the real effect object. Then unravel it."""
             if stringlike(eff):
                 eff = db.effectdict[eff]
                 self.effects[i] = eff
-            eff.unravel(db)
+            eff.unravel()
             i += 1
 
     def do(self):
@@ -204,7 +201,6 @@ Return a dictionary keyed by name.
         rowdict = dictify_row(row, Effect.colnames["effect"])
         rowdict["db"] = db
         eff = Effect(**rowdict)
-        eff.unravel(db)
         r[rowdict["name"]] = eff
     return r
 
@@ -212,7 +208,7 @@ Return a dictionary keyed by name.
 def unravel_effects(db, effd):
     """Unravel the Effect objects output by read_effects."""
     for eff in effd.itervalues():
-        eff.unravel(db)
+        eff.unravel()
     return effd
 
 
@@ -285,7 +281,7 @@ This incidentally unravels all Effect therein.
 
     """
     for deck in efd.itervalues():
-        deck.unravel(db)
+        deck.unravel()
     return efd
 
 
@@ -319,7 +315,7 @@ menu name, return an Effect that toggles the menu of that name in that
 board."""
     togglername = "toggle_menu_visibility({0})".format(menuspec)
     toggler = Effect(db, togglername, "toggle_menu_visibility", menuspec)
-    toggler.unravel(db)
+    toggler.unravel()
     return toggler
 
 
@@ -329,7 +325,7 @@ name, return an Effect that toggles the calendar representing the
 schedule of that item in that dimension."""
     togglername = "toggle_calendar_visibility({0})".format(calspec)
     toggler = Effect(togglername, "toggle_calendar_visibility", calspec, db)
-    toggler.unravel(db)
+    toggler.unravel()
     return toggler
 
 
@@ -351,7 +347,7 @@ def make_hide_menu_effect_from_menuspec(db, menuspec):
 menu name, return an effect that hides that menu in that board."""
     hidername = "hide_menu({0})".format(menuspec)
     hider = Effect(db, hidername, "hide_menu", menuspec)
-    hider.unravel(db)
+    hider.unravel()
     return hider
 
 
@@ -366,7 +362,7 @@ def make_show_menu_effect_from_menuspec(db, menuspec):
 menu name, return an effect that shows that menu in that board."""
     showername = "show_menu({0})".format(menuspec)
     shower = Effect(db, showername, "show_menu", menuspec)
-    shower.unravel(db)
+    shower.unravel()
     return shower
 
 
@@ -383,7 +379,7 @@ name, return an effect that hides the calendar representing the
 schedule for that item in that dimension."""
     hidername = "hide_calendar({0})".format(calspec)
     hider = Effect(db, hidername, "hide_calendar", calspec)
-    hider.unravel(db)
+    hider.unravel()
     return hider
 
 
@@ -400,7 +396,7 @@ name, return an effect that shows the calendar representing the
 schedule of that item in that dimension."""
     showername = "show_calendar({0})".format(calspec)
     shower = Effect(db, showername, "show_calendar", calspec)
-    shower.unravel(db)
+    shower.unravel()
     return shower
 
 
@@ -409,7 +405,7 @@ def make_hide_all_menus_effect(db, boardname):
 *unless* they are marked main_for_window."""
     hidername = "hide_menus_in_board({0})".format(boardname)
     hider = Effect(db, hidername, "hide_menus_in_board", boardname)
-    hider.unravel(db)
+    hider.unravel()
     return hider
 
 
@@ -419,7 +415,7 @@ the one given, as well as any marked main_for_window."""
     menuspec = boardn + "." + menun
     hidername = "hide_other_menus_in_board({0})".format(menuspec)
     hider = Effect(db, hidername, "hide_other_menus_in_board", menuspec)
-    hider.unravel(db)
+    hider.unravel()
     return hider
 
 
@@ -427,7 +423,7 @@ def make_hide_all_calendars_effect(db, dimname):
     """Return an effect that will hide all the calendars in the given board."""
     hidername = "hide_calendars_in_board({0})".format(dimname)
     hider = Effect(db, hidername, "hide_calendars_in_board", dimname)
-    hider.unravel(db)
+    hider.unravel()
     return hider
 
 
@@ -437,7 +433,7 @@ from this one."""
     calspec = dimname + "." + itname
     hidername = "hide_other_calendars_in_board({0})".format(calspec)
     hider = Effect(db, hidername, "hide_other_calendars_in_board", calspec)
-    hider.unravel(db)
+    hider.unravel()
     return hider
 
 
@@ -448,7 +444,7 @@ but hide all the others (apart from main_for_window)."""
     shower = make_show_menu_effect(db, boardname, menuname)
     deckname = "show_only_menu({0}.{1})".format(boardname, menuname)
     deck = EffectDeck(db, deckname, [hider, shower])
-    deck.unravel(db)
+    deck.unravel()
     return deck
 
 
@@ -459,7 +455,7 @@ except for the one for this item."""
     shower = make_show_calendar_effect(db, dimname, itname)
     deckname = "show_only_calendar({0}.{1})".format(dimname, itname)
     deck = EffectDeck(db, deckname, [hider, shower])
-    deck.unravel(db)
+    deck.unravel()
     return deck
 
 
@@ -482,7 +478,7 @@ invisible."""
     toggle_effect = make_toggle_menu_effect(db, boardname, menuname)
     deckname = "toggle_menu_visibility({0}.{1})".format(boardname, menuname)
     deck = EffectDeck(db, deckname, [hide_effect, toggle_effect])
-    deck.unravel(db)
+    deck.unravel()
     return deck
 
 
@@ -494,5 +490,5 @@ invisible."""
     toggle_effect = make_toggle_calendar_effect(db, dimname, itname)
     deckname = "toggle_calendar_visibility({0}.{1})".format(dimname, itname)
     deck = EffectDeck(db, deckname, [hide_effect, toggle_effect])
-    deck.unravel(db)
+    deck.unravel()
     return deck

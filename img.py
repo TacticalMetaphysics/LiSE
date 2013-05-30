@@ -35,6 +35,7 @@ provided."""
         self.rltile = rltile
         self.tex = None
         db.imgdict[name] = self
+        self.db = db
 
     def get_tabdict(self):
         return {
@@ -43,7 +44,7 @@ provided."""
                 "path": self.path,
                 "rltile": self.rltile}}
 
-    def unravel(self, db):
+    def unravel(self):
         """Load the underlying texture using pyglet.
 
 Different loaders are used depending on if the image is a Windows
@@ -51,6 +52,7 @@ bitmap or a PNG. In the former case, a certain color value is made
 transparent.
 
         """
+        db = self.db
         if self.tex is None:
             if self.rltile:
                 self.tex = load_rltile(db, self.name, self.path)
@@ -111,7 +113,7 @@ def unravel_imgs(db, imgd):
     """Unravel Img previously read by read_imgs, thus loading the
 textures. Return a dictionary keyed by name."""
     for img in imgd.itervalues():
-        img.unravel(db)
+        img.unravel()
     return imgd
 
 
