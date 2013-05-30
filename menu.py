@@ -51,7 +51,7 @@ With db, register in db's menuitemdict.
         self.text = text
         self.effect_deck = effect_deck
         self.closer = closer
-        self.visible = visible
+        self._visible = visible
         self.interactive = interactive
         self.grabpoint = None
         self.hovered = False
@@ -80,6 +80,31 @@ With db, register in db's menuitemdict.
             ptr.append(None)
         ptr[self.idx] = self
         self.db = db
+
+    def __getattr__(self, attrn):
+        if attrn == 'visible':
+            return self.menu.visible and self._visible
+        elif attrn == 'left':
+            return self.menu.left + self.menu.style.spacing
+        elif attrn == 'right':
+            return self.menu.right - self.menu.style.spacing
+        elif attrn == 'width':
+            return self.right - self.left
+        elif attrn == 'height':
+            return self.top - self.bot
+        elif attrn == 'rx':
+            return self.width / 2
+        elif attrn == 'ry':
+            return self.height / 2
+        elif attrn == 'r':
+            if self.rx > self.ry:
+                return self.rx
+            else:
+                return self.ry
+        else:
+            raise AttributeError(
+                "MenuItem instance has no such attribute: " +
+                attrn)
 
     def unravel(self):
         """Dereference the board, the menu, the effect deck, and the text if
@@ -155,50 +180,6 @@ the same."""
         """Show my text"""
         return self.text
 
-    def getcenter(self):
-        """Return a pair with my center's x and y coords"""
-        return (self.get_center_x(), self.get_center_y())
-
-    def get_center_x(self):
-        """Return the x at my center"""
-        return self.getleft() + self.getrx()
-
-    def get_center_y(self):
-        """Return the y at my center"""
-        return self.getbot() + self.getry()
-
-    def getleft(self):
-        """Return the x at my leftmost edge"""
-        return self.menu.getleft() + self.menu.style.spacing
-
-    def getright(self):
-        """Return the x at my rightmost edge"""
-        return self.menu.getright() - self.menu.style.spacing
-
-    def gettop(self):
-        """Return the y at my upper edge"""
-        return self.top
-
-    def getbot(self):
-        """Return the y at my lower edge"""
-        return self.bot
-
-    def getwidth(self):
-        """How many pixels wide am I?"""
-        return self.getright() - self.getleft()
-
-    def getheight(self):
-        """How many pixels tall am I?"""
-        return self.menu.style.fontsize + self.menu.style.spacing
-
-    def getrx(self):
-        """Return half my width"""
-        return self.getwidth() / 2
-
-    def getry(self):
-        """Return half my height"""
-        return self.getheight() / 2
-
     def toggle_visibility(self):
         """Become visible if invisible or vice versa"""
         self.visible = not self.visible
@@ -273,10 +254,6 @@ named a certain way."""
         if efd in db.effectdeckdict:
             self.effect_deck = db.effectdeckdict[efd]
 
-    def is_visible(self):
-        """Can you see me?"""
-        return self.visible
-
 
 def pull_items_in_menus(db, menunames):
     qryfmt = "SELECT {0} FROM menu_item WHERE menu IN ({1})"
@@ -340,15 +317,13 @@ With db, register with db's menudict.
         """
         self.board = board
         self.name = name
-        self.left = left
-        self.bot = bottom
-        self.top = top
-        self.right = right
-        self.width = self.right - self.left
-        self.height = self.top - self.bot
+        self.left_prop = left
+        self.bot_prop = bottom
+        self.top_prop = top
+        self.right_prop = right
         self.style = style
         self.main_for_window = main_for_window
-        self.visible = visible
+        self._visible = visible
         self.interactive = True
         self.hovered = False
         self.grabpoint = None
@@ -356,6 +331,7 @@ With db, register with db's menudict.
         self.oldstate = None
         self.newstate = None
         self.pressed = False
+        self.freshly_adjusted = False
         self.tweaks = 0
         if stringlike(self.board):
             boardname = self.board
@@ -365,6 +341,41 @@ With db, register with db's menudict.
             db.menudict[boardname] = {}
         db.menudict[boardname][self.name] = self
         self.db = db
+
+    def __getattr__(self, attrn):
+        if attrn == 'visible':
+            return self._visible
+        elif attrn == 'left':
+            return int(self.gw.width * self.left_prop)
+        elif attrn == 'bot':
+            return int(self.gw.height * self.bot_prop)
+        elif attrn == 'top':
+            return int(self.gw.height * self.top_prop)
+        elif attrn == 'right':
+            return int(self.gw.width * self.right_prop)
+        elif attrn == 'width':
+            return self.right - self.left
+        elif attrn == 'height':
+            return self.top - self.bot
+        elif attrn == 'rx':
+            return int(
+                (self.gw.width * self.right_prop -
+                 self.gw.width * self.left_prop)
+                / 2)
+        elif attrn == 'ry':
+            return int(
+                (self.gw.height * self.top_prop -
+                 self.gw.height * self.bot_prop)
+                / 2)
+        elif attrn == 'r':
+            if self.rx > self.ry:
+                return self.rx
+            else:
+                return self.ry
+        else:
+            raise AttributeError(
+                "Menu instance has no such attribute: " +
+                attrn)
 
     def unravel(self):
         """Dereference style and board; fetch items from db's menuitemdict;
@@ -394,21 +405,11 @@ calculations. Then do the calculations once."""
 
     def adjust(self):
         """Assign absolute coordinates to myself and all my items."""
-        self.left_abs = int(self.gw.width * self.left)
-        self.right_abs = int(self.gw.width * self.right)
-        self.width_abs = int(self.gw.width * self.width)
-        self.top_abs = int(self.gw.height * self.top)
-        self.bot_abs = int(self.gw.height * self.bot)
-        self.height_abs = int(self.gw.height * self.height)
-        self.rx_abs = (self.right_abs - self.left_abs) / 2
-        self.ry_abs = (self.top_abs - self.bot_abs) / 2
-        self.center_abs = (self.rx_abs + self.left_abs,
-                           self.ry_abs + self.bot_abs)
         i = 0
         for item in self.items:
             item.top_from_top = i * self.rowheight
             item.bot_from_top = item.top_from_top + self.rowheight
-            item.top = self.top_abs - item.top_from_top
+            item.top = self.top - item.top_from_top
             item.bot = item.top - self.rowheight
             i += 1
 
@@ -430,56 +431,6 @@ calculations. Then do the calculations once."""
         """Delete a menuitem"""
         return self.items.__delitem__(i)
 
-    def getstyle(self):
-        """Return my style"""
-        return self.style
-
-    def getleft(self):
-        """Return the x at my left edge"""
-        return self.left_abs
-
-    def getbot(self):
-        """Return the y at my bottom edge"""
-        return self.bot_abs
-
-    def gettop(self):
-        """Return the y at my top edge"""
-        return self.top_abs
-
-    def getright(self):
-        """Return the x at my right edge"""
-        return self.right_abs
-
-    def getcenter(self):
-        """Return a pair, being coordinates of my center point"""
-        fx = self.center_abs[0]
-        fy = self.center_abs[1]
-        return (fx, fy)
-
-    def getwidth(self):
-        """Return width in pixels"""
-        return self.width_abs
-
-    def getheight(self):
-        """Return height in pixels"""
-        return self.height_abs
-
-    def getrx(self):
-        """Return half width in pixels"""
-        return self.rx_abs
-
-    def getry(self):
-        """Return half height in pixels"""
-        return self.ry_abs
-
-    def is_visible(self):
-        """Can you see me?"""
-        return self.visible
-
-    def is_interactive(self):
-        """Can you touch me?"""
-        return self.interactive
-
     def toggle_visibility(self):
         """Make myself visible if hidden, invisible if shown."""
         print "toggling visibility of menu {0}".format(self.name)
@@ -500,22 +451,6 @@ calculations. Then do the calculations once."""
         """If one of my items is hovered, activate it"""
         if self.hovered is not None:
             self.hovered.onclick(button, modifiers)
-
-    def set_hovered(self):
-        """Make myself hovered"""
-        pass
-
-    def unset_hovered(self):
-        """Make myself not hovered"""
-        pass
-
-    def set_pressed(self):
-        """Make myself pressed"""
-        pass
-
-    def unset_pressed(self):
-        """Make myself not pressed"""
-        pass
 
     def get_state_tup(self):
         """Return a tuple containing everything you need to decide how to draw

@@ -612,7 +612,7 @@ some amount, calculated by its speed_thru method.
         rex = THING_ALONG_PORTAL_RE
         (dimname, thingname) = re.match(rex, arg).groups()
         thing = self.thingdict[dimname][thingname]
-        port = thing.location.real
+        port = thing.location
         speed = thing.speed_thru(port)
         amount = 1 / float(speed)
         return thing.move_thru_portal(amount)

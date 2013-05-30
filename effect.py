@@ -78,7 +78,7 @@ class PortalExitEffect(Effect):
 in, incidentally taking it out of the portal."""
     def __init__(self, db, item):
         self.item = item
-        self.portal = item.location.real
+        self.portal = item.location
         arg = "{0}.{1}".format(item.dimension.name, item.name)
         name = "thing_out_of_portal({0})".format(arg)
         Effect.__init__(self, db, name, "thing_out_of_portal", arg)

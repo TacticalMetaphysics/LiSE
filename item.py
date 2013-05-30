@@ -78,6 +78,10 @@ much."""
             if not self.contents_fresh:
                 self.updcontents()
             return self.real_contents
+        else:
+            raise AttributeError(
+                "Item instance has no such attribute: " +
+                attrn)
 
     def updcontents(self):
         self.real_contents = set()
@@ -141,6 +145,10 @@ it with the placedict and itemdict in the db."""
             else:
                 dimn = self.dimension.name
             return self.db.spotdict[dimn][self.name]
+        else:
+            raise AttributeError(
+                "Place instance has no such attribute: " +
+                attrn)
 
     def unravel(self):
         """Get myself a real Dimension object if I don't have one."""
@@ -372,6 +380,10 @@ Also add self to location, if applicable.
             else:
                 dimn = self.dimension.name
             return self.db.locdict[dimn][self.name]
+        else:
+            raise AttributeError(
+                "Thing instance has no such attribute: " +
+                attrn)
 
     def __hash__(self):
         return self.hsh

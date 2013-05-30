@@ -34,16 +34,16 @@ With db, register in db's pawndict.
         self.dimension = dimension
         self.thing = thing
         self.img = img
-        self.visible = visible
-        self.interactive = interactive
+        self._visible = visible
+        self._interactive = interactive
         self.grabpoint = None
         self.sprite = None
         self.oldstate = None
         self.newstate = None
         self.hovered = False
         self.tweaks = 0
-        if stringlike(self.dimension):
-            dimname = self.dimension
+        if stringlike(dimension):
+            dimname = dimension
         else:
             dimname = self.dimension.name
         if stringlike(self.thing):
@@ -54,6 +54,37 @@ With db, register in db's pawndict.
             db.pawndict[dimname] = {}
         db.pawndict[dimname][thingname] = self
         self.db = db
+
+    def __getattr__(self, attrn):
+        if attrn == 'visible':
+            return self._visible
+        elif attrn == 'interactive':
+            return self._interactive
+        elif attrn == 'left':
+            return self.getcoords()[0]
+        elif attrn == 'bot':
+            return self.getcoords()[1]
+        elif attrn == 'width':
+            return self.img.getwidth()
+        elif attrn == 'height':
+            return self.img.getheight()
+        elif attrn == 'right':
+            return self.left + self.width
+        elif attrn == 'top':
+            return self.bot + self.height
+        elif attrn == 'rx':
+            return self.width / 2
+        elif attrn == 'ry':
+            return self.height / 2
+        elif attrn == 'r':
+            if self.rx > self.ry:
+                return self.rx
+            else:
+                return self.ry
+        else:
+            raise AttributeError(
+                "Pawn instance has no such attribute: " +
+                attrn)
 
     def __eq__(self, other):
         """Essentially, compare the state tuples of the two pawns."""
@@ -85,17 +116,15 @@ make a new, hidden calendar column to represent the schedule.
         if stringlike(self.thing):
             self.thing = db.itemdict[self.board.dimension.name][self.thing]
         self.thing.pawn = self
-        if not hasattr(self, 'calcol'):
+        if hasattr(self, 'calcol') and self.calcol is not None:
+            self.calcol.unravel()
+        else:
             if hasattr(self.thing, 'schedule'):
                 self.calcol = CalendarCol(
                     db, self.board.dimension.name,
                     self.thing.name, True, True, "BigLight", "SmallDark")
-        if hasattr(self, 'calcol'):
-            self.calcol.unravel()
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
-        self.rx = self.img.getwidth() / 2
-        self.ry = self.img.getheight() / 2
 
     def getcoords(self):
         """Return my x and y in a pair."""
@@ -130,44 +159,7 @@ portal {1} properly.""".format(repr(self), repr(port)))
             return (x, y)
         else:
             ls = self.thing.location.spot
-            return ls.getcenter()
-
-    def getcenter(self):
-        """Return the x and y of my centerpoint in a pair."""
-        (x, y) = self.getcoords()
-        return (x + self.rx, y + self.ry)
-
-    def getleft(self):
-        """Return the x of my leftmost edge."""
-        return self.getcoords()[0]
-
-    def getright(self):
-        """Return the x of my rightmost edge."""
-        return self.getcoords()[0] + self.img.getwidth()
-
-    def getrx(self):
-        """Return half my width."""
-        return self.rx
-
-    def getry(self):
-        """Return half my height."""
-        return self.ry
-
-    def gettop(self):
-        """Return the y of my top edge."""
-        return self.getcoords()[1] + self.img.getheight()
-
-    def getbot(self):
-        """Return the y of my bottom edge."""
-        return self.getcoords()[1]
-
-    def is_visible(self):
-        """Can you see me?"""
-        return self.visible
-
-    def is_interactive(self):
-        """Can you touch me?"""
-        return self.interactive
+            return (ls.x, ls.y)
 
     def onclick(self, button, modifiers):
         """For now, pawns toggle their associated calendar columns on being

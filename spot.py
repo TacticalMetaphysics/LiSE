@@ -44,8 +44,8 @@ With db, register the spot with spotdict.
         self.img = img
         self.x = x
         self.y = y
-        self.visible = visible
-        self.interactive = interactive
+        self._visible = visible
+        self._interactive = interactive
         self.grabpoint = None
         self.sprite = None
         self.oldstate = None
@@ -64,6 +64,37 @@ With db, register the spot with spotdict.
             db.spotdict[dimname] = {}
         db.spotdict[dimname][placename] = self
         self.db = db
+
+    def __getattr__(self, attrn):
+        if attrn == 'visible':
+            return self._visible
+        elif attrn == 'interactive':
+            return self._interactive
+        elif attrn == 'left':
+            return self.y
+        elif attrn == 'bot':
+            return self.x
+        elif attrn == 'width':
+            return self.img.getwidth()
+        elif attrn == 'height':
+            return self.img.getheight()
+        elif attrn == 'top':
+            return self.bot + self.height
+        elif attrn == 'right':
+            return self.left + self.width
+        elif attrn == 'rx':
+            return self.width / 2
+        elif attrn == 'ry':
+            return self.height / 2
+        elif attrn == 'r':
+            if self.rx > self.ry:
+                return self.rx
+            else:
+                return self.ry
+        else:
+            raise AttributeError(
+                "Spot instance has no such attribute: " +
+                attrn)
 
     def __repr__(self):
         """Represent the coordinates and the name of the place"""
@@ -95,49 +126,9 @@ graphics calculations."""
         self.bot = self.y - self.ry
         self.place.spot = self
 
-    def getleft(self):
-        """Return the x of my left edge"""
-        return self.left
-
-    def getbot(self):
-        """Return the y of my bottom edge"""
-        return self.bot
-
-    def gettop(self):
-        """Return the y of my top edge"""
-        return self.top
-
-    def getright(self):
-        """Return the y of my right edge"""
-        return self.right
-
-    def getcenter(self):
-        """Return the coordinates of my centerpoint in a pair"""
-        return (self.x, self.y)
-
-    def getrx(self):
-        """Return half my width"""
-        return self.rx
-
-    def getry(self):
-        """Return half my height"""
-        return self.ry
-
     def gettup(self):
         """Return my image, left, and bottom"""
         return (self.img, self.getleft(), self.getbot())
-
-    def getcoords(self):
-        """Return my left and bottom"""
-        return (self.getleft(), self.getbot())
-
-    def is_visible(self):
-        """Can you see me?"""
-        return self.visible
-
-    def is_interactive(self):
-        """Can you touch me?"""
-        return self.interactive
 
     def onclick(self, button, modifiers):
         """Does nothing yet"""

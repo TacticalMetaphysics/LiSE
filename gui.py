@@ -121,10 +121,9 @@ board; all visible menus; and the calendar, if it's visible."""
                     spot.sprite.delete()
                 except AttributeError:
                     pass
-                if spot.is_visible():
-                    (x, y) = spot.getcoords()
+                if spot.visible:
                     spot.sprite = pyglet.sprite.Sprite(
-                        spot.img, x, y, batch=self.batch,
+                        spot.img, spot.left, spot.bot, batch=self.batch,
                         group=self.spotgroup)
             # draw the pawns, representing things
             for pawn in self.board.pawndict.itervalues():
@@ -138,10 +137,9 @@ board; all visible menus; and the calendar, if it's visible."""
                     pawn.sprite.delete()
                 except AttributeError:
                     pass
-                if pawn.is_visible():
-                    (x, y) = pawn.getcoords()
+                if pawn.visible:
                     pawn.sprite = pyglet.sprite.Sprite(
-                        pawn.img, x, y, batch=self.batch,
+                        pawn.img, pawn.left, pawn.bot, batch=self.batch,
                         group=self.pawngroup)
             # draw the menus, really just their backgrounds for the moment
             for menu in self.board.menudict.itervalues():
@@ -156,7 +154,7 @@ board; all visible menus; and the calendar, if it's visible."""
                         menu_item.label.delete()
                     except AttributeError:
                         pass
-                    if menu.is_visible() and menu_item.is_visible():
+                    if menu_item.visible:
                         sty = menu.style
                         if menu_item.hovered:
                             color = sty.fg_active.tup
@@ -167,8 +165,8 @@ board; all visible menus; and the calendar, if it's visible."""
                             sty.fontface,
                             sty.fontsize,
                             color=color,
-                            x=menu_item.getleft(),
-                            y=menu_item.getbot(),
+                            x=menu_item.left,
+                            y=menu_item.bot,
                             batch=self.batch,
                             group=self.labelgroup)
                 newstate = menu.get_state_tup()
@@ -181,13 +179,13 @@ board; all visible menus; and the calendar, if it's visible."""
                     menu.sprite.delete()
                 except AttributeError:
                     pass
-                if menu.is_visible():
+                if menu.visible:
                     image = (
                         menu.inactive_pattern.create_image(
-                            menu.getwidth(),
-                            menu.getheight()))
+                            menu.width,
+                            menu.height))
                     menu.sprite = pyglet.sprite.Sprite(
-                        image, menu.getleft(), menu.getbot(),
+                        image, menu.left, menu.bot,
                         batch=self.batch, group=self.menugroup)
 
             # draw the calendar
@@ -201,13 +199,11 @@ board; all visible menus; and the calendar, if it's visible."""
                         calcol.sprite.delete()
                     except AttributeError:
                         pass
-                    if (
-                            self.calendar.is_visible() and
-                            calcol.is_visible()):
+                    if calcol.visible:
                         image = calcol.inactive_pattern.create_image(
-                            calcol.getwidth(), calcol.getheight())
+                            calcol.width, calcol.height)
                         calcol.sprite = pyglet.sprite.Sprite(
-                            image, calcol.getleft(), calcol.getbot(),
+                            image, calcol.left, calcol.bot,
                             batch=self.batch, group=self.calendargroup)
                     for cel in calcol.celldict.itervalues():
                         try:
@@ -218,10 +214,7 @@ board; all visible menus; and the calendar, if it's visible."""
                             cel.label.delete()
                         except AttributeError:
                             pass
-                        if (
-                                cel.is_visible() and
-                                calcol.is_visible() and
-                                self.calendar.is_visible()):
+                        if cel.visible:
                             if self.hovered == cel:
                                 pat = cel.active_pattern
                                 color = cel.style.fg_active.tup
@@ -229,15 +222,15 @@ board; all visible menus; and the calendar, if it's visible."""
                                 pat = cel.inactive_pattern
                                 color = cel.style.fg_inactive.tup
                             image = pat.create_image(
-                                cel.getwidth(), cel.getheight())
+                                cel.width, cel.height)
                             cel.sprite = pyglet.sprite.Sprite(
-                                image, cel.getleft(), cel.getbot(),
+                                image, cel.left, cel.bot,
                                 batch=self.batch, group=self.cellgroup)
                             cel.label = pyglet.text.Label(
                                 cel.text, cel.style.fontface,
                                 cel.style.fontsize, color=color,
-                                x=cel.getleft(),
-                                y=cel.label_bot(),
+                                x=cel.left,
+                                y=cel.label_bot,
                                 batch=self.batch, group=self.labelgroup)
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.
@@ -251,16 +244,16 @@ it."""
             if self.hovered is None:
                 for menu in self.menus:
                     if (
-                            x > menu.getleft() and
-                            x < menu.getright() and
-                            y > menu.getbot() and
-                            y < menu.gettop()):
+                            x > menu.left and
+                            x < menu.right and
+                            y > menu.bot and
+                            y < menu.top):
                         for item in menu.items:
                             if (
-                                    x > item.getleft() and
-                                    x < item.getright() and
-                                    y > item.getbot() and
-                                    y < item.gettop()):
+                                    x > item.left and
+                                    x < item.right and
+                                    y > item.bot and
+                                    y < item.top):
                                 if hasattr(item, 'set_hovered'):
                                     logger.log(
                                         DEBUG,
@@ -271,10 +264,10 @@ it."""
                                 return
                 for spot in self.spots:
                     if (
-                            x > spot.getleft() and
-                            x < spot.getright() and
-                            y > spot.getbot() and
-                            y < spot.gettop()):
+                            x > spot.left and
+                            x < spot.right and
+                            y > spot.bot and
+                            y < spot.top):
                         if hasattr(spot, 'set_hovered'):
                             logger.log(
                                 DEBUG,
@@ -285,10 +278,10 @@ it."""
                         return
                 for pawn in self.pawns:
                     if (
-                            x > pawn.getleft() and
-                            x < pawn.getright() and
-                            y > pawn.getbot() and
-                            y < pawn.gettop()):
+                            x > pawn.left and
+                            x < pawn.right and
+                            y > pawn.bot and
+                            y < pawn.top):
                         if hasattr(pawn, 'set_hovered'):
                             logger.log(
                                 DEBUG,
@@ -299,10 +292,10 @@ it."""
                         return
             else:
                 if (
-                        x < self.hovered.getleft() or
-                        x > self.hovered.getright() or
-                        y < self.hovered.getbot() or
-                        y > self.hovered.gettop()):
+                        x < self.hovered.left or
+                        x > self.hovered.right or
+                        y < self.hovered.bot or
+                        y > self.hovered.top):
                     if hasattr(self.hovered, 'unset_hovered'):
                         logger.log(DEBUG, "Unhovered.")
                         self.hovered.unset_hovered()
@@ -325,15 +318,16 @@ still over it when pressed, it's been half-way clicked; remember this."""
             """If something was being dragged, drop it. If something was being
 pressed but not dragged, it's been clicked. Otherwise do nothing."""
             if self.grabbed is not None:
-                if hasattr(self.grabbed, 'dropped'):
+                if (hasattr(self.grabbed, 'dropped') and
+                    self.grabbed.dropped is not None):
                     logger.log(DEBUG, "Dropped.")
                     self.grabbed.dropped(x, y, button, modifiers)
                 self.grabbed = None
             elif (self.pressed is not None and
-                  x > self.pressed.getleft() and
-                  x < self.pressed.getright() and
-                  y > self.pressed.getbot() and
-                  y < self.pressed.gettop() and
+                  x > self.pressed.left and
+                  x < self.pressed.right and
+                  y > self.pressed.bot and
+                  y < self.pressed.top and
                   hasattr(self.pressed, 'onclick')):
                 logger.log(DEBUG, "Clicked.")
                 self.pressed.onclick(button, modifiers)
@@ -353,10 +347,10 @@ move_with_mouse method, use it.
                 logger.log(DEBUG, "Moved %d by %d.", dx, dy)
                 self.grabbed.move_with_mouse(x, y, dx, dy, buttons, modifiers)
             elif (self.pressed is not None and
-                  x > self.pressed.getleft() and
-                  x < self.pressed.getright() and
-                  y > self.pressed.getbot() and
-                  y < self.pressed.gettop() and
+                  x > self.pressed.left and
+                  x < self.pressed.right and
+                  y > self.pressed.bot and
+                  y < self.pressed.top and
                   hasattr(self.pressed, 'move_with_mouse')):
                 logger.log(DEBUG, "Grabbed at %d, %d.", x, y)
                 self.grabbed = self.pressed
@@ -369,12 +363,10 @@ move_with_mouse method, use it.
         @window.event
         def on_resize(w, h):
             """Inform the on_draw function that the window's been resized."""
-            self.width = w
-            self.height = h
             self.resized = True
 
-    def getwidth(self):
-        return self.window.width
-
-    def getheight(self):
-        return self.window.height
+    def __getattr__(self, attrn):
+        if attrn == 'width':
+            return self.window.width
+        elif attrn == 'height':
+            return self.window.height
