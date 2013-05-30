@@ -52,20 +52,17 @@ With db, register the spot with spotdict.
         self.newstate = None
         self.hovered = False
         self.tweaks = 0
-        if db is not None:
-            dimname = None
-            placename = None
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            if stringlike(self.place):
-                placename = self.place
-            else:
-                placename = self.place.name
-            if dimname not in db.spotdict:
-                db.spotdict[dimname] = {}
-            db.spotdict[dimname][placename] = self
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if stringlike(self.place):
+            placename = self.place
+        else:
+            placename = self.place.name
+        if dimname not in db.spotdict:
+            db.spotdict[dimname] = {}
+        db.spotdict[dimname][placename] = self
 
     def __repr__(self):
         """Represent the coordinates and the name of the place"""

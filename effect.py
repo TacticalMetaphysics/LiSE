@@ -27,8 +27,7 @@ called with the given argument. Register in db.effectdict."""
         self.name = name
         self.func = func
         self.arg = arg
-        if db is not None:
-            db.effectdict[name] = self
+        db.effectdict[name] = self
 
     def get_rowdict(self):
         return {
@@ -311,10 +310,10 @@ given name."""
     else:
         menuname = menu.name
     menuspec = boardname + "." + menuname
-    return make_toggle_menu_effect_from_menuspec(menuspec, db)
+    return make_toggle_menu_effect_from_menuspec(db, menuspec)
 
 
-def make_toggle_menu_effect_from_menuspec(menuspec, db):
+def make_toggle_menu_effect_from_menuspec(db, menuspec):
     """Given a string consisting of a board dimension name, a dot, and a
 menu name, return an Effect that toggles the menu of that name in that
 board."""

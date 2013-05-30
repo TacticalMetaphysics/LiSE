@@ -322,21 +322,19 @@ Register with the database's itemdict and thingdict too.
         self.age = age
         self.schedule = schedule
         self.hsh = hash(hash(self.dimension) + hash(self.name))
-        if db is not None:
-            dimname = None
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            if dimname not in db.itemdict:
-                db.itemdict[dimname] = {}
-            if dimname not in db.thingdict:
-                db.thingdict[dimname] = {}
-            if dimname not in db.locdict:
-                db.locdict[dimname] = {}
-            db.itemdict[dimname][self.name] = self
-            db.thingdict[dimname][self.name] = self
-            db.locdict[dimname][self.name] = location
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if dimname not in db.itemdict:
+            db.itemdict[dimname] = {}
+        if dimname not in db.thingdict:
+            db.thingdict[dimname] = {}
+        if dimname not in db.locdict:
+            db.locdict[dimname] = {}
+        db.itemdict[dimname][self.name] = self
+        db.thingdict[dimname][self.name] = self
+        db.locdict[dimname][self.name] = location
         Item.__init__(self, db)
 
     def unravel(self, db):
@@ -485,20 +483,17 @@ class Journey:
                     destname = st.dest.name
                 self.steps.append((origname, destname))
         self.db = db
-        if db is not None:
-            dimname = None
-            thingname = None
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            if stringlike(self.thing):
-                thingname = self.thing
-            else:
-                thingname = self.thing.name
-            if dimname not in db.journeydict:
-                db.journeydict[dimname] = {}
-            db.journeydict[dimname][thingname] = self
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if stringlike(self.thing):
+            thingname = self.thing
+        else:
+            thingname = self.thing.name
+        if dimname not in db.journeydict:
+            db.journeydict[dimname] = {}
+        db.journeydict[dimname][thingname] = self
 
     def unravel(self, db):
         """Dereference all steps."""
@@ -660,21 +655,18 @@ contevdict, and endevdict."""
         self.cached_commencements = {}
         self.cached_processions = {}
         self.cached_conclusions = {}
-        if db is not None:
-            dimname = None
-            itemname = None
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            if stringlike(self.item):
-                itemname = self.item
-            else:
-                itemname = self.item.name
-            if dimname not in db.scheduledict:
-                db.scheduledict[dimname] = {}
-            db.scheduledict[dimname][itemname] = self
-            self.db = db
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if stringlike(self.item):
+            itemname = self.item
+        else:
+            itemname = self.item.name
+        if dimname not in db.scheduledict:
+            db.scheduledict[dimname] = {}
+        db.scheduledict[dimname][itemname] = self
+        self.db = db
 
     def __iter__(self):
         """Return iterator over my events in order of their start times."""

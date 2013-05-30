@@ -42,20 +42,17 @@ With db, register in db's pawndict.
         self.newstate = None
         self.hovered = False
         self.tweaks = 0
-        if db is not None:
-            dimname = None
-            thingname = None
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            if stringlike(self.thing):
-                thingname = self.thing
-            else:
-                thingname = self.thing.name
-            if dimname not in db.pawndict:
-                db.pawndict[dimname] = {}
-            db.pawndict[dimname][thingname] = self
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if stringlike(self.thing):
+            thingname = self.thing
+        else:
+            thingname = self.thing.name
+        if dimname not in db.pawndict:
+            db.pawndict[dimname] = {}
+        db.pawndict[dimname][thingname] = self
 
     def __eq__(self, other):
         """Essentially, compare the state tuples of the two pawns."""

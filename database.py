@@ -3,7 +3,6 @@ import board
 import dimension
 import re
 from collections import OrderedDict
-from location import LocationWiseDict
 
 
 """The database backend, with dictionaries of loaded objects.
@@ -70,7 +69,7 @@ arguments.
         self.startevdict = {}
         self.contevdict = {}
         self.endevdict = {}
-        self.itemdict = LocationWiseDict()
+        self.itemdict = {}
         self.placedict = {}
         self.thingdict = {}
         self.spotdict = {}
@@ -83,7 +82,7 @@ arguments.
         self.colordict = {}
         self.journeydict = {}
         self.contentsdict = {}
-        self.locdict = LocationWiseDict()
+        self.locdict = {}
         self.portalorigdestdict = {}
         self.portaldestorigdict = {}
         self.effectdict = {}

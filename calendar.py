@@ -1,9 +1,9 @@
 from util import SaveableMetaclass, stringlike, dictify_row
 from pyglet.image import SolidColorImagePattern as color_pattern
 from collections import OrderedDict
-#from util import getLoggerIfLogging, DEBUG
+from util import getLoggerIfLogging, DEBUG
 
-#logger = getLoggerIfLogging(__name__)
+logger = getLoggerIfLogging(__name__)
 
 
 """User's view on a given item's schedule.
@@ -171,18 +171,17 @@ cells.
         self.left = 0
         self.right = 0
         self.cell_cache = {}
-        if db is not None:
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            if stringlike(self.item):
-                itname = self.item
-            else:
-                itname = self.item.name
-            if dimname not in db.calcoldict:
-                db.calcoldict[dimname] = {}
-            db.calcoldict[dimname][itname] = self
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if stringlike(self.item):
+            itname = self.item
+        else:
+            itname = self.item.name
+        if dimname not in db.calcoldict:
+            db.calcoldict[dimname] = {}
+        db.calcoldict[dimname][itname] = self
 
     def __iter__(self):
         return self.celldict.itervalues()
@@ -198,7 +197,10 @@ cells.
                 "cel_style": self.cel_style.name}}
 
     def toggle_visibility(self):
-        #logger.log(DEBUG, "Toggling visibility of calendar column for %s.", self.item.name)
+        logger.log(
+            DEBUG,
+            "Toggling visibility of calendar column for %s.",
+            self.item.name)
         if self in self.cal:
             self.cal.remove(self)
             self.visible = False
@@ -276,7 +278,9 @@ cells.
             other.item == self.item)
 
     def celhash(self):
-        hashes = [hash(cel.get_state_tup()) for cel in self.celldict.itervalues()]
+        hashes = [
+            hash(cel.get_state_tup())
+            for cel in self.celldict.itervalues()]
         return hash(tuple(hashes))
 
     def get_state_tup(self):
@@ -294,6 +298,7 @@ between any two states that should appear different on-screen."""
             self.interactive,
             self.tweaks)
 
+
 class Calendar:
     """A collection of calendar columns representing at least one
 schedule, possibly several.
@@ -304,8 +309,8 @@ method.
 
 """
     def __init__(
-            self, board, left, right, top, bot, visible, interactive,
-            rows_on_screen, scrolled_to, db=None):
+            self, db, board, left, right, top, bot, visible, interactive,
+            rows_on_screen, scrolled_to):
         self.board = board
         self.left = left
         self.right = right
@@ -334,7 +339,9 @@ method.
         return len(self.coldict)
 
     def colhash(self):
-        hashes = [hash(col.get_state_tup()) for col in self.coldict.itervalues()]
+        hashes = [
+            hash(col.get_state_tup())
+            for col in self.coldict.itervalues()]
         return hash(tuple(hashes))
 
     def get_state_tup(self):
@@ -352,7 +359,6 @@ between any two states that should appear different on-screen."""
             self.rows_on_screen,
             self.scrolled_to,
             self.tweaks)
-            
 
     def unravel(self, db):
         """Dereference contained strings into Python objects.
@@ -397,7 +403,6 @@ those whose events are no longer present."""
                 if evname not in col.item.schedule.events:
                     del col.celldict[evname]
                     
-
     def set_gw(self, gw):
         """Pair up with the given GameWindow.
 
@@ -519,6 +524,7 @@ representing a single tick would take up."""
 rcib_format = (
     "SELECT {0} FROM calendar_col WHERE dimension IN ({1})".format(
         ", ".join(CalendarCol.colns), "{0}"))
+
 
 def read_calendar_cols_in_boards(db, boardnames):
     qryfmt = rcib_format

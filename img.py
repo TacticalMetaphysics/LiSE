@@ -34,8 +34,7 @@ provided."""
         self.path = path
         self.rltile = rltile
         self.tex = None
-        if db is not None:
-            db.imgdict[name] = self
+        db.imgdict[name] = self
 
     def get_tabdict(self):
         return {

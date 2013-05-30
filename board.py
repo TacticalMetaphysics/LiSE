@@ -69,12 +69,11 @@ time.
             "scrolled_to": calendar_scrolled_to,
             "db": db}
         self.calendar = Calendar(**caldict)
-        if db is not None:
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            db.boarddict[dimname] = self
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        db.boarddict[dimname] = self
 
     def get_tabdict(self):
         return {

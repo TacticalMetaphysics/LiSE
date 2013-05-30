@@ -25,8 +25,7 @@ keyed with their names.
 
         """
         self.name = name
-        if db is not None:
-            db.dimensiondict[name] = self
+        db.dimensiondict[name] = self
 
     def __hash__(self):
         """Return the hash of this dimension's name, since the database
@@ -109,6 +108,7 @@ thereof will be returned, but the objects won't be unraveled yet.
     for name in names:
         r[name] = Dimension(db, name)
     return r
+
 
 def load_dimensions(db, names):
     r = read_dimensions(db, names)

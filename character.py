@@ -67,8 +67,7 @@ item's name, and the name of the attribute.
 
     def __init__(self, db, name):
         self.name = name
-        if db is not None:
-            db.characterdict[self.name] = self
+        db.characterdict[self.name] = self
 
     def get_tabdict(self):
         items = [

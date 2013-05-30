@@ -1,9 +1,10 @@
 import pyglet
+import logging
+from util import enableLogging
 from gui import GameWindow
 from database import load_game
 from state import GameState
-from board import load_board
-from sys import argv, setrecursionlimit
+from sys import argv
 from sqlite3 import connect, DatabaseError
 
 DEBUG = False
@@ -17,18 +18,23 @@ for arg in argv:
             lang = argv[i+1]
         except:
             raise Exception("Couldn't parse language")
-    else:
+    elif arg == "-d":
+        DEBUG = True
+    elif arg[-2:] != "py":
         try:
             connect(arg).cursor().execute("SHOW TABLES")
             dbfn = arg
         except DatabaseError:
-            pass
+            print "Couldn't connect to the database named {0}.".format(arg)
     i += 1
+
+print "Connecting to the database named {0}.".format(dbfn)
 
 db = load_game(dbfn, lang)
 s = GameState(db)
 gw = GameWindow(s, "Physical")
 if DEBUG:
+    enableLogging()
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
     formatter = logging.Formatter(s.logfmt)

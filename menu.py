@@ -1,6 +1,5 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 from effect import read_effect_decks
-from style import read_styles
 from effect import (
     EffectDeck,
     make_menu_toggler,
@@ -61,26 +60,25 @@ With db, register in db's menuitemdict.
         self.newstate = None
         self.pressed = False
         self.tweaks = 0
-        if db is not None:
-            if stringlike(self.board):
-                boardname = self.board
+        if stringlike(self.board):
+            boardname = self.board
+        else:
+            if stringlike(self.board.dimension):
+                boardname = self.board.dimension
             else:
-                if stringlike(self.board.dimension):
-                    boardname = self.board.dimension
-                else:
-                    boardname = self.board.dimension.name
-            if stringlike(self.menu):
-                menuname = self.menu
-            else:
-                menuname = self.menu.name
-            if boardname not in db.menuitemdict:
-                db.menuitemdict[boardname] = {}
-            if menuname not in db.menuitemdict[boardname]:
-                db.menuitemdict[boardname][menuname] = []
-            ptr = db.menuitemdict[boardname][menuname]
-            while len(ptr) <= self.idx:
-                ptr.append(None)
-            ptr[self.idx] = self
+                boardname = self.board.dimension.name
+        if stringlike(self.menu):
+            menuname = self.menu
+        else:
+            menuname = self.menu.name
+        if boardname not in db.menuitemdict:
+            db.menuitemdict[boardname] = {}
+        if menuname not in db.menuitemdict[boardname]:
+            db.menuitemdict[boardname][menuname] = []
+        ptr = db.menuitemdict[boardname][menuname]
+        while len(ptr) <= self.idx:
+            ptr.append(None)
+        ptr[self.idx] = self
 
     def unravel(self, db):
         """Dereference the board, the menu, the effect deck, and the text if
@@ -356,14 +354,13 @@ With db, register with db's menudict.
         self.newstate = None
         self.pressed = False
         self.tweaks = 0
-        if db is not None:
-            if stringlike(self.board):
-                boardname = self.board
-            else:
-                boardname = self.board.name
-            if boardname not in db.menudict:
-                db.menudict[boardname] = {}
-            db.menudict[boardname][self.name] = self
+        if stringlike(self.board):
+            boardname = self.board
+        else:
+            boardname = self.board.name
+        if boardname not in db.menudict:
+            db.menudict[boardname] = {}
+        db.menudict[boardname][self.name] = self
 
     def unravel(self, db):
         """Dereference style and board; fetch items from db's menuitemdict;

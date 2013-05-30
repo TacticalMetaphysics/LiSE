@@ -43,8 +43,7 @@ green, blue, and alpha. Register in db.colordict.
         self.alpha = alpha
         self.tup = (self.red, self.green, self.blue, self.alpha)
         self.pattern = pyglet.image.SolidColorImagePattern(self.tup)
-        if db is not None:
-            db.colordict[self.name] = self
+        db.colordict[self.name] = self
 
     def __str__(self):
         return self.name
@@ -89,9 +88,8 @@ that contain text."""
          [])]
     color_cols = ["bg_inactive", "bg_active", "fg_inactive", "fg_active"]
 
-    def __init__(self, name, fontface, fontsize, spacing,
-                 bg_inactive, bg_active, fg_inactive, fg_active,
-                 db=None):
+    def __init__(self, db, name, fontface, fontsize, spacing,
+                 bg_inactive, bg_active, fg_inactive, fg_active):
         """Return a style by the given name, with the given face, font size,
 spacing, and four colors: active and inactive variants for each of the
 foreground and the background.
@@ -107,8 +105,7 @@ With db, register in its styledict.
         self.bg_active = bg_active
         self.fg_inactive = fg_inactive
         self.fg_active = fg_active
-        if db is not None:
-            db.styledict[self.name] = self
+        db.styledict[self.name] = self
 
     def __str__(self):
         return self.name
