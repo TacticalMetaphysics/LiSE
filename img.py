@@ -27,8 +27,9 @@ saving the path.
          {},
          [])]
 
-    def __init__(self, name, path, rltile, db=None):
-        """Return an Img, and register it with the imgdict of the database provided, if provided."""
+    def __init__(self, db, name, path, rltile):
+        """Return an Img, and register it with the imgdict of the database
+provided."""
         self.name = name
         self.path = path
         self.rltile = rltile

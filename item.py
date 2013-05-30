@@ -35,7 +35,7 @@ much."""
          ("dimension", "name"),
          {},
          [])]
-    def __init__(self, db=None):
+    def __init__(self, db):
         if db is not None:
             if stringlike(self.dimension):
                 dimname = self.dimension
@@ -109,7 +109,7 @@ connected to other Places, forming a graph."""
          {},
          [])]
 
-    def __init__(self, dimension, name, db):
+    def __init__(self, db, dimension, name):
         """Return a Place of the given name, in the given dimension. Register
 it with the placedict and itemdict in the db."""
         self.dimension = dimension
@@ -172,21 +172,11 @@ class Portal(Item):
           "from_place": "text not null",
           "to_place": "text not null"},
          ("dimension", "from_place", "to_place"),
-         # This schema relies on a trigger to create an appropriate item record.
+         # This schema relies on a trigger to create an appropriate
+         # item record.
          {"dimension, from_place": ("place", "dimension, name"),
           "dimension, to_place": ("place", "dimension, name")},
          [])]
-
-    def __repr__(self):
-        if stringlike(self.orig):
-            origname = self.orig
-        else:
-            origname = self.orig.name
-        if stringlike(self.dest):
-            destname = self.dest
-        else:
-            destname = self.dest.name
-        return 'Portal({0}->{1})'.format(origname, destname)
 
     def __init__(self, dimension, from_place, to_place, db=None):
         self.dimension = dimension
@@ -208,7 +198,8 @@ class Portal(Item):
                 to_place_name = self.dest
             else:
                 to_place_name = self.dest.name
-            self.name = "Portal({0}->{1})".format(from_place_name, to_place_name)
+            self.name = "Portal({0}->{1})".format(
+                from_place_name, to_place_name)
             podd = db.portalorigdestdict
             pdod = db.portaldestorigdict
             for d in (db.itemdict, podd, pdod):
@@ -222,6 +213,17 @@ class Portal(Item):
             podd[dimname][from_place_name][to_place_name] = self
             pdod[dimname][to_place_name][from_place_name] = self
         Item.__init__(self, db)
+
+    def __repr__(self):
+        if stringlike(self.orig):
+            origname = self.orig
+        else:
+            origname = self.orig.name
+        if stringlike(self.dest):
+            destname = self.dest
+        else:
+            destname = self.dest.name
+        return 'Portal({0}->{1})'.format(origname, destname)
 
     def unravel(self, db):
         if stringlike(self.dimension):
@@ -301,9 +303,9 @@ location.
          {"dimension, location": ("item", "dimension, name")},
          [])]
 
-    def __init__(self, dimension, name, location,
+    def __init__(self, db, dimension, name, location,
                  journey_step=0, journey_progress=0.0, age=0,
-                 schedule=None, db=None):
+                 schedule=None):
         """Return a Thing in the given dimension and location,
 with the given name. Its contents will be empty to start; later on,
 point some other Things' location attributes at this Thing to put
@@ -335,7 +337,6 @@ Register with the database's itemdict and thingdict too.
             db.itemdict[dimname][self.name] = self
             db.thingdict[dimname][self.name] = self
             db.locdict[dimname][self.name] = location
-            self.db = db.locdict
         Item.__init__(self, db)
 
     def unravel(self, db):
@@ -414,7 +415,9 @@ immediately. Else raise exception as appropriate."""
     def move_thru_portal(self, amount):
         """Move this amount through the portal I'm in"""
         if not isinstance(self.location, Portal):
-            raise PortalException("The location of {0} is {1}, which is not a portal.".format(repr(self), repr(self.location)))
+            raise PortalException(
+                """The location of {0} is {1},
+which is not a portal.""".format(repr(self), repr(self.location)))
         self.location.notify_moving(self, amount)
         self.journey_progress += amount
 
@@ -460,10 +463,11 @@ class Journey:
           "to_place": "text not null"},
          ("dimension", "thing", "idx"),
          {"dimension, thing": ("thing", "dimension, name"),
-          "dimension, from_place, to_place": ("portal", "dimension, from_place, to_place")},
+          "dimension, from_place, to_place":
+          ("portal", "dimension, from_place, to_place")},
          [])]
 
-    def __init__(self, dimension, thing, steps, db):
+    def __init__(self, db, dimension, thing, steps):
         self.dimension = dimension
         self.thing = thing
         self.steps = []
@@ -538,7 +542,6 @@ class Journey:
         else:
             dimn = self.thing.dimension.name
         return self.db.portalorigdestdict[dimn][orign][destn]
-        
 
     def speed_at_step(self, i):
         """Get the thing's speed at step i.
@@ -563,7 +566,6 @@ the thing isn't in a portal at all.
 
         """
         return self.thing.move_thru_portal(prop)
-
 
     def next(self):
         """Teleport the thing to the destination of the portal it's in, and
@@ -604,14 +606,15 @@ Then return the schedule. Just for good measure.
 
         """
         if not hasattr(self.thing, 'schedule') or self.thing.schedule is None:
-            self.thing.schedule = Schedule(self.thing.dimension, self.thing, db)
+            self.thing.schedule = Schedule(
+                db, self.thing.dimension, self.thing)
         try:
             end = max(self.thing.schedule.events_ending.viewkeys())
         except ValueError:
             end = 1
         start = end + delay
         for port in self:
-            newev = PortalTravelEvent(self.thing, port, False, db)
+            newev = PortalTravelEvent(db, self.thing, port, False)
             evlen = self.thing.speed_thru(port)
             newev.start = start
             newev.length = evlen
@@ -644,7 +647,7 @@ true of events in different schedules.
           "event": ("event", "name")},
          [])]
 
-    def __init__(self, dimension, item, db=None):
+    def __init__(self, db, dimension, item):
         """Return an empty event for the given item in the given
 dimension. With db, register in db's scheduledict, startevdict,
 contevdict, and endevdict."""
@@ -796,7 +799,9 @@ timeframe."""
                 self.conclusions_between(start, end))
 
 
-schedule_qvals = ["scheduled_event.item"] + ["scheduled_event." + valn for valn in Schedule.valns]
+schedule_qvals = (
+    ["scheduled_event.item"] +
+    ["scheduled_event." + valn for valn in Schedule.valns])
 
 
 def lookup_loc(db, it):
@@ -805,6 +810,8 @@ def lookup_loc(db, it):
         dimname = it.dimension
     else:
         dimname = it.dimension.name
+    if dimname not in db.locdict or it.name not in db.locdict[dimname]:
+        return None
     return db.locdict[dimname][it.name]
 
 
@@ -919,7 +926,7 @@ def read_schedules_in_dimensions(db, dimnames):
             EffectDeck(dimn, [], db)
         deck = effectdeckdict[dimn][deckn]
         if eff not in deck:
-            idx = rowdict[idx]
+            idx = rowdict["idx"]
             while len(deck) <= idx:
                 deck.append(None)
             deck[idx] = eff
@@ -1066,7 +1073,6 @@ name.
         db, load_places_in_dimensions(db, dimnames))
 
 
-
 portal_colstr = ", ".join(Portal.colnames["portal"])
 portal_dimension_qryfmt = (
     "SELECT {0} FROM portal WHERE dimension IN "
@@ -1089,16 +1095,19 @@ Return them in a 2D dict keyed by dimension name, then portal name.
     for row in db.c:
         rowdict = dictify_row(row, Portal.colnames["portal"])
         rowdict["db"] = db
-        if rowdict["from_place"] not in r[rowdict["dimension"]]:
-            r[rowdict["dimension"]][rowdict["from_place"]] = {}
-        r[rowdict["dimension"]][rowdict["from_place"]][rowdict["to_place"]] = Portal(**rowdict)
+        orig = rowdict["from_place"]
+        dest = rowdict["to_place"]
+        dim = rowdict["dimension"]
+        if orig not in r[dim]:
+            r[dim][orig] = {}
+        r[dim][orig][dest] = Portal(**rowdict)
     return r
 
 
 def load_portals_in_dimensions(db, dimnames):
     r = read_portals_in_dimensions(db, dimnames)
     for origin in r.itervalues():
-        for destination in dimension.itervalues():
+        for destination in origin.itervalues():
             for portal in destination.itervalues():
                 portal.unravel(db)
     return r

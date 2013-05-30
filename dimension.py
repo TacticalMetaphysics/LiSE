@@ -5,7 +5,6 @@ from item import (
     read_portals_in_dimensions,
     read_schedules_in_dimensions,
     read_journeys_in_dimensions)
-from util import SaveableMetaclass
 
 
 """Class and loaders for dimensions--the top of the world hierarchy."""
@@ -16,7 +15,7 @@ class Dimension:
 places, or portals with any other dimension, but possibly sharing
 characters."""
 
-    def __init__(self, name, db=None):
+    def __init__(self, db, name):
         """Return a dimension with the given name.
 
 Probably useless unless, once you're sure you've put all your places,
@@ -108,7 +107,7 @@ thereof will be returned, but the objects won't be unraveled yet.
     read_portals_in_dimensions(db, names)
     r = {}
     for name in names:
-        r[name] = Dimension(name, db)
+        r[name] = Dimension(db, name)
     return r
 
 def load_dimensions(db, names):

@@ -23,7 +23,7 @@ class Pawn:
           "dimension, thing": ("thing", "dimension, name")},
          [])]
 
-    def __init__(self, dimension, thing, img, visible, interactive, db=None):
+    def __init__(self, db, dimension, thing, img, visible, interactive):
         """Return a pawn on the board for the given dimension, representing
 the given thing with the given image. It may be visible or not,
 interactive or not.
@@ -89,8 +89,8 @@ make a new, hidden calendar column to represent the schedule.
         if not hasattr(self, 'calcol'):
             if hasattr(self.thing, 'schedule'):
                 self.calcol = CalendarCol(
-                    self.board.dimension.name, self.thing.name,
-                    True, True, "BigLight", "SmallDark")
+                    db, self.board.dimension.name,
+                    self.thing.name, True, True, "BigLight", "SmallDark")
         if hasattr(self, 'calcol'):
             self.calcol.unravel(db)
         if stringlike(self.img):
@@ -118,7 +118,9 @@ make a new, hidden calendar column to represent the schedule.
             port = j[0]
             if stringlike(port.orig) or stringlike(port.dest):
                 # The portals haven't actually been loaded yet
-                raise Exception('Tried to draw a pawn {0} before loading portal {1} properly.'.format(repr(self), repr(port)))
+                raise Exception(
+                    """Tried to draw a pawn {0} before loading
+portal {1} properly.""".format(repr(self), repr(port)))
             start = port.orig.spot
             end = port.dest.spot
             hdist = end.x - start.x
@@ -208,9 +210,6 @@ clicked. This is probably not the ideal."""
             y,
             self.tweaks)
 
-    def is_visible(self):
-        return self.visible
-
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])
 
@@ -256,4 +255,4 @@ def unravel_pawns_in_boards(db, pawnd):
 def load_pawns_in_boards(db, names):
     """Load all pawns in the given boards, and return them in a 2D
 dictionary keyed first by board name, then by thing name."""
-    return unravel_pawns_in_dimensions(db, read_pawns_in_boards(db, names))
+    return unravel_pawns_in_boards(db, read_pawns_in_boards(db, names))

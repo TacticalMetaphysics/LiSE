@@ -84,12 +84,10 @@ success that strains a person terribly and causes them injury.
           "conclude_effects": ("effect_deck", "name")},
          [])]
 
-    def __init__(self, name, text, ongoing, commence_effects,
-                 proceed_effects, conclude_effects, db=None):
+    def __init__(self, db, name, text, ongoing, commence_effects,
+                 proceed_effects, conclude_effects):
         """Return an Event with the given name, text, and ongoing-status, and
-the three given effect decks.
-
-If db is provided, register with its eventdict.
+the three given effect decks. Register with db.eventdict.
 
         """
         self.name = name
@@ -190,7 +188,7 @@ one place to another."""
     name_format = "PortalTravelEvent {0}: {1}: {2}-{3}->{4}"
     text_format = "Travel from {0} to {1}"
 
-    def __init__(self, thing, portal, ongoing, db=None):
+    def __init__(self, db, thing, portal, ongoing):
         dimname = thing.dimension.name
         if stringlike(portal.orig):
             origname = portal.orig
@@ -203,13 +201,12 @@ one place to another."""
         name = self.name_format.format(
             dimname, thing.name, origname, portal.name, destname)
         text = self.text_format.format(origname, destname)
-        commence_effects = PortalEntryEffectDeck(thing, portal, db)
-        proceed_effects = PortalProgressEffectDeck(thing, db)
-        conclude_effects = PortalExitEffectDeck(thing, db)
+        commence_effects = PortalEntryEffectDeck(db, thing, portal)
+        proceed_effects = PortalProgressEffectDeck(db, thing)
+        conclude_effects = PortalExitEffectDeck(db, thing)
         Event.__init__(
-            self, name, text, ongoing,
-            commence_effects, proceed_effects, conclude_effects,
-            db)
+            self, db, name, text, ongoing,
+            commence_effects, proceed_effects, conclude_effects)
 
 
 class EventDeck:
@@ -223,11 +220,9 @@ class EventDeck:
          {"event": ("event", "name")},
          [])]
 
-    def __init__(self, name, event_list, db=None):
+    def __init__(self, db, name, event_list):
         """Return an EventDeck with the given name, containing the given
-events.
-
-If db is provided, register with its eventdeckdict.
+events. Register with db.eventdeckdict.
 
         """
         self.name = name

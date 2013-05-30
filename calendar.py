@@ -1,6 +1,5 @@
 from util import SaveableMetaclass, stringlike, dictify_row
 from pyglet.image import SolidColorImagePattern as color_pattern
-from style import read_styles
 from collections import OrderedDict
 #from util import getLoggerIfLogging, DEBUG
 
@@ -157,9 +156,8 @@ cells.
          []
          )]
 
-    def __init__(self, dimension, item, visible, interactive,
-                 style, cel_style,
-                 db=None):
+    def __init__(self, db, dimension, item,
+                 visible, interactive, style, cel_style):
         self.dimension = dimension
         self.item = item
         self.visible = visible

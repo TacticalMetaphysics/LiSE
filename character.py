@@ -65,7 +65,7 @@ item's name, and the name of the attribute.
          {},
          [])]
 
-    def __init__(self, name, db=None):
+    def __init__(self, db, name):
         self.name = name
         if db is not None:
             db.characterdict[self.name] = self

@@ -46,17 +46,11 @@ time.
          {"wallpaper": ("image", "name")},
          ["calendar_rows_on_screen > 0", "calendar_scrolled_to >= 0"])]
 
-    def __init__(self, dimension, width, height, wallpaper,
+    def __init__(self, db, dimension, width, height, wallpaper,
                  calendar_left, calendar_right, calendar_top,
                  calendar_bot, calendar_visible, calendar_interactive,
-                 calendar_rows_on_screen, calendar_scrolled_to, db=None):
+                 calendar_rows_on_screen, calendar_scrolled_to):
         """Return a board representing the given dimension.
-
-dimension may be an instance of Dimension or the name of
-one. wallpaper may be a pyglet image or the name of one. Boards aren't
-very useful without pointers to the stuff that's on them, so you
-really should supply a Database instance as db, and then unravel the
-board later to get those pointers.
 
         """
         self.dimension = dimension

@@ -36,8 +36,8 @@ class MenuItem:
           "effect_deck": ("effect_deck_link", "deck")},
          [])]
 
-    def __init__(self, board, menu, idx, text, effect_deck, closer,
-                 visible, interactive, db=None):
+    def __init__(self, db, board, menu, idx, text, effect_deck, closer,
+                 visible, interactive):
         """Return a menu item in the given board, the given menu; at the given
 index in that menu; with the given text; which executes the given
 effect deck when clicked; closes or doesn't when clicked; starts
@@ -241,7 +241,7 @@ named a certain way."""
             menuspec_split = menuspec.split(".")
             if len(menuspec_split) == 2:
                 (b, m) = menuspec_split
-                self.effect_deck = make_menu_toggler(b, m, db)
+                self.effect_deck = make_menu_toggler(db, b, m)
             else:
                 if stringlike(self.menu.board):
                     boardname = self.menu.board
@@ -250,7 +250,7 @@ named a certain way."""
                         boardname = self.menu.board.dimension
                     else:
                         boardname = self.menu.board.dimension.name
-                self.effect_deck = make_menu_toggler(boardname, menuspec, db)
+                self.effect_deck = make_menu_toggler(db, boardname, menuspec)
                 return
         caltogmatch = re.match(CALENDAR_TOGGLER_RE, efd)
         if caltogmatch is not None:
@@ -258,7 +258,7 @@ named a certain way."""
             calspec_split = calspec.split(".")
             if len(calspec_split) == 2:
                 (dimn, itn) = calspec_split
-                self.effect_deck = make_calendar_toggler(dimn, itn, db)
+                self.effect_deck = make_calendar_toggler(db, dimn, itn)
             else:
                 if stringlike(self.menu.board):
                     dimname = self.menu.board
@@ -267,7 +267,7 @@ named a certain way."""
                         dimname = self.menu.board.dimension
                     else:
                         dimname = self.menu.board.dimension.name
-                self.effect_deck = make_calendar_toggler(dimname, calspec, db)
+                self.effect_deck = make_calendar_toggler(db, dimname, calspec)
             return
         if efd in db.effectdeckdict:
             self.effect_deck = db.effectdeckdict[efd]
@@ -582,7 +582,9 @@ index."""
 
 
 menu_qcols = ["menu." + coln for coln in Menu.colns]
-menu_item_qvals = ["menu_item.idx"] + ["menu_item." + valn for valn in MenuItem.valns]
+menu_item_qvals = (
+    ["menu_item.idx"] +
+    ["menu_item." + valn for valn in MenuItem.valns])
 mbqcols = menu_qcols + menu_item_qvals
 mbcols = Menu.colns + ["idx"] + MenuItem.valns
 menu_board_qryfmt = (
@@ -618,7 +620,7 @@ Return a 2D dict keyed first by board dimension name, then by menu name.
                       "idx": rowdict["menu_item.idx"]}
         for valn in MenuItem.valns:
             menuitemrd[valn] = rowdict["menu_item." + valn]
-        mi = MenuItem(**menuitemrd)
+        MenuItem(**menuitemrd)
     return r
 
 
@@ -648,8 +650,8 @@ menu name.
 
 
 def make_menu_toggler_menu_item(
-        target_menu, menu_of_residence, idx, txt,
-        closer, visible, interactive, db):
+        db, target_menu, menu_of_residence, idx, txt,
+        closer, visible, interactive):
     """Return a MenuItem that toggles some target_menu other than the
 menu_of_residence it's in."""
     if stringlike(menu_of_residence.board):
@@ -660,9 +662,9 @@ menu_of_residence it's in."""
         menuname = target_menu
     else:
         menuname = target_menu.name
-    togdeck = make_menu_toggler(boardname, menuname, db)
-    return MenuItem(menu_of_residence, idx, txt, togdeck,
-                    closer, visible, interactive, db)
+    togdeck = make_menu_toggler(db, boardname, menuname)
+    return MenuItem(db, menu_of_residence, idx, txt, togdeck,
+                    closer, visible, interactive)
 
 
 def make_calendar_toggler_menu_item(

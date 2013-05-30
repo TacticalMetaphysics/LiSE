@@ -55,4 +55,3 @@ floats."""
                 print "Concluding " + repr(ev)
                 ev.conclude()
         self.age = newage
-

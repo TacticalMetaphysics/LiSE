@@ -9,14 +9,20 @@ def isdir(p):
         return True
     except:
         return False
+
+
 def allsubdirs_core(doing, done):
     if len(doing) == 0:
         return done
     here = doing.pop()
     if isdir(here):
         done.add(here + '/')
-        inside = [here + '/' + there for there in os.listdir(here) if there[0] != '.']
+        inside = (
+            [here + '/' + there for there in
+             os.listdir(here) if there[0] != '.'])
         doing.update(set(inside))
+
+
 def allsubdirs(path):
     inpath = os.path.realpath(path)
     indoing = set()
@@ -27,6 +33,7 @@ def allsubdirs(path):
         result = allsubdirs_core(indoing, indone)
     return iter(result)
 
+
 def ins_rltiles(curs, dirname):
     here = os.getcwd()
     directories = os.path.abspath(dirname).split("/")
@@ -36,7 +43,11 @@ def ins_rltiles(curs, dirname):
         for bmp in os.listdir(dir):
             if bmp[-4:] != ".bmp":
                 continue
-            curs.execute('insert or replace into img (name, path, rltile) values (?, ?, ?)', (bmp.replace('.bmp', ""), dir.replace(home, '') + bmp, True))
+            qrystr = """insert or replace into img
+(name, path, rltile) values (?, ?, ?)"""
+            bmpr = bmp.replace('.bmp', '')
+            dirr = dir.replace(home, '') + bmp
+            curs.execute(qrystr, (bmpr, dirr, True))
     os.chdir(here)
 
 if __name__ == '__main__':
