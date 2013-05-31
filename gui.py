@@ -318,8 +318,7 @@ still over it when pressed, it's been half-way clicked; remember this."""
             """If something was being dragged, drop it. If something was being
 pressed but not dragged, it's been clicked. Otherwise do nothing."""
             if self.grabbed is not None:
-                if (hasattr(self.grabbed, 'dropped') and
-                    self.grabbed.dropped is not None):
+                if hasattr(self.grabbed, 'dropped'):
                     logger.log(DEBUG, "Dropped.")
                     self.grabbed.dropped(x, y, button, modifiers)
                 self.grabbed = None
