@@ -25,6 +25,7 @@ class GameWindow:
         self.calendargroup = pyglet.graphics.OrderedGroup(4)
         self.cellgroup = pyglet.graphics.OrderedGroup(5)
         self.labelgroup = pyglet.graphics.OrderedGroup(6)
+        self.topgroup = pyglet.graphics.OrderedGroup(65535)
 
         self.pressed = None
         self.hovered = None
@@ -68,8 +69,11 @@ class GameWindow:
             menu.set_gw(self)
         self.drawn_board = None
         self.drawn_edges = None
+        self.timeline = None
 
         self.onscreen = set()
+        self.last_age = -1
+        self.last_timeline_y = -1
 
         @window.event
         def on_draw():
@@ -232,6 +236,22 @@ board; all visible menus; and the calendar, if it's visible."""
                                 x=cel.left,
                                 y=cel.label_bot,
                                 batch=self.batch, group=self.labelgroup)
+            if self.last_age != self.gamestate.age:
+                # draw the time line on top of the calendar
+                if self.last_timeline_y > 0:
+                    try:
+                        self.timeline.delete()
+                    except AttributeError:
+                        pass
+                y = self.calendar.top - self.calendar.row_height * self.gamestate.age
+                color = (255, 0, 0)
+                if y > 0:
+                    self.timeline = self.batch.add(
+                        2, pyglet.graphics.GL_LINES, self.topgroup,
+                        ('v2i', (self.calendar.left, y, self.calendar.right, y)),
+                        ('c3B', color * 2))
+                self.last_age = self.gamestate.age
+                self.last_timeline_y = y
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.
             self.batch.draw()
