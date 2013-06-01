@@ -1,7 +1,3 @@
-from logging import getLogger, DEBUG
-
-logging = False
-
 class LocationException(Exception):
     pass
 
@@ -529,24 +525,3 @@ def stringlike(o):
     """Return True if I can easily cast this into a string, False
 otherwise."""
     return isinstance(o, str) or isinstance(o, unicode)
-
-class FakeLogger:
-    def isEnabledFor(*args):
-        return False
-    def log(*args):
-        pass
-
-def getLoggerIfLogging(loggern):
-    if logging:
-        return getLogger(loggern)
-    else:
-        return FakeLogger()
-
-def toggleLogging():
-    logging = not logging
-
-def enableLogging():
-    logging = True
-
-def disableLogging():
-    logging = False

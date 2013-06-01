@@ -1,13 +1,10 @@
 import pyglet
-import logging
 from util import enableLogging
 from gui import GameWindow
 from database import load_game
 from state import GameState
 from sys import argv
 from sqlite3 import connect, DatabaseError
-
-DEBUG = False
 
 i = 0
 lang = "English"
@@ -31,14 +28,5 @@ for arg in argv:
 db = load_game(dbfn, lang)
 s = GameState(db)
 gw = GameWindow(s, "Physical")
-if DEBUG:
-    enableLogging()
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(s.logfmt)
-    ch.setFormatter(formatter)
-    statelogger = logging.getLogger('state.update')
-    statelogger.setLevel(logging.DEBUG)
-    statelogger.addHandler(ch)
 pyglet.clock.schedule_interval(s.update, 1/60., 1/60.)
 pyglet.app.run()

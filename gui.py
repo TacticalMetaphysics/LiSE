@@ -1,7 +1,4 @@
 import pyglet
-from util import getLoggerIfLogging, DEBUG
-
-logger = getLoggerIfLogging(__name__)
 
 
 """All the graphics code unique to LiSE."""
@@ -275,10 +272,6 @@ it."""
                                     y > item.bot and
                                     y < item.top):
                                 if hasattr(item, 'set_hovered'):
-                                    logger.log(
-                                        DEBUG,
-                                        "Menu item %d of menu %s hovered.",
-                                        item.idx, item.menu.name)
                                     item.set_hovered()
                                 self.hovered = item
                                 return
@@ -289,10 +282,6 @@ it."""
                             y > spot.bot and
                             y < spot.top):
                         if hasattr(spot, 'set_hovered'):
-                            logger.log(
-                                DEBUG,
-                                "Spot for place %s hovered.",
-                                spot.place.name)
                             spot.set_hovered()
                         self.hovered = spot
                         return
@@ -303,10 +292,6 @@ it."""
                             y > pawn.bot and
                             y < pawn.top):
                         if hasattr(pawn, 'set_hovered'):
-                            logger.log(
-                                DEBUG,
-                                "Pawn for thing %s hovered.",
-                                pawn.thing.name)
                             pawn.set_hovered()
                         self.hovered = pawn
                         return
@@ -317,7 +302,6 @@ it."""
                         y < self.hovered.bot or
                         y > self.hovered.top):
                     if hasattr(self.hovered, 'unset_hovered'):
-                        logger.log(DEBUG, "Unhovered.")
                         self.hovered.unset_hovered()
                     self.hovered = None
 
@@ -330,7 +314,6 @@ still over it when pressed, it's been half-way clicked; remember this."""
             else:
                 self.pressed = self.hovered
                 if hasattr(self.pressed, 'set_pressed'):
-                    logger.log(DEBUG, "Pressed.")
                     self.pressed.set_pressed()
 
         @window.event
@@ -339,7 +322,6 @@ still over it when pressed, it's been half-way clicked; remember this."""
 pressed but not dragged, it's been clicked. Otherwise do nothing."""
             if self.grabbed is not None:
                 if hasattr(self.grabbed, 'dropped'):
-                    logger.log(DEBUG, "Dropped.")
                     self.grabbed.dropped(x, y, button, modifiers)
                 self.grabbed = None
             elif (self.pressed is not None and
@@ -348,11 +330,9 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                   y > self.pressed.bot and
                   y < self.pressed.top and
                   hasattr(self.pressed, 'onclick')):
-                logger.log(DEBUG, "Clicked.")
                 self.pressed.onclick(button, modifiers)
             if self.pressed is not None:
                 if hasattr(self.pressed, 'unset_pressed'):
-                    logger.log(DEBUG, "Unpressed.")
                     self.pressed.unset_pressed()
                 self.pressed = None
 
@@ -363,7 +343,6 @@ move_with_mouse method, use it.
 
             """
             if self.grabbed is not None:
-                logger.log(DEBUG, "Moved %d by %d.", dx, dy)
                 self.grabbed.move_with_mouse(x, y, dx, dy, buttons, modifiers)
             elif (self.pressed is not None and
                   x > self.pressed.left and
@@ -371,7 +350,6 @@ move_with_mouse method, use it.
                   y > self.pressed.bot and
                   y < self.pressed.top and
                   hasattr(self.pressed, 'move_with_mouse')):
-                logger.log(DEBUG, "Grabbed at %d, %d.", x, y)
                 self.grabbed = self.pressed
             else:
                 if self.pressed is not None:
