@@ -84,12 +84,10 @@ success that strains a person terribly and causes them injury.
           "conclude_effects": ("effect_deck", "name")},
          [])]
 
-    def __init__(self, name, text, ongoing, commence_effects,
-                 proceed_effects, conclude_effects, db=None):
+    def __init__(self, db, name, text, ongoing, commence_effects,
+                 proceed_effects, conclude_effects):
         """Return an Event with the given name, text, and ongoing-status, and
-the three given effect decks.
-
-If db is provided, register with its eventdict.
+the three given effect decks. Register with db.eventdict.
 
         """
         self.name = name
@@ -98,12 +96,15 @@ If db is provided, register with its eventdict.
         self.commence_effects = commence_effects
         self.proceed_effects = proceed_effects
         self.conclude_effects = conclude_effects
-        if db is not None:
-            db.add_event(self)
+        db.add_event(self)
+        self.db = db
 
     def __repr__(self):
         if hasattr(self, 'start') and hasattr(self, 'length'):
-            return "{0}[{1}->{2}]".format(self.name, self.start, self.start + self.length)
+            return "{0}[{1}->{2}]".format(
+                self.name,
+                self.start,
+                self.start + self.length)
 
     def get_tabdict(self):
         return {
@@ -114,7 +115,7 @@ If db is provided, register with its eventdict.
             "proceed_effects": self.proceed_effects.name,
             "conclude_effects": self.conclude_effects.name}
 
-    def unravel(self, db):
+    def unravel(self):
         """Dereference the effect decks.
 
 If the event text begins with @, it's a pointer; look up the real
@@ -122,10 +123,10 @@ value in the db.
 
         """
         if self.text[0] == "@":
-            self.text = db.get_text(self.text[1:])
+            self.text = self.db.get_text(self.text[1:])
         for deck in (self.commence_effects, self.proceed_effects,
                      self.conclude_effects):
-            deck.unravel(db)
+            deck.unravel()
 
     def cmpcheck(self, other):
         """Check if this event is comparable to the other. Raise TypeError if
@@ -190,7 +191,7 @@ one place to another."""
     name_format = "PortalTravelEvent {0}: {1}: {2}-{3}->{4}"
     text_format = "Travel from {0} to {1}"
 
-    def __init__(self, thing, portal, ongoing, db=None):
+    def __init__(self, db, thing, portal, ongoing):
         dimname = thing.dimension.name
         if stringlike(portal.orig):
             origname = portal.orig
@@ -203,13 +204,12 @@ one place to another."""
         name = self.name_format.format(
             dimname, thing.name, origname, portal.name, destname)
         text = self.text_format.format(origname, destname)
-        commence_effects = PortalEntryEffectDeck(thing, portal, db)
-        proceed_effects = PortalProgressEffectDeck(thing, db)
-        conclude_effects = PortalExitEffectDeck(thing, db)
+        commence_effects = PortalEntryEffectDeck(db, thing, portal)
+        proceed_effects = PortalProgressEffectDeck(db, thing)
+        conclude_effects = PortalExitEffectDeck(db, thing)
         Event.__init__(
-            self, name, text, ongoing,
-            commence_effects, proceed_effects, conclude_effects,
-            db)
+            self, db, name, text, ongoing,
+            commence_effects, proceed_effects, conclude_effects)
 
 
 class EventDeck:
@@ -223,17 +223,15 @@ class EventDeck:
          {"event": ("event", "name")},
          [])]
 
-    def __init__(self, name, event_list, db=None):
+    def __init__(self, db, name, event_list):
         """Return an EventDeck with the given name, containing the given
-events.
-
-If db is provided, register with its eventdeckdict.
+events. Register with db.eventdeckdict.
 
         """
         self.name = name
         self.events = event_list
-        if db is not None:
-            db.eventdeckdict[self.name] = self
+        db.eventdeckdict[self.name] = self
+        self.db = db
 
     def get_tabdict(self):
         rowdicts = []
@@ -244,10 +242,10 @@ If db is provided, register with its eventdeckdict.
                 "event": self.events[i].name})
         return {"event_deck_link": rowdicts}
 
-    def unravel(self, db):
+    def unravel(self):
         for i in xrange(0, len(self.events)):
             if stringlike(self.events[i]):
-                self.events[i] = db.eventdict[self.events[i]]
+                self.events[i] = self.db.eventdict[self.events[i]]
 
 
 evdl_qcol = ["event_deck_link." + coln for coln in EventDeck.colns]
@@ -288,7 +286,7 @@ Return a dictionary, keyed by the event deck name."""
         r[name] = EventDeck(name, l, db)
     load_effect_decks(db, list(effect_deck_names))
     for val in r.itervalues():
-        val.unravel(db)
+        val.unravel()
     return r
 
 

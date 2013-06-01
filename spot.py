@@ -30,8 +30,8 @@ class Spot:
           "img": ("img", "name")},
          [])]
 
-    def __init__(self, dimension, place, img, x, y,
-                 visible, interactive, db=None):
+    def __init__(self, db, dimension, place, img, x, y,
+                 visible, interactive):
         """Return a new spot on the given board, representing the given place
 with the given image. It will be at the given coordinates, and visible
 or interactive as indicated.
@@ -44,28 +44,57 @@ With db, register the spot with spotdict.
         self.img = img
         self.x = x
         self.y = y
-        self.visible = visible
-        self.interactive = interactive
+        self._visible = visible
+        self._interactive = interactive
         self.grabpoint = None
         self.sprite = None
         self.oldstate = None
         self.newstate = None
         self.hovered = False
         self.tweaks = 0
-        if db is not None:
-            dimname = None
-            placename = None
-            if stringlike(self.dimension):
-                dimname = self.dimension
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if stringlike(self.place):
+            placename = self.place
+        else:
+            placename = self.place.name
+        if dimname not in db.spotdict:
+            db.spotdict[dimname] = {}
+        db.spotdict[dimname][placename] = self
+        self.db = db
+
+    def __getattr__(self, attrn):
+        if attrn == 'visible':
+            return self._visible
+        elif attrn == 'interactive':
+            return self._interactive
+        elif attrn == 'left':
+            return self.y
+        elif attrn == 'bot':
+            return self.x
+        elif attrn == 'width':
+            return self.img.getwidth()
+        elif attrn == 'height':
+            return self.img.getheight()
+        elif attrn == 'top':
+            return self.bot + self.height
+        elif attrn == 'right':
+            return self.left + self.width
+        elif attrn == 'rx':
+            return self.width / 2
+        elif attrn == 'ry':
+            return self.height / 2
+        elif attrn == 'r':
+            if self.rx > self.ry:
+                return self.rx
             else:
-                dimname = self.dimension.name
-            if stringlike(self.place):
-                placename = self.place
-            else:
-                placename = self.place.name
-            if dimname not in db.spotdict:
-                db.spotdict[dimname] = {}
-            db.spotdict[dimname][placename] = self
+                return self.ry
+        else:
+            raise AttributeError(
+                "Spot instance has no such attribute: " +
+                attrn)
 
     def __repr__(self):
         """Represent the coordinates and the name of the place"""
@@ -78,9 +107,10 @@ With db, register the spot with spotdict.
             self.dimension == other.dimension and
             self.name == other.name)
 
-    def unravel(self, db):
+    def unravel(self):
         """Dereference dimension, place, and image. Compute some constants for
 graphics calculations."""
+        db = self.db
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.place):
@@ -96,49 +126,9 @@ graphics calculations."""
         self.bot = self.y - self.ry
         self.place.spot = self
 
-    def getleft(self):
-        """Return the x of my left edge"""
-        return self.left
-
-    def getbot(self):
-        """Return the y of my bottom edge"""
-        return self.bot
-
-    def gettop(self):
-        """Return the y of my top edge"""
-        return self.top
-
-    def getright(self):
-        """Return the y of my right edge"""
-        return self.right
-
-    def getcenter(self):
-        """Return the coordinates of my centerpoint in a pair"""
-        return (self.x, self.y)
-
-    def getrx(self):
-        """Return half my width"""
-        return self.rx
-
-    def getry(self):
-        """Return half my height"""
-        return self.ry
-
     def gettup(self):
         """Return my image, left, and bottom"""
         return (self.img, self.getleft(), self.getbot())
-
-    def getcoords(self):
-        """Return my left and bottom"""
-        return (self.getleft(), self.getbot())
-
-    def is_visible(self):
-        """Can you see me?"""
-        return self.visible
-
-    def is_interactive(self):
-        """Can you touch me?"""
-        return self.interactive
 
     def onclick(self, button, modifiers):
         """Does nothing yet"""
@@ -221,18 +211,18 @@ Return a 2D dictionary keyed with dimension name, then thing name.
     return r
 
 
-def unravel_spots(db, spd):
+def unravel_spots(spd):
     """Take a dictionary of spots keyed by place name. Return it with the
 contents unraveled."""
     for spot in spd.itervalues():
-        spot.unravel(db)
+        spot.unravel()
     return spd
 
 
 def unravel_spots_in_boards(db, spdd):
     """Unravel the output of read_spots_in_boards."""
     for spots in spdd.itervalues():
-        unravel_spots(db, spots)
+        unravel_spots(spots)
     return spdd
 
 
@@ -243,4 +233,4 @@ Return a 2D dictionary keyed first by board dimension name, then by
 place name.
 
     """
-    return unravel_spots_in_boards(db, read_spots_in_boards(db, names))
+    return unravel_spots_in_boards(read_spots_in_boards(db, names))

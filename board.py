@@ -46,17 +46,11 @@ time.
          {"wallpaper": ("image", "name")},
          ["calendar_rows_on_screen > 0", "calendar_scrolled_to >= 0"])]
 
-    def __init__(self, dimension, width, height, wallpaper,
+    def __init__(self, db, dimension, width, height, wallpaper,
                  calendar_left, calendar_right, calendar_top,
                  calendar_bot, calendar_visible, calendar_interactive,
-                 calendar_rows_on_screen, calendar_scrolled_to, db=None):
+                 calendar_rows_on_screen, calendar_scrolled_to):
         """Return a board representing the given dimension.
-
-dimension may be an instance of Dimension or the name of
-one. wallpaper may be a pyglet image or the name of one. Boards aren't
-very useful without pointers to the stuff that's on them, so you
-really should supply a Database instance as db, and then unravel the
-board later to get those pointers.
 
         """
         self.dimension = dimension
@@ -75,12 +69,12 @@ board later to get those pointers.
             "scrolled_to": calendar_scrolled_to,
             "db": db}
         self.calendar = Calendar(**caldict)
-        if db is not None:
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            db.boarddict[dimname] = self
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        db.boarddict[dimname] = self
+        self.db = db
 
     def get_tabdict(self):
         return {
@@ -98,28 +92,28 @@ board later to get those pointers.
                 "calendar_rows_on_screen": self.calendar.rows_on_screen,
                 "calendar_scrolled_to": self.calendar.scrolled_to}}
 
-    def unravel(self, db):
+    def unravel(self):
         """Grab the Python objects referred to by self.wallpaper and
 self.dimension, if they are strings; then unravel all pawns, spots,
 and menus herein.
 
         """
+        db = self.db
         if stringlike(self.wallpaper):
             self.wallpaper = db.imgdict[self.wallpaper]
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
-        self.dimension.unravel(db)
+        self.dimension.unravel()
         self.pawndict = db.pawndict[self.dimension.name]
         self.spotdict = db.spotdict[self.dimension.name]
         self.menudict = db.menudict[self.dimension.name]
         for pwn in self.pawndict.itervalues():
-            pwn.unravel(db)
+            pwn.unravel()
         for spt in self.spotdict.itervalues():
-            spt.unravel(db)
+            spt.unravel()
         for mnu in self.menudict.itervalues():
-            mnu.unravel(db)
-        self.calendar.unravel(db)
-        
+            mnu.unravel()
+        self.calendar.unravel()
 
     def __eq__(self, other):
         return (
@@ -239,7 +233,7 @@ dimension names."""
     load_imgs(db, list(imgs))
     read_styles(db, list(styles))
     for board in r.itervalues():
-        board.unravel(db)
+        board.unravel()
     return r
 
 

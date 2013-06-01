@@ -1,7 +1,10 @@
 from util import (
     SaveableMetaclass,
     dictify_row,
-    stringlike)
+    stringlike,
+    LocationException,
+    ContainmentException,
+    PortalException)
 from event import (
     lookup_between,
     Event,
@@ -10,14 +13,8 @@ from event import (
     IrrelevantEvent,
     ImpracticalEvent,
     PortalTravelEvent)
-from location import Location
-from contents import Contents
 from effect import Effect, EffectDeck
 import re
-
-
-class PortalException(Exception):
-    pass
 
 
 """Items that exist in the simulated world. Their graphical
@@ -38,12 +35,68 @@ much."""
          ("dimension", "name"),
          {},
          [])]
-    def __init__(self, db=None):
-        if db is not None:
-            self.contents = Contents(self, db)
+
+    def __init__(self, db):
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if dimname not in db.locdict:
+            db.locdict[dimname] = {}
+        if dimname not in db.itemdict:
+            db.itemdict[dimname] = {}
+        self.db = db
+        self.updcontents()
+        self.contents_fresh = True
 
     def __str__(self):
         return self.name
+
+    def __contains__(self, that):
+        if stringlike(that):
+            thatname = that
+        else:
+            thatname = that.name
+        return self.db.locdict[that.dimension][thatname] == self
+
+    def __len__(self):
+        i = 0
+        for loc in self.db.locdict[self.dimension].itervalues():
+            if loc == self:
+                i += 1
+        return i
+
+    def __iter__(self):
+        r = []
+        for pair in self.db.locdict[self.dimension].iteritems():
+            if pair[1] == self:
+                r.append(self.itemdict[pair[0]])
+        return iter(r)
+
+    def __getattr__(self, attrn):
+        if attrn == 'contents':
+            if not self.contents_fresh:
+                self.updcontents()
+            return self.real_contents
+        else:
+            raise AttributeError(
+                "Item instance has no such attribute: " +
+                attrn)
+
+    def updcontents(self):
+        self.real_contents = set()
+        for pair in self.db.locdict[self.dimension].iteritems():
+            if pair[1] == self:
+                self.real_contents.add(pair[0])
+        self.contents_fresh = True
+
+    def add(self, that):
+        if stringlike(that.dimension):
+            dimn = that.dimension
+        else:
+            dimn = that.dimension.name
+        self.db.locdict[dimn][that.name] = self
+        self.contents_fresh = False
 
     def assert_can_contain(self, other):
         pass
@@ -60,13 +113,12 @@ connected to other Places, forming a graph."""
          {},
          [])]
 
-    def __init__(self, dimension, name, db):
+    def __init__(self, db, dimension, name):
         """Return a Place of the given name, in the given dimension. Register
 it with the placedict and itemdict in the db."""
         self.dimension = dimension
         self.name = name
         if db is not None:
-            self.contents = Contents(self, db)
             dimname = None
             if stringlike(self.dimension):
                 dimname = self.dimension
@@ -80,11 +132,27 @@ it with the placedict and itemdict in the db."""
             db.placedict[dimname][self.name] = self
         Item.__init__(self, db)
 
-    def __repr__(self):
+    def __str__(self):
         return self.name
 
-    def unravel(self, db):
+    def __repr__(self):
+        return str(self)
+
+    def __getattr__(self, attrn):
+        if attrn == 'spot':
+            if stringlike(self.dimension):
+                dimn = self.dimension
+            else:
+                dimn = self.dimension.name
+            return self.db.spotdict[dimn][self.name]
+        else:
+            raise AttributeError(
+                "Place instance has no such attribute: " +
+                attrn)
+
+    def unravel(self):
         """Get myself a real Dimension object if I don't have one."""
+        db = self.db
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if not hasattr(self, 'contents'):
@@ -100,11 +168,6 @@ it with the placedict and itemdict in the db."""
             # The name is the key in the database. Must be unique.
             return self.name == other.name
 
-    def add(self, other):
-        """Put a Thing in this Place, but don't check if it makes sense. Be
-careful!"""
-        self.contents.add(other)
-
     def can_contain(self, other):
         """Does it make sense for that to be here?"""
         return True
@@ -117,10 +180,46 @@ class Portal(Item):
           "from_place": "text not null",
           "to_place": "text not null"},
          ("dimension", "from_place", "to_place"),
-         # This schema relies on a trigger to create an appropriate item record.
+         # This schema relies on a trigger to create an appropriate
+         # item record.
          {"dimension, from_place": ("place", "dimension, name"),
           "dimension, to_place": ("place", "dimension, name")},
          [])]
+
+    def __init__(self, db, dimension, from_place, to_place):
+        self.dimension = dimension
+        self.orig = from_place
+        self.dest = to_place
+        dimname = None
+        from_place_name = None
+        to_place_name = None
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if stringlike(self.orig):
+            from_place_name = self.orig
+        else:
+            from_place_name = self.orig.name
+        if stringlike(self.dest):
+            to_place_name = self.dest
+        else:
+            to_place_name = self.dest.name
+        self.name = "Portal({0}->{1})".format(
+            from_place_name, to_place_name)
+        podd = db.portalorigdestdict
+        pdod = db.portaldestorigdict
+        for d in (db.itemdict, podd, pdod):
+            if dimname not in d:
+                d[dimname] = {}
+        if from_place_name not in podd[dimname]:
+            podd[dimname][from_place_name] = {}
+        if to_place_name not in pdod[dimname]:
+            pdod[dimname][to_place_name] = {}
+        db.itemdict[dimname][self.name] = self
+        podd[dimname][from_place_name][to_place_name] = self
+        pdod[dimname][to_place_name][from_place_name] = self
+        Item.__init__(self, db)
 
     def __repr__(self):
         if stringlike(self.orig):
@@ -133,42 +232,8 @@ class Portal(Item):
             destname = self.dest.name
         return 'Portal({0}->{1})'.format(origname, destname)
 
-    def __init__(self, dimension, from_place, to_place, db=None):
-        self.dimension = dimension
-        self.orig = from_place
-        self.dest = to_place
-        if db is not None:
-            dimname = None
-            from_place_name = None
-            to_place_name = None
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            if stringlike(self.orig):
-                from_place_name = self.orig
-            else:
-                from_place_name = self.orig.name
-            if stringlike(self.dest):
-                to_place_name = self.dest
-            else:
-                to_place_name = self.dest.name
-            self.name = "Portal({0}->{1})".format(from_place_name, to_place_name)
-            podd = db.portalorigdestdict
-            pdod = db.portaldestorigdict
-            for d in (db.itemdict, podd, pdod):
-                if dimname not in d:
-                    d[dimname] = {}
-            if from_place_name not in podd[dimname]:
-                podd[dimname][from_place_name] = {}
-            if to_place_name not in pdod[dimname]:
-                pdod[dimname][to_place_name] = {}
-            db.itemdict[dimname][self.name] = self
-            podd[dimname][from_place_name][to_place_name] = self
-            pdod[dimname][to_place_name][from_place_name] = self
-        Item.__init__(self, db)
-
-    def unravel(self, db):
+    def unravel(self):
+        db = self.db
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.orig):
@@ -216,10 +281,6 @@ otherwise."""
 length. Does nothing by default."""
         pass
 
-    def add(self, thing):
-        """Add this thing to my contents if it's not there already."""
-        self.contents.add(thing)
-
 
 class Thing(Item):
     """The sort of item that has a particular location at any given time.
@@ -250,9 +311,9 @@ location.
          {"dimension, location": ("item", "dimension, name")},
          [])]
 
-    def __init__(self, dimension, name, location,
+    def __init__(self, db, dimension, name, location,
                  journey_step=0, journey_progress=0.0, age=0,
-                 schedule=None, db=None):
+                 schedule=None):
         """Return a Thing in the given dimension and location,
 with the given name. Its contents will be empty to start; later on,
 point some other Things' location attributes at this Thing to put
@@ -269,29 +330,28 @@ Register with the database's itemdict and thingdict too.
         self.age = age
         self.schedule = schedule
         self.hsh = hash(hash(self.dimension) + hash(self.name))
-        if db is not None:
-            dimname = None
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            if dimname not in db.itemdict:
-                db.itemdict[dimname] = {}
-            if dimname not in db.thingdict:
-                db.thingdict[dimname] = {}
-            if dimname not in db.locdict:
-                db.locdict[dimname] = {}
-            db.itemdict[dimname][self.name] = self
-            db.thingdict[dimname][self.name] = self
-            db.locdict[dimname][self.name] = location
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if dimname not in db.itemdict:
+            db.itemdict[dimname] = {}
+        if dimname not in db.thingdict:
+            db.thingdict[dimname] = {}
+        if dimname not in db.locdict:
+            db.locdict[dimname] = {}
+        db.itemdict[dimname][self.name] = self
+        db.thingdict[dimname][self.name] = self
+        db.locdict[dimname][self.name] = location
         Item.__init__(self, db)
 
-    def unravel(self, db):
+    def unravel(self):
         """Dereference stringlike attributes.
 
 Also add self to location, if applicable.
 
         """
+        db = self.db
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.start_location):
@@ -300,7 +360,6 @@ Also add self to location, if applicable.
         else:
             location = self.start_location
         db.locdict[self.dimension.name][self.name] = location
-        self.location = Location(db, self.dimension.name, self.name)
         self.location.add(self)
         if stringlike(self.schedule):
             self.schedule = db.scheduledict[self.dimension.name][self.name]
@@ -312,7 +371,19 @@ Also add self to location, if applicable.
             self.journey.dimension = self.dimension
             self.journey.thing = self
             if self.schedule is None:
-                self.schedule = self.journey.schedule(db)
+                self.schedule = self.journey.schedule()
+
+    def __getattr__(self, attrn):
+        if attrn == 'location':
+            if stringlike(self.dimension):
+                dimn = self.dimension
+            else:
+                dimn = self.dimension.name
+            return self.db.locdict[dimn][self.name]
+        else:
+            raise AttributeError(
+                "Thing instance has no such attribute: " +
+                attrn)
 
     def __hash__(self):
         return self.hsh
@@ -329,13 +400,6 @@ Also add self to location, if applicable.
         else:
             loc = str(self.location)
         return self.name + "@" + loc
-
-    def add(self, it):
-        """Add an item to my contents without caring if it makes any sense to
-do so.
-
-"""
-        self.contents.add(it)
 
     def assert_can_enter(self, it):
         """If I can't enter the given location, raise a LocationException.
@@ -361,16 +425,12 @@ immediately. Else raise exception as appropriate."""
 
     def move_thru_portal(self, amount):
         """Move this amount through the portal I'm in"""
-        if not isinstance(self.location.real, Portal):
-            raise PortalException("The location of {0} is {1}, which is not a portal.".format(repr(self), repr(self.location)))
+        if not isinstance(self.location, Portal):
+            raise PortalException(
+                """The location of {0} is {1},
+which is not a portal.""".format(repr(self), repr(self.location)))
         self.location.notify_moving(self, amount)
         self.journey_progress += amount
-
-    def leave_portal(self):
-        """Leave whatever portal I'm in, thus entering its destination. Return the portal."""
-        oldloc = self.location.real
-        self.enter(self.location.dest)
-        return oldloc
 
     def speed_thru(self, port):
         """Given a portal, return an integer for the number of ticks it would
@@ -414,10 +474,11 @@ class Journey:
           "to_place": "text not null"},
          ("dimension", "thing", "idx"),
          {"dimension, thing": ("thing", "dimension, name"),
-          "dimension, from_place, to_place": ("portal", "dimension, from_place, to_place")},
+          "dimension, from_place, to_place":
+          ("portal", "dimension, from_place, to_place")},
          [])]
 
-    def __init__(self, dimension, thing, steps, db):
+    def __init__(self, db, dimension, thing, steps):
         self.dimension = dimension
         self.thing = thing
         self.steps = []
@@ -434,24 +495,22 @@ class Journey:
                 else:
                     destname = st.dest.name
                 self.steps.append((origname, destname))
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if stringlike(self.thing):
+            thingname = self.thing
+        else:
+            thingname = self.thing.name
+        if dimname not in db.journeydict:
+            db.journeydict[dimname] = {}
+        db.journeydict[dimname][thingname] = self
         self.db = db
-        if db is not None:
-            dimname = None
-            thingname = None
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            if stringlike(self.thing):
-                thingname = self.thing
-            else:
-                thingname = self.thing.name
-            if dimname not in db.journeydict:
-                db.journeydict[dimname] = {}
-            db.journeydict[dimname][thingname] = self
 
-    def unravel(self, db):
+    def unravel(self):
         """Dereference all steps."""
+        db = self.db
         i = 0
         while i < len(self.steps):
             if stringlike(self.steps[i]):
@@ -492,7 +551,6 @@ class Journey:
         else:
             dimn = self.thing.dimension.name
         return self.db.portalorigdestdict[dimn][orign][destn]
-        
 
     def speed_at_step(self, i):
         """Get the thing's speed at step i.
@@ -518,7 +576,6 @@ the thing isn't in a portal at all.
         """
         return self.thing.move_thru_portal(prop)
 
-
     def next(self):
         """Teleport the thing to the destination of the portal it's in, and
 advance the journey.
@@ -528,7 +585,7 @@ place is the destination of the journey, the new portal will be
 None.
 
         """
-        oldport = self.thing.leave_portal()
+        oldport = self.thing.location
         place = self.thing.enter(oldport.dest)
         self.thing.journey_step += 1
         self.thing.journey_progress = 0.0
@@ -545,7 +602,7 @@ with None as needed."""
             self.steps.append(None)
         self.steps[idx] = port
 
-    def schedule(self, db, delay=0):
+    def schedule(self, delay=0):
         """Add events representing this journey to the very end of the thing's
 schedule, if it has one.
 
@@ -557,21 +614,23 @@ that the thing will wait before starting the journey.
 Then return the schedule. Just for good measure.
 
         """
+        db = self.db
         if not hasattr(self.thing, 'schedule') or self.thing.schedule is None:
-            self.thing.schedule = Schedule(self.thing.dimension, self.thing, db)
+            self.thing.schedule = Schedule(
+                db, self.thing.dimension, self.thing)
         try:
             end = max(self.thing.schedule.events_ending.viewkeys())
         except ValueError:
-            end = 0
+            end = 1
         start = end + delay
         for port in self:
-            newev = PortalTravelEvent(self.thing, port, False, db)
+            newev = PortalTravelEvent(db, self.thing, port, False)
             evlen = self.thing.speed_thru(port)
             newev.start = start
             newev.length = evlen
             self.thing.schedule.add(newev)
-            start += evlen + 1
-        self.thing.schedule.unravel(db)
+            start += evlen + delay + 1
+        self.thing.schedule.unravel()
         return self.thing.schedule
 
 
@@ -598,7 +657,7 @@ true of events in different schedules.
           "event": ("event", "name")},
          [])]
 
-    def __init__(self, dimension, item, db=None):
+    def __init__(self, db, dimension, item):
         """Return an empty event for the given item in the given
 dimension. With db, register in db's scheduledict, startevdict,
 contevdict, and endevdict."""
@@ -611,21 +670,18 @@ contevdict, and endevdict."""
         self.cached_commencements = {}
         self.cached_processions = {}
         self.cached_conclusions = {}
-        if db is not None:
-            dimname = None
-            itemname = None
-            if stringlike(self.dimension):
-                dimname = self.dimension
-            else:
-                dimname = self.dimension.name
-            if stringlike(self.item):
-                itemname = self.item
-            else:
-                itemname = self.item.name
-            if dimname not in db.scheduledict:
-                db.scheduledict[dimname] = {}
-            db.scheduledict[dimname][itemname] = self
-            self.db = db
+        if stringlike(self.dimension):
+            dimname = self.dimension
+        else:
+            dimname = self.dimension.name
+        if stringlike(self.item):
+            itemname = self.item
+        else:
+            itemname = self.item.name
+        if dimname not in db.scheduledict:
+            db.scheduledict[dimname] = {}
+        db.scheduledict[dimname][itemname] = self
+        self.db = db
 
     def __iter__(self):
         """Return iterator over my events in order of their start times."""
@@ -634,7 +690,8 @@ contevdict, and endevdict."""
     def __len__(self):
         return max(self.events_ongoing.viewkeys())
 
-    def unravel(self, db):
+    def unravel(self):
+        db = self.db
         """Dereference dimension and item."""
         if stringlike(self.dimension):
             self.dimension = db.dimensiondict[self.dimension]
@@ -644,7 +701,7 @@ contevdict, and endevdict."""
         self.remove_global = db.remove_event
         self.discard_global = db.discard_event
         for ev in self.events.itervalues():
-            ev.unravel(db)
+            ev.unravel()
 
     def trash_cache(self, start):
         """Trash all cached results for commencements_between,
@@ -750,7 +807,9 @@ timeframe."""
                 self.conclusions_between(start, end))
 
 
-schedule_qvals = ["scheduled_event.item"] + ["scheduled_event." + valn for valn in Schedule.valns]
+schedule_qvals = (
+    ["scheduled_event.item"] +
+    ["scheduled_event." + valn for valn in Schedule.valns])
 
 
 def lookup_loc(db, it):
@@ -759,6 +818,8 @@ def lookup_loc(db, it):
         dimname = it.dimension
     else:
         dimname = it.dimension.name
+    if dimname not in db.locdict or it.name not in db.locdict[dimname]:
+        return None
     return db.locdict[dimname][it.name]
 
 
@@ -794,19 +855,19 @@ Return a 2D dictionary keyed by dimension name, then thing name.
     return r
 
 
-def unravel_things(db, tdb):
+def unravel_things(tdb):
     """Unravel thing objects in a dictionary keyed by names (but not
 dimensions)."""
     for thing in tdb.itervalues():
-        thing.unravel(db)
+        thing.unravel()
     return tdb
 
 
-def unravel_things_in_dimensions(db, tddb):
+def unravel_things_in_dimensions(tddb):
     """Unravel thing objects in a 2D dictionary keyed by dimension name,
 then thing name."""
     for things in tddb.itervalues():
-        unravel_things(db, things)
+        unravel_things(things)
     return tddb
 
 
@@ -814,7 +875,7 @@ def load_things_in_dimensions(db, dimnames):
     """Load all things in the named dimensions. Return a 2D dictionary of
 things keyed by dimension name, then thing name."""
     return unravel_things_in_dimensions(
-        db, read_things_in_dimensions(db, dimnames))
+        read_things_in_dimensions(db, dimnames))
 
 schedule_dimension_qcols = (
     """scheduled_event.dimension, scheduled_event.item,
@@ -873,7 +934,7 @@ def read_schedules_in_dimensions(db, dimnames):
             EffectDeck(dimn, [], db)
         deck = effectdeckdict[dimn][deckn]
         if eff not in deck:
-            idx = rowdict[idx]
+            idx = rowdict["idx"]
             while len(deck) <= idx:
                 deck.append(None)
             deck[idx] = eff
@@ -895,7 +956,7 @@ def load_schedules_in_dimensions(db, dimnames):
     r = read_schedules_in_dimensions(db, dimnames)
     for dim in r.itervalues():
         for sched in dim.itervalues():
-            sched.unravel(db)
+            sched.unravel()
     return r
 
 
@@ -931,7 +992,7 @@ Return a 2D dict keyed by dimension name, then item name.
             stepl.append(None)
         f = rowdict["from_place"]
         t = rowdict["to_place"]
-        stepl[rowdict["idx"]] = Portal(rowdict["dimension"], f, t, db)
+        stepl[rowdict["idx"]] = Portal(db, rowdict["dimension"], f, t)
     for item in r.iteritems():
         (dimname, journeys) = item
         for journey in journeys.iteritems():
@@ -940,19 +1001,19 @@ Return a 2D dict keyed by dimension name, then item name.
     return r
 
 
-def unravel_journeys(db, jod):
+def unravel_journeys(jod):
     """Unravel journeys in a dict keyed by their names. Return same
 dict."""
     for jo in jod.itervalues():
-        jo.unravel(db)
+        jo.unravel()
     return jod
 
 
-def unravel_journeys_in_dimensions(db, jodd):
+def unravel_journeys_in_dimensions(jodd):
     """Unravel journeys previously read in by read_journeys or
 read_journeys_in_dimensions."""
     for jod in jodd.itervalues():
-        unravel_journeys(db, jod)
+        unravel_journeys(jod)
     return jodd
 
 
@@ -963,7 +1024,7 @@ Return them in a 2D dict keyed by dimension name, then thing name.
 
     """
     return unravel_journeys_in_dimensions(
-        db, read_journeys_in_dimensions(db, dimnames))
+        read_journeys_in_dimensions(db, dimnames))
 
 
 place_dimension_qryfmt = (
@@ -992,20 +1053,20 @@ Return them in a 2D dict keyed by dimension name, then place name.
     return r
 
 
-def unravel_places(db, pls):
+def unravel_places(pls):
     """Unravel places in a dict keyed by their names.
 
 Return the same dict."""
     for pl in pls.itervalues():
-        pl.unravel(db)
+        pl.unravel()
     return pls
 
 
-def unravel_places_in_dimensions(db, pls):
+def unravel_places_in_dimensions(pls):
     """Unravel places previously read in by read_places or
 read_places_in_dimensions."""
     for pl in pls.itervalues():
-        unravel_places(db, pl)
+        unravel_places(pl)
     return pls
 
 
@@ -1017,8 +1078,7 @@ name.
 
     """
     return unravel_places_in_dimensions(
-        db, load_places_in_dimensions(db, dimnames))
-
+        load_places_in_dimensions(db, dimnames))
 
 
 portal_colstr = ", ".join(Portal.colnames["portal"])
@@ -1043,16 +1103,19 @@ Return them in a 2D dict keyed by dimension name, then portal name.
     for row in db.c:
         rowdict = dictify_row(row, Portal.colnames["portal"])
         rowdict["db"] = db
-        if rowdict["from_place"] not in r[rowdict["dimension"]]:
-            r[rowdict["dimension"]][rowdict["from_place"]] = {}
-        r[rowdict["dimension"]][rowdict["from_place"]][rowdict["to_place"]] = Portal(**rowdict)
+        orig = rowdict["from_place"]
+        dest = rowdict["to_place"]
+        dim = rowdict["dimension"]
+        if orig not in r[dim]:
+            r[dim][orig] = {}
+        r[dim][orig][dest] = Portal(**rowdict)
     return r
 
 
 def load_portals_in_dimensions(db, dimnames):
     r = read_portals_in_dimensions(db, dimnames)
     for origin in r.itervalues():
-        for destination in dimension.itervalues():
+        for destination in origin.itervalues():
             for portal in destination.itervalues():
-                portal.unravel(db)
+                portal.unravel()
     return r

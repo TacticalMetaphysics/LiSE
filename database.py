@@ -3,7 +3,7 @@ import board
 import dimension
 import re
 from collections import OrderedDict
-from location import LocationWiseDict
+from style import read_colors
 
 
 """The database backend, with dictionaries of loaded objects.
@@ -70,7 +70,7 @@ arguments.
         self.startevdict = {}
         self.contevdict = {}
         self.endevdict = {}
-        self.itemdict = LocationWiseDict()
+        self.itemdict = {}
         self.placedict = {}
         self.thingdict = {}
         self.spotdict = {}
@@ -83,7 +83,7 @@ arguments.
         self.colordict = {}
         self.journeydict = {}
         self.contentsdict = {}
-        self.locdict = LocationWiseDict()
+        self.locdict = {}
         self.portalorigdestdict = {}
         self.portaldestorigdict = {}
         self.effectdict = {}
@@ -227,6 +227,15 @@ list.
     def load_board(self, dimname):
         """Load and return the board representing the named dimension."""
         return self.load_boards([dimname])[dimname]
+
+    def load_colors(self, colornames):
+        """Load the colors by the given names."""
+        # being that colors are just fancy tuples fulla integers,
+        # there's nothing to unravel. just read them.
+        return read_colors(self, colornames)
+    def load_color(self, colorname):
+        """Load the color by the given name."""
+        return self.load_colors((colorname,))
 
     def remember(self, obj):
         """Indicate that the object should be saved to disk on next sync."""
@@ -613,7 +622,7 @@ some amount, calculated by its speed_thru method.
         rex = THING_ALONG_PORTAL_RE
         (dimname, thingname) = re.match(rex, arg).groups()
         thing = self.thingdict[dimname][thingname]
-        port = thing.location.real
+        port = thing.location
         speed = thing.speed_thru(port)
         amount = 1 / float(speed)
         return thing.move_thru_portal(amount)

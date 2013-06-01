@@ -1,6 +1,5 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 from effect import read_effect_decks
-from style import read_styles
 from effect import (
     EffectDeck,
     make_menu_toggler,
@@ -36,8 +35,8 @@ class MenuItem:
           "effect_deck": ("effect_deck_link", "deck")},
          [])]
 
-    def __init__(self, board, menu, idx, text, effect_deck, closer,
-                 visible, interactive, db=None):
+    def __init__(self, db, board, menu, idx, text, effect_deck, closer,
+                 visible, interactive):
         """Return a menu item in the given board, the given menu; at the given
 index in that menu; with the given text; which executes the given
 effect deck when clicked; closes or doesn't when clicked; starts
@@ -52,7 +51,7 @@ With db, register in db's menuitemdict.
         self.text = text
         self.effect_deck = effect_deck
         self.closer = closer
-        self.visible = visible
+        self._visible = visible
         self.interactive = interactive
         self.grabpoint = None
         self.hovered = False
@@ -61,35 +60,61 @@ With db, register in db's menuitemdict.
         self.newstate = None
         self.pressed = False
         self.tweaks = 0
-        if db is not None:
-            if stringlike(self.board):
-                boardname = self.board
+        if stringlike(self.board):
+            boardname = self.board
+        else:
+            if stringlike(self.board.dimension):
+                boardname = self.board.dimension
             else:
-                if stringlike(self.board.dimension):
-                    boardname = self.board.dimension
-                else:
-                    boardname = self.board.dimension.name
-            if stringlike(self.menu):
-                menuname = self.menu
-            else:
-                menuname = self.menu.name
-            if boardname not in db.menuitemdict:
-                db.menuitemdict[boardname] = {}
-            if menuname not in db.menuitemdict[boardname]:
-                db.menuitemdict[boardname][menuname] = []
-            ptr = db.menuitemdict[boardname][menuname]
-            while len(ptr) <= self.idx:
-                ptr.append(None)
-            ptr[self.idx] = self
+                boardname = self.board.dimension.name
+        if stringlike(self.menu):
+            menuname = self.menu
+        else:
+            menuname = self.menu.name
+        if boardname not in db.menuitemdict:
+            db.menuitemdict[boardname] = {}
+        if menuname not in db.menuitemdict[boardname]:
+            db.menuitemdict[boardname][menuname] = []
+        ptr = db.menuitemdict[boardname][menuname]
+        while len(ptr) <= self.idx:
+            ptr.append(None)
+        ptr[self.idx] = self
+        self.db = db
 
-    def unravel(self, db):
+    def __getattr__(self, attrn):
+        if attrn == 'visible':
+            return self.menu.visible and self._visible
+        elif attrn == 'left':
+            return self.menu.left + self.menu.style.spacing
+        elif attrn == 'right':
+            return self.menu.right - self.menu.style.spacing
+        elif attrn == 'width':
+            return self.right - self.left
+        elif attrn == 'height':
+            return self.top - self.bot
+        elif attrn == 'rx':
+            return self.width / 2
+        elif attrn == 'ry':
+            return self.height / 2
+        elif attrn == 'r':
+            if self.rx > self.ry:
+                return self.rx
+            else:
+                return self.ry
+        else:
+            raise AttributeError(
+                "MenuItem instance has no such attribute: " +
+                attrn)
+
+    def unravel(self):
         """Dereference the board, the menu, the effect deck, and the text if
 it starts with an @ character."""
+        db = self.db
         if stringlike(self.board):
             self.board = db.boarddict[self.board]
         if stringlike(self.menu):
             self.menu = db.menudict[self.board.dimension.name][self.menu]
-        self.parse_effect_deck(db)
+        self.parse_effect_deck()
         while len(self.menu.items) < self.idx:
             self.menu.items.append(None)
         if self.text[0] == "@":
@@ -155,50 +180,6 @@ the same."""
         """Show my text"""
         return self.text
 
-    def getcenter(self):
-        """Return a pair with my center's x and y coords"""
-        return (self.get_center_x(), self.get_center_y())
-
-    def get_center_x(self):
-        """Return the x at my center"""
-        return self.getleft() + self.getrx()
-
-    def get_center_y(self):
-        """Return the y at my center"""
-        return self.getbot() + self.getry()
-
-    def getleft(self):
-        """Return the x at my leftmost edge"""
-        return self.menu.getleft() + self.menu.style.spacing
-
-    def getright(self):
-        """Return the x at my rightmost edge"""
-        return self.menu.getright() - self.menu.style.spacing
-
-    def gettop(self):
-        """Return the y at my upper edge"""
-        return self.top
-
-    def getbot(self):
-        """Return the y at my lower edge"""
-        return self.bot
-
-    def getwidth(self):
-        """How many pixels wide am I?"""
-        return self.getright() - self.getleft()
-
-    def getheight(self):
-        """How many pixels tall am I?"""
-        return self.menu.style.fontsize + self.menu.style.spacing
-
-    def getrx(self):
-        """Return half my width"""
-        return self.getwidth() / 2
-
-    def getry(self):
-        """Return half my height"""
-        return self.getheight() / 2
-
     def toggle_visibility(self):
         """Become visible if invisible or vice versa"""
         self.visible = not self.visible
@@ -228,9 +209,10 @@ just how to display this widget"""
             self.pressed,
             self.tweaks)
 
-    def parse_effect_deck(self, db):
+    def parse_effect_deck(self):
         """Dereference the effect deck, possibly making a new one if it's
 named a certain way."""
+        db = self.db
         efd = self.effect_deck
         if isinstance(efd, EffectDeck) or db is None:
             self.effect_deck = efd
@@ -241,7 +223,7 @@ named a certain way."""
             menuspec_split = menuspec.split(".")
             if len(menuspec_split) == 2:
                 (b, m) = menuspec_split
-                self.effect_deck = make_menu_toggler(b, m, db)
+                self.effect_deck = make_menu_toggler(db, b, m)
             else:
                 if stringlike(self.menu.board):
                     boardname = self.menu.board
@@ -250,7 +232,7 @@ named a certain way."""
                         boardname = self.menu.board.dimension
                     else:
                         boardname = self.menu.board.dimension.name
-                self.effect_deck = make_menu_toggler(boardname, menuspec, db)
+                self.effect_deck = make_menu_toggler(db, boardname, menuspec)
                 return
         caltogmatch = re.match(CALENDAR_TOGGLER_RE, efd)
         if caltogmatch is not None:
@@ -258,7 +240,7 @@ named a certain way."""
             calspec_split = calspec.split(".")
             if len(calspec_split) == 2:
                 (dimn, itn) = calspec_split
-                self.effect_deck = make_calendar_toggler(dimn, itn, db)
+                self.effect_deck = make_calendar_toggler(db, dimn, itn)
             else:
                 if stringlike(self.menu.board):
                     dimname = self.menu.board
@@ -267,14 +249,10 @@ named a certain way."""
                         dimname = self.menu.board.dimension
                     else:
                         dimname = self.menu.board.dimension.name
-                self.effect_deck = make_calendar_toggler(dimname, calspec, db)
+                self.effect_deck = make_calendar_toggler(db, dimname, calspec)
             return
         if efd in db.effectdeckdict:
             self.effect_deck = db.effectdeckdict[efd]
-
-    def is_visible(self):
-        """Can you see me?"""
-        return self.visible
 
 
 def pull_items_in_menus(db, menunames):
@@ -322,8 +300,8 @@ class Menu:
             "menu_item": [it.get_rowdict() for it in self.items]
         }
 
-    def __init__(self, board, name, left, bottom, top, right, style,
-                 main_for_window, visible, db=None):
+    def __init__(self, db, board, name, left, bottom, top, right, style,
+                 main_for_window, visible):
         """Return a menu in the given board, with the given name, bounds,
 style, and flags main_for_window and visible.
 
@@ -339,15 +317,13 @@ With db, register with db's menudict.
         """
         self.board = board
         self.name = name
-        self.left = left
-        self.bot = bottom
-        self.top = top
-        self.right = right
-        self.width = self.right - self.left
-        self.height = self.top - self.bot
+        self.left_prop = left
+        self.bot_prop = bottom
+        self.top_prop = top
+        self.right_prop = right
         self.style = style
         self.main_for_window = main_for_window
-        self.visible = visible
+        self._visible = visible
         self.interactive = True
         self.hovered = False
         self.grabpoint = None
@@ -355,22 +331,59 @@ With db, register with db's menudict.
         self.oldstate = None
         self.newstate = None
         self.pressed = False
+        self.freshly_adjusted = False
         self.tweaks = 0
-        if db is not None:
-            if stringlike(self.board):
-                boardname = self.board
-            else:
-                boardname = self.board.name
-            if boardname not in db.menudict:
-                db.menudict[boardname] = {}
-            db.menudict[boardname][self.name] = self
+        if stringlike(self.board):
+            boardname = self.board
+        else:
+            boardname = self.board.name
+        if boardname not in db.menudict:
+            db.menudict[boardname] = {}
+        db.menudict[boardname][self.name] = self
+        self.db = db
 
-    def unravel(self, db):
+    def __getattr__(self, attrn):
+        if attrn == 'visible':
+            return self._visible
+        elif attrn == 'left':
+            return int(self.gw.width * self.left_prop)
+        elif attrn == 'bot':
+            return int(self.gw.height * self.bot_prop)
+        elif attrn == 'top':
+            return int(self.gw.height * self.top_prop)
+        elif attrn == 'right':
+            return int(self.gw.width * self.right_prop)
+        elif attrn == 'width':
+            return self.right - self.left
+        elif attrn == 'height':
+            return self.top - self.bot
+        elif attrn == 'rx':
+            return int(
+                (self.gw.width * self.right_prop -
+                 self.gw.width * self.left_prop)
+                / 2)
+        elif attrn == 'ry':
+            return int(
+                (self.gw.height * self.top_prop -
+                 self.gw.height * self.bot_prop)
+                / 2)
+        elif attrn == 'r':
+            if self.rx > self.ry:
+                return self.rx
+            else:
+                return self.ry
+        else:
+            raise AttributeError(
+                "Menu instance has no such attribute: " +
+                attrn)
+
+    def unravel(self):
         """Dereference style and board; fetch items from db's menuitemdict;
 and unravel style and all items."""
+        db = self.db
         if stringlike(self.style):
             self.style = db.styledict[self.style]
-        self.style.unravel(db)
+        self.style.unravel()
         self.rowheight = self.style.fontsize + self.style.spacing
         bgi = self.style.bg_inactive.tup
         bga = self.style.bg_active.tup
@@ -382,7 +395,7 @@ and unravel style and all items."""
             boardname = self.board.name
         self.items = db.menuitemdict[boardname][self.name]
         for item in self.items:
-            item.unravel(db)
+            item.unravel()
 
     def set_gw(self, gw):
         """Remember the given gamewindow for use in later graphics
@@ -392,21 +405,11 @@ calculations. Then do the calculations once."""
 
     def adjust(self):
         """Assign absolute coordinates to myself and all my items."""
-        self.left_abs = int(self.gw.width * self.left)
-        self.right_abs = int(self.gw.width * self.right)
-        self.width_abs = int(self.gw.width * self.width)
-        self.top_abs = int(self.gw.height * self.top)
-        self.bot_abs = int(self.gw.height * self.bot)
-        self.height_abs = int(self.gw.height * self.height)
-        self.rx_abs = (self.right_abs - self.left_abs) / 2
-        self.ry_abs = (self.top_abs - self.bot_abs) / 2
-        self.center_abs = (self.rx_abs + self.left_abs,
-                           self.ry_abs + self.bot_abs)
         i = 0
         for item in self.items:
             item.top_from_top = i * self.rowheight
             item.bot_from_top = item.top_from_top + self.rowheight
-            item.top = self.top_abs - item.top_from_top
+            item.top = self.top - item.top_from_top
             item.bot = item.top - self.rowheight
             i += 1
 
@@ -428,59 +431,8 @@ calculations. Then do the calculations once."""
         """Delete a menuitem"""
         return self.items.__delitem__(i)
 
-    def getstyle(self):
-        """Return my style"""
-        return self.style
-
-    def getleft(self):
-        """Return the x at my left edge"""
-        return self.left_abs
-
-    def getbot(self):
-        """Return the y at my bottom edge"""
-        return self.bot_abs
-
-    def gettop(self):
-        """Return the y at my top edge"""
-        return self.top_abs
-
-    def getright(self):
-        """Return the x at my right edge"""
-        return self.right_abs
-
-    def getcenter(self):
-        """Return a pair, being coordinates of my center point"""
-        fx = self.center_abs[0]
-        fy = self.center_abs[1]
-        return (fx, fy)
-
-    def getwidth(self):
-        """Return width in pixels"""
-        return self.width_abs
-
-    def getheight(self):
-        """Return height in pixels"""
-        return self.height_abs
-
-    def getrx(self):
-        """Return half width in pixels"""
-        return self.rx_abs
-
-    def getry(self):
-        """Return half height in pixels"""
-        return self.ry_abs
-
-    def is_visible(self):
-        """Can you see me?"""
-        return self.visible
-
-    def is_interactive(self):
-        """Can you touch me?"""
-        return self.interactive
-
     def toggle_visibility(self):
         """Make myself visible if hidden, invisible if shown."""
-        print "toggling visibility of menu {0}".format(self.name)
         self.visible = not self.visible
         self.tweaks += 1
 
@@ -498,22 +450,6 @@ calculations. Then do the calculations once."""
         """If one of my items is hovered, activate it"""
         if self.hovered is not None:
             self.hovered.onclick(button, modifiers)
-
-    def set_hovered(self):
-        """Make myself hovered"""
-        pass
-
-    def unset_hovered(self):
-        """Make myself not hovered"""
-        pass
-
-    def set_pressed(self):
-        """Make myself pressed"""
-        pass
-
-    def unset_pressed(self):
-        """Make myself not pressed"""
-        pass
 
     def get_state_tup(self):
         """Return a tuple containing everything you need to decide how to draw
@@ -561,28 +497,30 @@ def read_items_in_menus(db, menus):
     return r
 
 
-def unravel_items(db, itd):
+def unravel_items(itd):
     """Unravel items from a given board"""
     for it in itd.itervalues():
-        it.unravel(db)
+        it.unravel()
     return itd
 
 
-def unravel_items_in_menus(db, mitd):
+def unravel_items_in_menus(mitd):
     """Unravel items from read_items_in_menus"""
     for its in mitd.itervalues():
-        unravel_items(db, its)
+        unravel_items(its)
     return mitd
 
 
 def load_items_in_menus(db, menus):
     """Load items in the named menus. Return a 2D dict keyed by menu, then
 index."""
-    return unravel_items_in_menus(db, read_items_in_menus(db, menus))
+    return unravel_items_in_menus(read_items_in_menus(db, menus))
 
 
 menu_qcols = ["menu." + coln for coln in Menu.colns]
-menu_item_qvals = ["menu_item.idx"] + ["menu_item." + valn for valn in MenuItem.valns]
+menu_item_qvals = (
+    ["menu_item.idx"] +
+    ["menu_item." + valn for valn in MenuItem.valns])
 mbqcols = menu_qcols + menu_item_qvals
 mbcols = Menu.colns + ["idx"] + MenuItem.valns
 menu_board_qryfmt = (
@@ -618,22 +556,22 @@ Return a 2D dict keyed first by board dimension name, then by menu name.
                       "idx": rowdict["menu_item.idx"]}
         for valn in MenuItem.valns:
             menuitemrd[valn] = rowdict["menu_item." + valn]
-        mi = MenuItem(**menuitemrd)
+        MenuItem(**menuitemrd)
     return r
 
 
-def unravel_menus(db, md):
+def unravel_menus(md):
     """Unravel a dict of menus keyed by name"""
     for menu in md.itervalues():
-        menu.unravel(db)
+        menu.unravel()
     return md
 
 
-def unravel_menus_in_boards(db, bmd):
+def unravel_menus_in_boards(bmd):
     """Unravel a 2D dict of menus keyed by board dimension name, then menu
 name"""
     for menus in bmd.itervalues():
-        unravel_menus(db, menus)
+        unravel_menus(menus)
     return bmd
 
 
@@ -644,12 +582,12 @@ Return them in a 2D dict keyed first by board dimension name, then by
 menu name.
 
     """
-    return unravel_menus_in_boards(db, read_menus_in_boards(db, boards))
+    return unravel_menus_in_boards(read_menus_in_boards(db, boards))
 
 
 def make_menu_toggler_menu_item(
-        target_menu, menu_of_residence, idx, txt,
-        closer, visible, interactive, db):
+        db, target_menu, menu_of_residence, idx, txt,
+        closer, visible, interactive):
     """Return a MenuItem that toggles some target_menu other than the
 menu_of_residence it's in."""
     if stringlike(menu_of_residence.board):
@@ -660,9 +598,9 @@ menu_of_residence it's in."""
         menuname = target_menu
     else:
         menuname = target_menu.name
-    togdeck = make_menu_toggler(boardname, menuname, db)
-    return MenuItem(menu_of_residence, idx, txt, togdeck,
-                    closer, visible, interactive, db)
+    togdeck = make_menu_toggler(db, boardname, menuname)
+    return MenuItem(db, menu_of_residence, idx, txt, togdeck,
+                    closer, visible, interactive)
 
 
 def make_calendar_toggler_menu_item(
@@ -674,6 +612,6 @@ item."""
     else:
         dimname = item.dimension.name
     itname = item.name
-    togdeck = make_calendar_toggler(dimname, itname, db)
-    return MenuItem(menu, idx, txt, togdeck,
-                    closer, visible, interactive, db)
+    togdeck = make_calendar_toggler(db, dimname, itname)
+    return MenuItem(db, menu, idx, txt, togdeck,
+                    closer, visible, interactive)
