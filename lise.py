@@ -28,8 +28,6 @@ for arg in argv:
             print "Couldn't connect to the database named {0}.".format(arg)
     i += 1
 
-print "Connecting to the database named {0}.".format(dbfn)
-
 db = load_game(dbfn, lang)
 s = GameState(db)
 gw = GameWindow(s, "Physical")

@@ -159,7 +159,6 @@ of an effect, look up the real effect object. Then unravel it."""
 
     def do(self):
         """Fire all the effects in order."""
-        print "Doing EffectDeck " + self.name
         return [effect.do() for effect in self.effects]
 
 

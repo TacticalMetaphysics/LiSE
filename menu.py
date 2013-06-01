@@ -433,7 +433,6 @@ calculations. Then do the calculations once."""
 
     def toggle_visibility(self):
         """Make myself visible if hidden, invisible if shown."""
-        print "toggling visibility of menu {0}".format(self.name)
         self.visible = not self.visible
         self.tweaks += 1
 
