@@ -1,5 +1,4 @@
 import pyglet
-from util import enableLogging
 from gui import GameWindow
 from database import load_game
 from state import GameState
