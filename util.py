@@ -15,6 +15,7 @@ class PortalException(Exception):
 a Portal, and it made no sense."""
     pass
 
+
 class SaveableMetaclass(type):
     """Sort of an object relational mapper.
 
@@ -153,7 +154,8 @@ and your table will be ready.
                 table_decl_data.append(chkstr)
             table_decl = ", ".join(table_decl_data)
             create_stmt = "CREATE TABLE %s (%s);" % (tablename, table_decl)
-            insert_stmt_start = "INSERT INTO " + tablename + " ({0}) VALUES {1};"
+            insert_stmt_start = ("INSERT INTO " + tablename +
+                                 " ({0}) VALUES {1};")
             inserts[tablename] = insert_stmt_start
             delete_stmt_start = "DELETE FROM %s WHERE (%s) IN " % (
                 tablename, pkeycolstr)
@@ -183,16 +185,18 @@ and your table will be ready.
             return []
 
         def delete_keydicts_table(db, keydicts, tabname):
-            keystr = keystrs[tabname]
-            qrystr = deletes[tabname] + ", ".join([keystr] * len(keydicts))
-            qrylst = []
+            keyns = keynames[tabname]
+            keys = []
+            wheres = []
             for keydict in keydicts:
-                for col in keynames[tabname]:
-                    if col in keydict:
-                        qrylist.append(keydict[col])
-            qrytup = tuple(qrylst)
-            db.c.execute(qrystr, qrytup)
-            return []
+                checks = []
+                for keyn in keyns:
+                    checks.append(keyn + "=?")
+                    keys.append(keydict[keyn])
+                wheres.append("(" + " AND ".join(checks) + ")")
+            wherestr = " OR ".join(wheres)
+            qrystr = "DELETE FROM {0} WHERE {1}".format(tabname, wherestr)
+            db.c.execute(qrystr, tuple(keys))
 
         def detect_keydicts_table(db, keydicts, tabname):
             keystr = keystrs[tabname]
@@ -201,7 +205,7 @@ and your table will be ready.
             for keydict in keydicts:
                 for col in keynames[tabname]:
                     if col in keydict:
-                        qrylist.append(keydict[col])
+                        qrylst.append(keydict[col])
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
             return db.c.fetchall()
@@ -213,37 +217,52 @@ and your table will be ready.
             for keydict in keydicts:
                 for col in keynames[tabname]:
                     if col in keydict:
-                        qrylist.append(keydict[col])
+                        qrylst.append(keydict[col])
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
             return db.c.fetchall()
 
-        def op_tabdict(db, tabdict, op):
-            r = []
-            for item in tabdict.iteritems():
-                (tab, rowdicts) = item
-                q = op(db, rowdicts, tab)
-                if q is not None:
-                    r.append(q)
-            return r
-
         def insert_tabdict(db, tabdict):
-            op_tabdict(db, tabdict, insert_rowdicts_table)
+            for item in tabdict.iteritems():
+                (tabname, rd) = item
+                if isinstance(rd, dict):
+                    insert_rowdicts_table(db, [rd], tabname)
+                else:
+                    insert_rowdicts_table(db, rd, tabname)
 
         def delete_tabdict(db, tabdict):
-            op_tabdict(db, tabdict, delete_keydicts_table)
+            for item in tabdict.iteritems():
+                (tabname, rd) = item
+                if isinstance(rd, dict):
+                    delete_keydicts_table(db, [rd], tabname)
+                else:
+                    delete_keydicts_table(db, rd, tabname)
 
         def detect_tabdict(db, tabdict):
-            return op_tabdict(db, tabdict, detect_keydicts_table)
+            r = {}
+            for item in tabdict.iteritems():
+                (tabname, rd) = item
+                if isinstance(rd, dict):
+                    r[tabname] = detect_keydicts_table(db, [rd], tabname)
+                else:
+                    r[tabname] = detect_keydicts_table(db, rd, tabname)
+            return r
 
         def missing_tabdict(db, tabdict):
-            return op_tabdict(db, tabdict, missing_keydicts_table)
+            r = {}
+            for item in tabdict.iteritems():
+                (tabname, rd) = item
+                if isinstance(rd, dict):
+                    r[tabname] = missing_keydicts_table(db, [rd], tabname)
+                else:
+                    r[tabname] = missing_keydicts_table(db, rd, tabname)
+            return r
 
         def mkrow(self, tabn=None, rowdict=None):
             if tabn is None:
                 tabn = self.maintab
             if rowdict is None:
-                rowdict = self.mkrowdict(tabn)
+                rowdict = self.get_rowdict(tabn)
             r = []
             for coln in self.colnames[tabn]:
                 r.append(rowdict[coln])
@@ -251,14 +270,7 @@ and your table will be ready.
 
         def mkrowdict(self, tabname):
             # Invariant: For the named table, I have attributes named
-            # and typed the same way as the columns. Where this does
-            # not hold, I should instead have an attribute named for
-            # the *table*, which contains tuples representing rows of
-            # that table.
-            if hasattr(self, tabname):
-                return [
-                    dictify_row(r, self.colnames[tabname])
-                    for r in iter(getattr(self, tabname))]
+            # and typed the same way as the columns.
             r = {}
             for colname in self.colnames[tabname]:
                 if getattr(self, colname).__class__ in (int, float, bool):
@@ -269,9 +281,16 @@ and your table will be ready.
 
         def mktabdict(self):
             r = {}
-            for tabname in self.coldecls.iterkeys():
-                r[tabname] = self.mkrowdict(tabname)
+            for tabname in tablenames:
+                r[tabname] = mkrowdict(self, tabname)
             return r
+
+        def save(self, db=None):
+            if db is None:
+                db = self.db
+            td = self.get_tabdict()
+            delete_tabdict(db, td)
+            insert_tabdict(db, td)
 
         dbop = {'insert': insert_tabdict,
                 'delete': delete_tabdict,
@@ -292,8 +311,8 @@ and your table will be ready.
                   'rowqms': rowqms,
                   'dbop': dbop,
                   'get_row': mkrow,
-                  'get_rowdict': mkrowdict,
                   'get_tabdict': mktabdict,
+                  'save': save,
                   'maintab': tablenames[0]}
         atrdic.update(attrs)
 

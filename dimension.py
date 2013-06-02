@@ -33,6 +33,9 @@ keyed with their names.
 constrains it to be unique."""
         return hash(self.name)
 
+    def __str__(self):
+        return self.name
+
     def unravel(self):
         """Get the dictionaries of the items in this dimension from the given
 database. Then iterate over the values therein and unravel

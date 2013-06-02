@@ -157,6 +157,7 @@ graphics calculations."""
     def dropped(self, x, y, button, modifiers):
         """Stop being dragged by the mouse, forget the grabpoint"""
         self.grabpoint = None
+        self.save()
 
     def move_with_mouse(self, x, y, dx, dy, buttons, modifiers):
         """Remember where exactly I was grabbed, then move around with the

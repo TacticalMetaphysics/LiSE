@@ -37,6 +37,9 @@ provided."""
         db.imgdict[name] = self
         self.db = db
 
+    def __str__(self):
+        return self.name
+
     def get_tabdict(self):
         return {
             "img": {
