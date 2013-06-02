@@ -76,22 +76,6 @@ time.
         db.boarddict[dimname] = self
         self.db = db
 
-    def get_tabdict(self):
-        return {
-            "board": {
-                "dimension": self.dimension.name,
-                "wallpaper": self.wallpaper.name,
-                "width": self.width,
-                "height": self.height,
-                "calendar_visible": self.calendar.visible,
-                "calendar_interactive": self.calendar.interactive,
-                "calendar_left": self.calendar.left,
-                "calendar_right": self.calendar.right,
-                "calendar_top": self.calendar.top,
-                "calendar_bot": self.calendar.bot,
-                "calendar_rows_on_screen": self.calendar.rows_on_screen,
-                "calendar_scrolled_to": self.calendar.scrolled_to}}
-
     def unravel(self):
         """Grab the Python objects referred to by self.wallpaper and
 self.dimension, if they are strings; then unravel all pawns, spots,
@@ -146,6 +130,22 @@ dimension's hash.
 
     def __str__(self):
         return self.name
+
+    def get_tabdict(self):
+        return {
+            "board": {
+                "dimension": self.dimension.name,
+                "wallpaper": self.wallpaper.name,
+                "width": self.width,
+                "height": self.height,
+                "calendar_visible": self.calendar._visible,
+                "calendar_interactive": self.calendar._interactive,
+                "calendar_left": self.calendar.left_prop,
+                "calendar_right": self.calendar.right_prop,
+                "calendar_top": self.calendar.top_prop,
+                "calendar_bot": self.calendar.bot_prop,
+                "calendar_rows_on_screen": self.calendar.rows_on_screen,
+                "calendar_scrolled_to": self.calendar.scrolled_to}}
 
 
 read_some_boards_format = (

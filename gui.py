@@ -240,12 +240,17 @@ board; all visible menus; and the calendar, if it's visible."""
                         self.timeline.delete()
                     except AttributeError:
                         pass
-                y = self.calendar.top - self.calendar.row_height * self.gamestate.age
+                top = self.calendar.top
+                left = self.calendar.left
+                right = self.calendar.right
+                rowheight = self.calendar.row_height
+                age = self.gamestate.age
+                y = top - rowheight * age
                 color = (255, 0, 0)
                 if y > 0:
                     self.timeline = self.batch.add(
                         2, pyglet.graphics.GL_LINES, self.topgroup,
-                        ('v2i', (self.calendar.left, y, self.calendar.right, y)),
+                        ('v2i', (left, y, right, y)),
                         ('c3B', color * 2))
                 self.last_age = self.gamestate.age
                 self.last_timeline_y = y
@@ -362,8 +367,19 @@ move_with_mouse method, use it.
             """Inform the on_draw function that the window's been resized."""
             self.resized = True
 
-    def __getattr__(self, attrn):
-        if attrn == 'width':
-            return self.window.width
-        elif attrn == 'height':
-            return self.window.height
+        @window.event
+        def on_mouse_scroll(x, y, scroll_x, scroll_y):
+            # for now, this only does anything if you're moused over
+            # the calendar
+            if (
+                    self.calendar.visible and
+                    x > self.calendar.left and
+                    x < self.calendar.right and
+                    y > self.calendar.bot and
+                    y < self.calendar.top):
+                sf = self.calendar.scroll_factor
+                self.calendar.scrolled_to -= scroll_y * sf
+                if self.calendar.scrolled_to < 0:
+                    self.calendar.scrolled_to = 0
+                self.board.save()
+                print "calendar scrolled to %d" % self.calendar.scrolled_to

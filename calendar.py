@@ -69,7 +69,7 @@ represents to calculate its dimensions and coordinates.
                 return None
         elif attrn == 'top':
             return (
-                self.start -
+                self.start +
                 self.col.cal.scrolled_to) * self.col.cal.row_height
         elif attrn == 'bot':
             return self.top - (self.col.cal.row_height * len(self))
@@ -282,11 +282,9 @@ class Calendar:
     """A collection of calendar columns representing at least one
 schedule, possibly several.
 
-This really can't be used without a database, but you can assign said
-database without passing it to the constructor by use of the set_gw
-method.
-
 """
+    scroll_factor = 10
+
     def __init__(
             self, db, board, left, right, top, bot, visible, interactive,
             rows_on_screen, scrolled_to):
