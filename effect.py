@@ -46,9 +46,9 @@ to."""
         if stringlike(self.func):
             self.func = self.db.func[self.func]
 
-    def do(self):
+    def do(self, event):
         """Call the function with the argument."""
-        return self.func(self.arg)
+        return self.func(self.arg, event)
 
 
 class PortalEntryEffect(Effect):
@@ -152,14 +152,14 @@ of an effect, look up the real effect object. Then unravel it."""
         while i < len(self.effects):
             eff = self.effects[i]
             if stringlike(eff):
-                eff = db.effectdict[eff]
-                self.effects[i] = eff
+                reff = self.db.effectdict[eff]
+                self.effects[i] = reff
             eff.unravel()
             i += 1
 
-    def do(self):
+    def do(self, event):
         """Fire all the effects in order."""
-        return [effect.do() for effect in self.effects]
+        return [effect.do(event) for effect in self.effects]
 
 
 class PortalEntryEffectDeck(EffectDeck):

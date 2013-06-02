@@ -165,16 +165,16 @@ not."""
 
     def commence(self):
         """Perform all commence effects, and set self.ongoing to True."""
-        self.commence_effects.do()
+        self.commence_effects.do(self)
         self.ongoing = True
 
     def proceed(self):
         """Perform all proceed effects."""
-        self.proceed_effects.do()
+        self.proceed_effects.do(self)
 
     def conclude(self):
         """Perform all conclude effects, and set self.ongoing to False."""
-        self.conclude_effects.do()
+        self.conclude_effects.do(self)
         self.ongoing = False
 
     def display_str(self):

@@ -17,7 +17,7 @@ SQL. That's in util.py, the class SaveableMetaclass.
 """
 
 
-def noop(nope):
+def noop(*args, **kwargs):
     """Do nothing."""
     pass
 
@@ -110,8 +110,6 @@ arguments.
             self.hide_other_menus_in_board,
             'hide_other_calendars_in_board':
             self.hide_other_calendars_in_board,
-            'portal_progress':
-            self.portal_progress,
             'thing_into_portal':
             self.thing_into_portal,
             'thing_along_portal':
@@ -233,6 +231,7 @@ list.
         # being that colors are just fancy tuples fulla integers,
         # there's nothing to unravel. just read them.
         return read_colors(self, colornames)
+
     def load_color(self, colorname):
         """Load the color by the given name."""
         return self.load_colors((colorname,))
@@ -417,10 +416,10 @@ and vice-versa.
         pdod = self.portaldestorigdict[portal.dimension]
         try:
             return pdod[orign][destn]
-        except:
+        except KeyError:
             return None
 
-    def toggle_menu_visibility(self, menuspec):
+    def toggle_menu_visibility(self, menuspec, evt=None):
         """Given a string consisting of a board name, a dot, and a menu name,
 toggle the visibility of that menu.
 
@@ -428,47 +427,47 @@ toggle the visibility of that menu.
         (boardn, itn) = menuspec.split('.')
         self.menudict[boardn][itn].toggle_visibility()
 
-    def toggle_calendar_visibility(self, calspec):
+    def toggle_calendar_visibility(self, calspec, evt=None):
         """Given a string consisting of a dimension name, a dot, and an item
 name, toggle the visibility of the calendar representing the schedule
 for that item."""
         (boardn, itn) = calspec.split('.')
         self.calendardict[boardn][itn].toggle_visibility()
 
-    def hide_menu(self, menuspec):
+    def hide_menu(self, menuspec, evt=None):
         """Given a string consisting of a board dimension name, a dot, and a
 menu name, hide the menu in that board by that name."""
         (boardn, menun) = menuspec.split('.')
         self.menudict[boardn][menun].hide()
 
-    def hide_calendar(self, calspec):
+    def hide_calendar(self, calspec, evt=None):
         """Given a string consisting of a board dimension name, a dot, and an
 item name, hide the calendar representing the schedule of that item in
 that board."""
         (boardn, itn) = calspec.split('.')
         self.calendardict[boardn][itn].hide()
 
-    def show_menu(self, menuspec):
+    def show_menu(self, menuspec, evt=None):
         """Given a string consisting of a board dimension name, a dot, and a
 menu name, show the menu of that name in that board."""
         (boardn, menun) = menuspec.split('.')
         self.menudict[boardn][menun].show()
 
-    def show_calendar(self, calspec):
+    def show_calendar(self, calspec, evt=None):
         """Given a string consisting of a board dimension name, a dot, and an
 item name, show the calendar representing the item's schedule in that
 board."""
         (boardn, itn) = calspec.split('.')
         self.calendardict[boardn][itn].show()
 
-    def hide_menus_in_board(self, boardn):
+    def hide_menus_in_board(self, boardn, evt=None):
         """Hide every menu, apart from the main menu, in the board with the
 given dimension name."""
         for menu in self.menudict[boardn].itervalues():
             if not menu.main_for_window:
                 menu.hide()
 
-    def hide_other_menus_in_board(self, menuspec):
+    def hide_other_menus_in_board(self, menuspec, evt=None):
         """Given a string consisting of a board dimension name, a dot, and a
 menu name, hide every menu apart from that one in that board, except
 the main menu."""
@@ -477,12 +476,12 @@ the main menu."""
             if not menu.main_for_window and menu.name != menun:
                 menu.hide()
 
-    def hide_calendars_in_board(self, boardn):
+    def hide_calendars_in_board(self, boardn, evt=None):
         """Hide every calendar in the board with the given dimension name."""
         for calendar in self.calendardict[boardn].itervalues():
             calendar.hide()
 
-    def hide_other_calendars_in_board(self, calspec):
+    def hide_other_calendars_in_board(self, calspec, evt=None):
         """Given a string consisting of a board dimension name, a dot, and an
 item name, hide every calendar apart from that one in that board."""
         (boardn, itn) = calspec.split('.')
@@ -530,25 +529,6 @@ Spell the lang argument the same way it's spelled in the strings table.
         self.load_strings()
         self.load_board(self.game[0])
 
-    def portal_progress(self, arg):
-        """Move a thing some distance along whatever portal it's in.
-
-arg is a string, formatted like:
-
-dimension.thing+0.42
-
-That means move the thing called "thing" in the dimension called
-"dimension" 0.42 portal lengths through the portal it's in.
-
-        """
-        dot = arg.find(".")
-        plus = arg.find("+")
-        dimname = arg[:dot]
-        thingname = arg[dot:plus]
-        amt = float(arg[:plus])
-        journey = self.journeydict[dimname][thingname]
-        return journey.move_thru(amt)
-
     def add_event(self, ev):
         """Add the event to the various dictionaries events go in."""
         self.eventdict[ev.name] = ev
@@ -591,7 +571,7 @@ a member."""
             if ev_end in self.endevdict:
                 self.endevdict[ev_end].discard(ev)
 
-    def thing_into_portal(self, arg):
+    def thing_into_portal(self, arg, evt):
         """Put the item into the portal.
 
 Argument is a mere string, structured as so:
@@ -608,7 +588,7 @@ in the appropriate dictionary.
         portal = self.portalorigdestdict[dimname][orig][dest]
         return thing.enter(portal)
 
-    def thing_along_portal(self, arg):
+    def thing_along_portal(self, arg, evt):
         """Move the thing some amount along the portal it's in.
 
 Argument is a mere string, structured like:
@@ -627,7 +607,7 @@ some amount, calculated by its speed_thru method.
         amount = 1 / float(speed)
         return thing.move_thru_portal(amount)
 
-    def thing_out_of_portal(self, arg):
+    def thing_out_of_portal(self, arg, evt):
         """Take the thing out of the portal it's in, and put it in the
 portal's destination.
 
