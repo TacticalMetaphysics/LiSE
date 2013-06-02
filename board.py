@@ -32,8 +32,10 @@ time.
         ("board",
          {"dimension": "text not null DEFAULT 'Physical'",
           "wallpaper": "text DEFAULT 'default_wallpaper'",
-          "width": "integer not null DEFAULT 1024",
-          "height": "integer not null DEFAULT 768",
+          "width": "integer not null DEFAULT 4000",
+          "height": "integer not null DEFAULT 3000",
+          "view_left": "integer not null DEFAULT 0",
+          "view_bot": "integer not null DEFAULT 0",
           "calendar_visible": "boolean not null DEFAULT 1",
           "calendar_interactive": "boolean not null DEFAULT 1",
           "calendar_left": "float not null DEFAULT 0.8",
@@ -44,9 +46,11 @@ time.
           "calendar_scrolled_to": "integer not null DEFAULT 0"},
          ("dimension",),
          {"wallpaper": ("image", "name")},
-         ["calendar_rows_on_screen > 0", "calendar_scrolled_to >= 0"])]
+         ["calendar_rows_on_screen > 0", "calendar_scrolled_to >= 0",
+          "view_left >= 0", "view_bot >= 0"])]
 
-    def __init__(self, db, dimension, width, height, wallpaper,
+    def __init__(self, db, dimension, width, height, view_left, view_bot,
+                 wallpaper,
                  calendar_left, calendar_right, calendar_top,
                  calendar_bot, calendar_visible, calendar_interactive,
                  calendar_rows_on_screen, calendar_scrolled_to):
@@ -57,6 +61,8 @@ time.
         self.width = width
         self.height = height
         self.wallpaper = wallpaper
+        self.view_left = view_left
+        self.view_bot = view_bot
         caldict = {
             "board": self,
             "left": calendar_left,
@@ -75,6 +81,12 @@ time.
             dimname = self.dimension.name
         db.boarddict[dimname] = self
         self.db = db
+
+    def __getattr__(self, attrn):
+        if attrn == "offset_x":
+            return 0 - self.view_left
+        elif attrn == "offset_y":
+            return 0 - self.view_bot
 
     def unravel(self):
         """Grab the Python objects referred to by self.wallpaper and
@@ -95,9 +107,20 @@ and menus herein.
             pwn.unravel()
         for spt in self.spotdict.itervalues():
             spt.unravel()
+            spt.board = self
         for mnu in self.menudict.itervalues():
             mnu.unravel()
         self.calendar.unravel()
+
+    def set_gw(self, gw):
+        self.gw = gw
+        self.calendar.set_gw(self.gw)
+        for menu in self.menudict.itervalues():
+            menu.set_gw(self.gw)
+        for pawn in self.pawndict.itervalues():
+            pawn.set_gw(self.gw)
+        for spot in self.spotdict.itervalues():
+            spot.set_gw(self.gw)
 
     def __eq__(self, other):
         return (
@@ -114,14 +137,6 @@ dimension's hash.
         """
         return hash(self.dimension)
 
-    def getwidth(self):
-        """Return the width assigned at instantiation."""
-        return self.width
-
-    def getheight(self):
-        """Return the height assigned at instantiation."""
-        return self.height
-
     def __repr__(self):
         return "A board, %d pixels wide by %d tall, representing the "\
             "dimension %s, containing %d spots, %d pawns, and %d menus."\
@@ -129,7 +144,7 @@ dimension's hash.
                len(self.pawndict), len(self.menudict))
 
     def __str__(self):
-        return self.name
+        return str(self.dimension)
 
     def get_tabdict(self):
         return {
@@ -138,6 +153,8 @@ dimension's hash.
                 "wallpaper": self.wallpaper.name,
                 "width": self.width,
                 "height": self.height,
+                "view_left": self.view_left,
+                "view_bot": self.view_bot,
                 "calendar_visible": self.calendar._visible,
                 "calendar_interactive": self.calendar._interactive,
                 "calendar_left": self.calendar.left_prop,
@@ -146,7 +163,6 @@ dimension's hash.
                 "calendar_bot": self.calendar.bot_prop,
                 "calendar_rows_on_screen": self.calendar.rows_on_screen,
                 "calendar_scrolled_to": self.calendar.scrolled_to}}
-
 
 read_some_boards_format = (
     "SELECT {0} FROM board WHERE dimension IN ({1})".format(

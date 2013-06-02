@@ -66,22 +66,12 @@ With db, register the spot with spotdict.
         self.db = db
 
     def __getattr__(self, attrn):
-        if attrn == 'visible':
-            return self._visible
-        elif attrn == 'interactive':
+        if attrn == 'interactive':
             return self._interactive
-        elif attrn == 'left':
-            return self.y
-        elif attrn == 'bot':
-            return self.x
         elif attrn == 'width':
             return self.img.getwidth()
         elif attrn == 'height':
             return self.img.getheight()
-        elif attrn == 'top':
-            return self.bot + self.height
-        elif attrn == 'right':
-            return self.left + self.width
         elif attrn == 'rx':
             return self.width / 2
         elif attrn == 'ry':
@@ -91,6 +81,33 @@ With db, register the spot with spotdict.
                 return self.rx
             else:
                 return self.ry
+        elif attrn == 'left':
+            return self.y - self.ry
+        elif attrn == 'bot':
+            return self.x - self.rx
+        elif attrn == 'top':
+            return self.x + self.rx
+        elif attrn == 'right':
+            return self.y + self.ry
+        elif attrn == 'window_x':
+            return self.x + self.board.offset_x
+        elif attrn == 'window_y':
+            return self.y + self.board.offset_y
+        elif attrn == 'window_left':
+            return self.left + self.board.offset_x
+        elif attrn == 'window_bot':
+            return self.bot + self.board.offset_y
+        elif attrn == 'window_top':
+            return self.top + self.board.offset_y
+        elif attrn == 'window_right':
+            return self.right + self.board.offset_x
+        elif attrn == 'visible':
+            return (
+                self._visible and
+                self.window_right > 0 and
+                self.window_left < self.gw.window.width and
+                self.window_top > 0 and
+                self.window_bot < self.gw.window.height)
         else:
             raise AttributeError(
                 "Spot instance has no such attribute: " +
@@ -133,6 +150,9 @@ graphics calculations."""
     def onclick(self, button, modifiers):
         """Does nothing yet"""
         pass
+
+    def set_gw(self, gw):
+        self.gw = gw
 
     def set_hovered(self):
         """Become hovered"""
@@ -178,8 +198,8 @@ mouse."""
 me."""
         return (
             self.img.name,
-            self.x,
-            self.y,
+            self.window_x,
+            self.window_y,
             self.visible,
             self.interactive,
             self.grabpoint,

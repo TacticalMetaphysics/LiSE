@@ -56,9 +56,7 @@ With db, register in db's pawndict.
         self.db = db
 
     def __getattr__(self, attrn):
-        if attrn == 'visible':
-            return self._visible
-        elif attrn == 'interactive':
+        if attrn == 'interactive':
             return self._interactive
         elif attrn == 'left':
             return self.getcoords()[0]
@@ -81,10 +79,20 @@ With db, register in db's pawndict.
                 return self.rx
             else:
                 return self.ry
+        elif attrn == 'visible':
+            return (
+                self._visible and
+                self.right > 0 and
+                self.left < self.gw.window.width and
+                self.top > 0 and
+                self.bot < self.gw.window.height)
         else:
             raise AttributeError(
                 "Pawn instance has no such attribute: " +
                 attrn)
+
+    def set_gw(self, gw):
+        self.gw = gw
 
     def __eq__(self, other):
         """Essentially, compare the state tuples of the two pawns."""
@@ -151,15 +159,15 @@ make a new, hidden calendar column to represent the schedule.
 portal {1} properly.""".format(repr(self), repr(port)))
             start = port.orig.spot
             end = port.dest.spot
-            hdist = end.x - start.x
-            vdist = end.y - start.y
+            hdist = end.window_x - start.window_x
+            vdist = end.window_y - start.window_y
             p = self.thing.journey_progress
-            x = start.x + hdist * p
-            y = start.y + vdist * p
+            x = start.window_x + hdist * p
+            y = start.window_y + vdist * p
             return (x, y)
         else:
             ls = self.thing.location.spot
-            return (ls.x, ls.y)
+            return (ls.window_x, ls.window_y)
 
     def onclick(self, button, modifiers):
         """For now, pawns toggle their associated calendar columns on being

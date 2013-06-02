@@ -28,6 +28,7 @@ represents to calculate its dimensions and coordinates.
             self.text = self.event.text
         self.oldstate = None
         self.sprite = None
+        self.label = None
         self._visible = True
         self._interactive = True
         self.tweaks = 0
