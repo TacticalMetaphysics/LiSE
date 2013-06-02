@@ -28,10 +28,6 @@ db = load_game(dbfn, lang)
 s = GameState(db)
 gw = GameWindow(s, "Physical")
 pyglet.clock.schedule_interval(s.update, 1/60., 1/60.)
-
-
-def dbcommit(one):
-    db.conn.commit()
-
-pyglet.clock.schedule_interval(dbcommit, 5)
 pyglet.app.run()
+
+db.conn.commit()
