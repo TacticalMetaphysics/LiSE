@@ -137,7 +137,7 @@ board; all visible menus; and the calendar, if it's visible."""
                         pass
                 if pawn.visible:
                     pawn.sprite = pyglet.sprite.Sprite(
-                        pawn.img, pawn.left, pawn.bot, batch=self.batch,
+                        pawn.img, pawn.window_left, pawn.window_bot, batch=self.batch,
                         group=self.pawngroup)
             # draw the menus, really just their backgrounds for the moment
             for menu in self.board.menudict.itervalues():
@@ -164,8 +164,8 @@ board; all visible menus; and the calendar, if it's visible."""
                             sty.fontface,
                             sty.fontsize,
                             color=color,
-                            x=menu_item.left,
-                            y=menu_item.bot,
+                            x=menu_item.window_left,
+                            y=menu_item.window_bot,
                             batch=self.batch,
                             group=self.labelgroup)
                 newstate = menu.get_state_tup()
@@ -185,7 +185,7 @@ board; all visible menus; and the calendar, if it's visible."""
                             menu.width,
                             menu.height))
                     menu.sprite = pyglet.sprite.Sprite(
-                        image, menu.left, menu.bot,
+                        image, menu.window_left, menu.window_bot,
                         batch=self.batch, group=self.menugroup)
 
             # draw the calendar
@@ -204,7 +204,7 @@ board; all visible menus; and the calendar, if it's visible."""
                         image = calcol.inactive_pattern.create_image(
                             calcol.width, calcol.height)
                         calcol.sprite = pyglet.sprite.Sprite(
-                            image, calcol.left, calcol.bot,
+                            image, calcol.window_left, calcol.window_bot,
                             batch=self.batch, group=self.calendargroup)
                     for cel in calcol.celldict.itervalues():
                         if cel.sprite is not None:
@@ -227,12 +227,12 @@ board; all visible menus; and the calendar, if it's visible."""
                             image = pat.create_image(
                                 cel.width, cel.height)
                             cel.sprite = pyglet.sprite.Sprite(
-                                image, cel.left, cel.bot,
+                                image, cel.window_left, cel.window_bot,
                                 batch=self.batch, group=self.cellgroup)
                             cel.label = pyglet.text.Label(
                                 cel.text, cel.style.fontface,
                                 cel.style.fontsize, color=color,
-                                x=cel.left,
+                                x=cel.window_left,
                                 y=cel.label_bot,
                                 batch=self.batch, group=self.labelgroup)
             if self.last_age != self.gamestate.age:
@@ -244,14 +244,16 @@ board; all visible menus; and the calendar, if it's visible."""
                         self.timeline.delete()
                     except AttributeError:
                         pass
-                top = self.calendar.top
-                left = self.calendar.left
-                right = self.calendar.right
+                top = self.calendar.window_top
+                left = self.calendar.window_left
+                right = self.calendar.window_right
                 rowheight = self.calendar.row_height
                 age = self.gamestate.age
                 y = top - rowheight * age
                 color = (255, 0, 0)
-                if y > 0:
+                if (
+                        self.calendar.visible and
+                        y > self.calendar.window_bot):
                     self.timeline = self.batch.add(
                         2, pyglet.graphics.GL_LINES, self.topgroup,
                         ('v2i', (left, y, right, y)),
@@ -271,16 +273,16 @@ it."""
                 for menu in self.board.menudict.itervalues():
                     if (
                             menu.visible and
-                            x > menu.left and
-                            x < menu.right and
-                            y > menu.bot and
-                            y < menu.top):
+                            x > menu.window_left and
+                            x < menu.window_right and
+                            y > menu.window_bot and
+                            y < menu.window_top):
                         for item in menu.items:
                             if (
-                                    x > item.left and
-                                    x < item.right and
-                                    y > item.bot and
-                                    y < item.top):
+                                    x > item.window_left and
+                                    x < item.window_right and
+                                    y > item.window_bot and
+                                    y < item.window_top):
                                 if hasattr(item, 'set_hovered'):
                                     item.set_hovered()
                                 self.hovered = item
@@ -299,20 +301,20 @@ it."""
                 for pawn in self.board.pawndict.itervalues():
                     if (
                             pawn.visible and
-                            x > pawn.left and
-                            x < pawn.right and
-                            y > pawn.bot and
-                            y < pawn.top):
+                            x > pawn.window_left and
+                            x < pawn.window_right and
+                            y > pawn.window_bot and
+                            y < pawn.window_top):
                         if hasattr(pawn, 'set_hovered'):
                             pawn.set_hovered()
                         self.hovered = pawn
                         return
             else:
                 if (
-                        x < self.hovered.left or
-                        x > self.hovered.right or
-                        y < self.hovered.bot or
-                        y > self.hovered.top):
+                        x < self.hovered.window_left or
+                        x > self.hovered.window_right or
+                        y < self.hovered.window_bot or
+                        y > self.hovered.window_top):
                     if hasattr(self.hovered, 'unset_hovered'):
                         self.hovered.unset_hovered()
                     self.hovered = None
@@ -343,10 +345,10 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                     self.pressed.unset_pressed()
                 if (
                         hasattr(self.pressed, 'onclick') and
-                        x > self.pressed.left and
-                        x < self.pressed.right and
-                        y > self.pressed.bot and
-                        y < self.pressed.top):
+                        x > self.pressed.window_left and
+                        x < self.pressed.window_right and
+                        y > self.pressed.window_bot and
+                        y < self.pressed.window_top):
                     self.pressed.onclick()
                 self.pressed = None
 
@@ -359,10 +361,10 @@ move_with_mouse method, use it.
             if self.grabbed is None:
                 if (
                         self.pressed is not None and
-                        x > self.pressed.left and
-                        x < self.pressed.right and
-                        y > self.pressed.bot and
-                        y < self.pressed.top and
+                        x > self.pressed.window_left and
+                        x < self.pressed.window_right and
+                        y > self.pressed.window_bot and
+                        y < self.pressed.window_top and
                         hasattr(self.pressed, 'move_with_mouse')):
                     self.grabbed = self.pressed
                 else:
@@ -398,10 +400,10 @@ move_with_mouse method, use it.
             # the calendar
             if (
                     self.calendar.visible and
-                    x > self.calendar.left and
-                    x < self.calendar.right and
-                    y > self.calendar.bot and
-                    y < self.calendar.top):
+                    x > self.calendar.window_left and
+                    x < self.calendar.window_right and
+                    y > self.calendar.window_bot and
+                    y < self.calendar.window_top):
                 sf = self.calendar.scroll_factor
                 self.calendar.scrolled_to -= scroll_y * sf
                 if self.calendar.scrolled_to < 0:

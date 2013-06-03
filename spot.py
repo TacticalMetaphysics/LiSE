@@ -146,7 +146,7 @@ graphics calculations."""
         """Return my image, left, and bottom"""
         return (self.img, self.getleft(), self.getbot())
 
-    def onclick(self, button, modifiers):
+    def onclick(self):
         """Does nothing yet"""
         pass
 

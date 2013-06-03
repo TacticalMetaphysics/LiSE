@@ -68,24 +68,26 @@ represents to calculate its dimensions and coordinates.
                 return self.event.start + self.event.length
             else:
                 return None
-        elif attrn == 'top':
+        elif attrn == 'window_top':
             return (
                 self.start +
                 self.col.cal.scrolled_to) * self.col.cal.row_height
-        elif attrn == 'bot':
-            return self.top - (self.col.cal.row_height * len(self))
-        elif attrn == 'left':
-            return self.col.left + self.style.spacing
-        elif attrn == 'right':
-            return self.col.right - self.style.spacing
+        elif attrn == 'window_bot':
+            return self.window_top - (self.col.cal.row_height * len(self))
+        elif attrn == 'window_left':
+            return self.col.window_left + self.style.spacing
+        elif attrn == 'window_right':
+            return self.col.window_right - self.style.spacing
         elif attrn == 'width':
-            return self.right - self.left
+            return self.window_right - self.window_left
         elif attrn == 'height':
-            return self.top - self.bot
+            return self.window_top - self.window_bot
         elif attrn == 'label_bot':
-            return self.top - self.style.fontsize - self.style.spacing
+            return self.window_top - self.style.fontsize - self.style.spacing
         elif attrn == 'visible':
-            return self._visible and self.top > 0 and self.col.visible
+            return (
+                self._visible and
+                self.col.visible)
         else:
             raise AttributeError(
                 "CalendarCell instance has no such attribute: " +
@@ -95,8 +97,8 @@ represents to calculate its dimensions and coordinates.
         """Return a tuple containing information enough to tell the difference
 between any two states that should appear different on-screen."""
         return (
-            self.top,
-            self.bot,
+            self.window_top,
+            self.window_bot,
             self.text,
             self.visible,
             self.interactive,
@@ -181,14 +183,14 @@ cells.
             return self._visible and self.item.name in self.cal.coldict
         elif attrn == 'interactive':
             return self._interactive
-        elif attrn == 'top':
-            return self.cal.top
-        elif attrn == 'bot':
-            return self.cal.bot
-        elif attrn == 'left':
-            return self.cal.left + self.idx * self.cal.col_width
-        elif attrn == 'right':
-            return self.left + self.cal.col_width
+        elif attrn == 'window_top':
+            return self.cal.window_top
+        elif attrn == 'window_bot':
+            return self.cal.window_bot
+        elif attrn == 'window_left':
+            return self.cal.window_left + self.idx * self.cal.col_width
+        elif attrn == 'window_right':
+            return self.window_left + self.cal.col_width
         elif attrn == 'width':
             return self.cal.col_width
         elif attrn == 'height':
@@ -270,10 +272,10 @@ between any two states that should appear different on-screen."""
             self.celhash(),
             self.dimension.name,
             self.item.name,
-            self.left,
-            self.right,
-            self.top,
-            self.bot,
+            self.window_left,
+            self.window_right,
+            self.window_top,
+            self.window_bot,
             self.visible,
             self.interactive,
             self.tweaks)
@@ -317,20 +319,20 @@ schedule, possibly several.
         return len(self.coldict)
 
     def __getattr__(self, attrn):
-        if attrn == 'top':
+        if attrn == 'window_top':
             return int(self.top_prop * self.gw.height)
-        elif attrn == 'bot':
+        elif attrn == 'window_bot':
             return int(self.bot_prop * self.gw.height)
-        elif attrn == 'left':
+        elif attrn == 'window_left':
             return int(self.left_prop * self.gw.width)
-        elif attrn == 'right':
+        elif attrn == 'window_right':
             return int(self.right_prop * self.gw.width)
         elif attrn == 'width':
-            return self.right - self.left
+            return self.window_right - self.window_left
         elif attrn == 'height':
-            return self.top - self.bot
+            return self.window_top - self.window_bot
         elif attrn == 'visible':
-            return self._visible
+            return self._visible and len(self.coldict) > 0
         elif attrn == 'interactive':
             return self._interactive
         else:
@@ -357,10 +359,10 @@ between any two states that should appear different on-screen."""
         return (
             self.board.dimension.name,
             self.colhash(),
-            self.left,
-            self.right,
-            self.top,
-            self.bot,
+            self.window_left,
+            self.window_right,
+            self.window_top,
+            self.window_bot,
             self.visible,
             self.interactive,
             self.rows_on_screen,

@@ -58,18 +58,18 @@ With db, register in db's pawndict.
     def __getattr__(self, attrn):
         if attrn == 'interactive':
             return self._interactive
-        elif attrn == 'left':
+        elif attrn == 'window_left':
             return self.getcoords()[0]
-        elif attrn == 'bot':
+        elif attrn == 'window_bot':
             return self.getcoords()[1]
         elif attrn == 'width':
             return self.img.getwidth()
         elif attrn == 'height':
             return self.img.getheight()
-        elif attrn == 'right':
-            return self.left + self.width
-        elif attrn == 'top':
-            return self.bot + self.height
+        elif attrn == 'window_right':
+            return self.window_left + self.width
+        elif attrn == 'window_top':
+            return self.window_bot + self.height
         elif attrn == 'rx':
             return self.width / 2
         elif attrn == 'ry':
@@ -82,10 +82,10 @@ With db, register in db's pawndict.
         elif attrn == 'visible':
             return (
                 self._visible and
-                self.right > 0 and
-                self.left < self.gw.window.width and
-                self.top > 0 and
-                self.bot < self.gw.window.height)
+                self.window_right > 0 and
+                self.window_left < self.gw.window.width and
+                self.window_top > 0 and
+                self.window_bot < self.gw.window.height)
         else:
             raise AttributeError(
                 "Pawn instance has no such attribute: " +
@@ -169,7 +169,7 @@ portal {1} properly.""".format(repr(self), repr(port)))
             ls = self.thing.location.spot
             return (ls.window_x, ls.window_y)
 
-    def onclick(self, button, modifiers):
+    def onclick(self):
         """For now, pawns toggle their associated calendar columns on being
 clicked. This is probably not the ideal."""
         # strictly a hack. replace with effectdeck as soon as reasonable

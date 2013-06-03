@@ -84,14 +84,14 @@ With db, register in db's menuitemdict.
     def __getattr__(self, attrn):
         if attrn == 'visible':
             return self.menu.visible and self._visible
-        elif attrn == 'left':
-            return self.menu.left + self.menu.style.spacing
-        elif attrn == 'right':
-            return self.menu.right - self.menu.style.spacing
+        elif attrn == 'window_left':
+            return self.menu.window_left + self.menu.style.spacing
+        elif attrn == 'window_right':
+            return self.menu.window_right - self.menu.style.spacing
         elif attrn == 'width':
-            return self.right - self.left
+            return self.window_right - self.window_left
         elif attrn == 'height':
-            return self.top - self.bot
+            return self.window_top - self.window_bot
         elif attrn == 'rx':
             return self.width / 2
         elif attrn == 'ry':
@@ -345,18 +345,18 @@ With db, register with db's menudict.
     def __getattr__(self, attrn):
         if attrn == 'visible':
             return self._visible
-        elif attrn == 'left':
+        elif attrn == 'window_left':
             return int(self.gw.width * self.left_prop)
-        elif attrn == 'bot':
+        elif attrn == 'window_bot':
             return int(self.gw.height * self.bot_prop)
-        elif attrn == 'top':
+        elif attrn == 'window_top':
             return int(self.gw.height * self.top_prop)
-        elif attrn == 'right':
+        elif attrn == 'window_right':
             return int(self.gw.width * self.right_prop)
         elif attrn == 'width':
-            return self.right - self.left
+            return self.window_right - self.window_left
         elif attrn == 'height':
-            return self.top - self.bot
+            return self.window_top - self.window_bot
         elif attrn == 'rx':
             return int(
                 (self.gw.width * self.right_prop -
@@ -409,8 +409,8 @@ calculations. Then do the calculations once."""
         for item in self.items:
             item.top_from_top = i * self.rowheight
             item.bot_from_top = item.top_from_top + self.rowheight
-            item.top = self.top - item.top_from_top
-            item.bot = item.top - self.rowheight
+            item.window_top = self.window_top - item.top_from_top
+            item.window_bot = item.window_top - self.rowheight
             i += 1
 
     def __eq__(self, other):
@@ -456,10 +456,10 @@ calculations. Then do the calculations once."""
 me"""
         return (
             self,
-            self.left,
-            self.bot,
-            self.top,
-            self.right,
+            self.window_left,
+            self.window_bot,
+            self.window_top,
+            self.window_right,
             self.style,
             self.main_for_window,
             self.visible,

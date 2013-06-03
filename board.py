@@ -84,9 +84,9 @@ time.
 
     def __getattr__(self, attrn):
         if attrn == "offset_x":
-            return 0 - self.view_left
+            return -1 * self.view_left
         elif attrn == "offset_y":
-            return 0 - self.view_bot
+            return -1 * self.view_bot
 
     def unravel(self):
         """Grab the Python objects referred to by self.wallpaper and
