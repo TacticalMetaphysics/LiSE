@@ -1,9 +1,12 @@
 import sqlite3
 import board
 import dimension
+import item
 import re
 from collections import OrderedDict
 from style import read_colors
+from spot import Spot
+from pawn import Pawn
 
 
 """The database backend, with dictionaries of loaded objects.
@@ -27,29 +30,30 @@ THING_ALONG_PORTAL_RE = ITEM_RE
 THING_OUT_OF_PORTAL_RE = ITEM_RE
 
 
-class Database:
-    """Container for an SQLite database connection.
+class RumorMill:
+    """This is where you should get all your LiSE objects from, generally.
+
+A RumorMill is a database connector that can load and generate LiSE
+objects. When loaded or generated, the object will be kept in the
+RumorMill, even if nowhere else.
+
+There are some special facilities here for the convenience of
+particular LiSE objects: Things look up their location here; Items
+(including Things) look up their contents here; and Effects look up
+their functions here. That means you need to register functions here
+when you want Effects to be able to trigger them. To do that, put your
+functions in a dictionary keyed with the strings LiSE should use to
+refer to your functions, and pass that dictionary to the RumorMill
+method xfunc(). You may also pass such a dictionary to the
+constructor, just after the name of the database file.
 
 You need to create a SQLite database file with the appropriate schema
-before this will work. For that, run mkdb.py. You may want to insert
-some test data with popdb.py.
-
-The database container has various dictionary attributes. Normally
-these hold objects loaded from the database, and have the same key as
-the main table for that object class. Storing an object there does not
-mean it will be saved. Mark objects to be saved by passing them to the
-remember() method. It's best to do this for objects already saved
-that you want to change, as well.
-
-Call the sync() method to write remembered objects to disk. This
-*should* be done automatically on destruction, but if, eg., the
-program closes just after destruction, the garbage collector might not
-have gotten around to finishing the job.
+before RumorMill will work. For that, run mkdb.py.
 
     """
 
-    def __init__(self, dbfile, xfuncs={}):
-        """Return a database wrapper around the given SQLite database file.
+    def __init__(self, dbfilen, xfuncs={}):
+        """Return a database wrapper around the SQLite database file by the given name.
 
 Optional argument xfuncs is a dictionary of functions, with strings
 for keys. They should take only one argument, also a string. Effects
@@ -57,7 +61,7 @@ will be able to call those functions with arbitrary string
 arguments.
 
         """
-        self.conn = sqlite3.connect(dbfile)
+        self.conn = sqlite3.connect(dbfilen)
         self.cursor = self.conn.cursor()
         self.c = self.cursor
         self.altered = set()
@@ -131,13 +135,9 @@ arguments.
     def __del__(self):
         """Try to write changes to disk before dying.
 
-Python doesn't necessarily finish deleting all objects before
-exiting. You'd probably better call self.sync() on your own before
-then.
-
         """
-        self.sync()
         self.c.close()
+        self.conn.commit()
         self.conn.close()
 
     def insert_rowdicts_table(self, rowdict, clas, tablename):
@@ -236,6 +236,21 @@ list.
         """Load the color by the given name."""
         return self.load_colors((colorname,))
 
+    def gen_place(self, dimension, name, save=True, unravel=True):
+        """Return a new Place object by the given name, in the given
+dimension.
+
+By default, it will be saved to the database immediately, and then
+unraveled.
+
+        """
+        pl = item.Place(self, dimension, name)
+        if save:
+            item.save()
+        if unravel:
+            item.unravel()
+        return pl
+
     def things_in_place(self, place):
         """Return a list of Thing objects that are located in the given Place
 object.
@@ -253,26 +268,79 @@ in the portal between two places.
         thingnames = self.placecontentsdict[dim][pname]
         return [self.itemdict[dim][name] for name in thingnames]
 
+
+    def gen_spot(self, dimension, place, x, y, img="default-spot",
+                 save=True, unravel=True):
+        """Return a Spot at the given coordinates, representing the place by
+the given name in the given dimension.
+
+It will use the image named 'default-spot' by default, and will be
+visible and interactive. Also by default, it will be saved to the
+database and unraveled. If the Place doesn't exist, it will be created with gen_place().
+
+        """
+        if dimension not in self.placedict or name not in self.placedict[dimension]:
+            self.gen_place(dimension, place, save, unravel)
+        sp = Spot(self, dimension, place, img, x, y, visible, interactive)
+        if save:
+            sp.save()
+        if unravel:
+            sp.unravel()
+        return sp
+
     def pawns_on_spot(self, spot):
         """Return a list of pawns on the given spot."""
         return [thing.pawn for thing in
                 spot.place.contents
                 if thing.name in self.pawndict[spot.dimension]]
 
-    def inverse_portal(self, portal):
-        """Return the portal whose origin is the given portal's destination
-and vice-versa.
+    def gen_thing(self, dimension, name, location, save=True, unravel=True):
+        """Return a new Thing in the given location of the given dimension, by
+the given name.
+
+By default, it will be saved and unraveled.
 
         """
-        orign = portal.orig.name
-        destn = portal.dest.name
-        pdod = self.portaldestorigdict[portal.dimension]
-        try:
-            return pdod[orign][destn]
-        except KeyError:
-            return None
+        th = Thing(dimension, name, location)
+        if save:
+            th.save()
+        if unravel:
+            th.unravel()
+        return th
+
+    def gen_pawn(self, dimension, thing, img,
+                 save=True, unravel=True):
+        """Return a new Pawn on the board for the named Dimension representing
+the named Thing with the named Img.
+        
+Raises a KeyError if the underlying Thing hasn't been created. By
+default, the Pawn will be saved and unraveled.
+
+        """
+        pwn = Pawn(self, dimension, thing, img)
+        if save:
+            pawn.save()
+        if unravel:
+            pawn.unravel()
+        return pwn
+
+    def gen_portal(self, dimension, origin, destination,
+                   save=True, unravel=True):
+        """Return a new Portal connecting the given origin and destination in
+the given dimension.
+
+By default, it will be saved and unraveled.
+
+        """
+        port = Portal(self, dimension, origin, destination)
+        if save:
+            port.save()
+        if unravel:
+            port.unravel()
+        return port
 
     def toggle_menu_visibility(self, menuspec, evt=None):
+
         """Given a string consisting of a board name, a dot, and a menu name,
 toggle the visibility of that menu.
 
@@ -477,10 +545,12 @@ destination.
         thing = self.thingdict[dimname][thingname]
         return thing.journey.next()
 
+            
+
 
 def load_game(dbfilen, language):
-    """Load the game in the given SQLite3 database file. Load strings for
-the given language. Return a lise.Database object.
+    """Load the game in the database file by the given name. Load strings
+for the given language. Return a RumorMill object.
 
     """
     db = Database(dbfilen)

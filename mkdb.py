@@ -1,4 +1,4 @@
-import database
+import rumor
 import os
 from item import Item, Thing, Place, Portal, Schedule, Journey
 from character import Character
@@ -48,7 +48,7 @@ try:
 except OSError:
     pass
 
-db = database.Database(DB_NAME)
+db = rumor.RumorMill(DB_NAME)
 
 for clas in tabclasses:
     for tab in clas.schemata:

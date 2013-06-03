@@ -1,6 +1,6 @@
 import pyglet
 from gui import GameWindow
-from database import load_game
+from rumor import load_game
 from state import GameState
 from sys import argv
 from sqlite3 import connect, DatabaseError

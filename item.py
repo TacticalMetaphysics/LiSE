@@ -855,27 +855,14 @@ Return a 2D dictionary keyed by dimension name, then thing name.
     return r
 
 
-def unravel_things(tdb):
-    """Unravel thing objects in a dictionary keyed by names (but not
-dimensions)."""
-    for thing in tdb.itervalues():
-        thing.unravel()
-    return tdb
-
-
-def unravel_things_in_dimensions(tddb):
-    """Unravel thing objects in a 2D dictionary keyed by dimension name,
-then thing name."""
-    for things in tddb.itervalues():
-        unravel_things(things)
-    return tddb
-
-
 def load_things_in_dimensions(db, dimnames):
     """Load all things in the named dimensions. Return a 2D dictionary of
 things keyed by dimension name, then thing name."""
-    return unravel_things_in_dimensions(
-        read_things_in_dimensions(db, dimnames))
+    r = read_things_in_dimensions(db, dimnames)
+    for dim in r.itervalues():
+        for th in dim.itervalues():
+            th.unravel()
+    return r
 
 schedule_dimension_qcols = (
     """scheduled_event.dimension, scheduled_event.item,

@@ -8,12 +8,11 @@ __metaclass__ = SaveableMetaclass
 
 
 class Spot:
-    """Controller for the icon that represents a Place.
+    """The icon that represents a Place.
 
-    Return a Spot representing the given place; at the given x and y
-    coordinates on the screen; in the given graph of Spots. The Spot
-    will be magically connected to the other Spots in the same way
-    that the underlying Places are connected.
+    The Spot is located on the Board that represents the same
+    Dimension that the underlying Place is in. Its coordinates are
+    relative to its Board, not necessarily the window the Board is in.
 
     """
     tables = [
@@ -32,9 +31,9 @@ class Spot:
 
     def __init__(self, db, dimension, place, img, x, y,
                  visible, interactive):
-        """Return a new spot on the given board, representing the given place
-with the given image. It will be at the given coordinates, and visible
-or interactive as indicated.
+        """Return a new spot on the board for the given dimension,
+representing the given place with the given image. It will be at the
+given coordinates, and visible or interactive as indicated.
 
 With db, register the spot with spotdict.
 
@@ -66,9 +65,7 @@ With db, register the spot with spotdict.
         self.db = db
 
     def __getattr__(self, attrn):
-        if attrn == 'interactive':
-            return self._interactive
-        elif attrn == 'width':
+        if attrn == 'width':
             return self.img.getwidth()
         elif attrn == 'height':
             return self.img.getheight()
@@ -101,13 +98,15 @@ With db, register the spot with spotdict.
             return self.top + self.board.offset_y
         elif attrn == 'window_right':
             return self.right + self.board.offset_x
+        elif attrn == 'in_window':
+            return (self.window_right > 0 and
+                    self.window_left < self.gw.window.width and
+                    self.window_top > 0 and
+                    self.window_bot < self.gw.window.height)
         elif attrn == 'visible':
-            return (
-                self._visible and
-                self.window_right > 0 and
-                self.window_left < self.gw.window.width and
-                self.window_top > 0 and
-                self.window_bot < self.gw.window.height)
+            return self._visible and self.in_window
+        elif attrn == 'interactive':
+            return self._interactive and self.in_window
         else:
             raise AttributeError(
                 "Spot instance has no such attribute: " +
