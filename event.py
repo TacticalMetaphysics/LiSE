@@ -1,6 +1,6 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 from effect import (
-    load_effect_decks,
+    read_effect_decks,
     PortalEntryEffectDeck,
     PortalProgressEffectDeck,
     PortalExitEffectDeck)
@@ -340,3 +340,30 @@ the given range."""
     return (get_all_starting_between(db, start, end),
             get_all_ongoing_between(db, start, end),
             get_all_ending_between(db, start, end))
+
+EVENTS_QRYFMT = """SELECT {0} FROM event WHERE name IN ({1})""".format(
+    ", ".join(Event.colns), "{0}")
+
+def read_events(db, names):
+    """Read, instantiate, but don't unravel events by the given names."""
+    qryfmt = EVENTS_QRYFMT
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
+    db.c.execute(qrystr, tuple(names))
+    r = {}
+    effect_decks = set()
+    for row in db.c:
+        rowdict = dictify_row(row, Event.colns)
+        rowdict["db"] = db
+        for deckname in (rowdict["commence_effects"],
+            rowdict["proceed_effects"],
+            rowdict["conclude_effects"]):
+            effect_decks.add(deckname)
+        r[rowdict["name"]] = Event(**rowdict)
+    read_effect_decks(db, effect_decks)
+    return r
+
+def load_events(db, names):
+    r = read_events(db, names)
+    for ev in r.itervalues():
+        ev.unravel()
+    return r

@@ -553,6 +553,6 @@ def load_game(dbfilen, language):
 for the given language. Return a RumorMill object.
 
     """
-    db = Database(dbfilen)
+    db = RumorMill(dbfilen)
     db.load_game(language)
     return db

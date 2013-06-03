@@ -204,20 +204,11 @@ Return a dictionary keyed by name.
     return r
 
 
-def unravel_effects(db, effd):
-    """Unravel the Effect objects output by read_effects."""
-    for eff in effd.itervalues():
-        eff.unravel()
-    return effd
-
-
 def load_effects(db, names):
-    """Load the effects by the given names.
-
-Return a dictionary keyed by name.
-
-    """
-    return unravel_effects(db, read_effects(db, names))
+    r = read_effects(db, names)
+    for effect in r.itervalues():
+        effect.unravel()
+    return r
 
 
 effect_join_colns = [
@@ -245,6 +236,7 @@ therein, but don't unravel anything just yet.
 Return a dictionary of EffectDeck keyed by name.
 
     """
+    names = tuple(names)
     qryfmt = load_deck_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, names)
