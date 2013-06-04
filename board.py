@@ -42,17 +42,18 @@ time.
           "calendar_right": "float not null DEFAULT 1.0",
           "calendar_top": "float not null DEFAULT 1.0",
           "calendar_bot": "float not null DEFAULT 0.0",
+          "calendar_rows_on_screen": "integer not null DEFAULT 240",
           "calendar_scrolled_to": "integer not null DEFAULT 0"},
          ("dimension",),
          {"wallpaper": ("image", "name")},
-         ["calendar_scrolled_to >= 0",
+         ["calendar_rows_on_screen > 0", "calendar_scrolled_to >= 0",
           "view_left >= 0", "view_bot >= 0"])]
 
     def __init__(self, db, dimension, width, height, view_left, view_bot,
                  wallpaper,
                  calendar_left, calendar_right, calendar_top,
                  calendar_bot, calendar_visible, calendar_interactive,
-                 calendar_scrolled_to):
+                 calendar_rows_on_screen, calendar_scrolled_to):
         """Return a board representing the given dimension.
 
         """
@@ -70,6 +71,7 @@ time.
             "top": calendar_top,
             "visible": calendar_visible,
             "interactive": calendar_interactive,
+            "rows_on_screen": calendar_rows_on_screen,
             "scrolled_to": calendar_scrolled_to,
             "db": db}
         self.calendar = Calendar(**caldict)
@@ -159,6 +161,7 @@ dimension's hash.
                 "calendar_right": self.calendar.right_prop,
                 "calendar_top": self.calendar.top_prop,
                 "calendar_bot": self.calendar.bot_prop,
+                "calendar_rows_on_screen": self.calendar.rows_on_screen,
                 "calendar_scrolled_to": self.calendar.scrolled_to}}
 
 read_some_boards_format = (

@@ -1,6 +1,5 @@
 from util import SaveableMetaclass, stringlike, dictify_row
 from pyglet.image import SolidColorImagePattern as color_pattern
-from pyglet.text.document import UnformattedDocument
 from collections import OrderedDict
 
 """User's view on a given item's schedule.
@@ -31,8 +30,8 @@ represents to calculate its dimensions and coordinates.
         self.was_hovered = False
         self.old_width = None
         self.old_height = None
-        self.active_image = None
-        self.inactive_image = None
+        self.old_active_image = None
+        self.old_inactive_image = None
         self.sprite = None
         self.label = None
         self._visible = True
@@ -160,12 +159,11 @@ cells.
         self.cel_style = cel_style
         self.oldstate = None
         self.old_width = None
-        self.image = None
+        self.old_image = None
         self.sprite = None
-        self.document = UnformattedDocument()
-        self.layout = None
         self.celldict = {}
         self.cell_cache = {}
+        self.oldwidth = None
         if stringlike(self.dimension):
             dimname = self.dimension
         else:
@@ -205,13 +203,6 @@ cells.
             return self.cal.col_width
         elif attrn == 'height':
             return self.cal.height
-        elif attrn == 'pyglet_style':
-            return {
-                "font_name": self.style.fontface,
-                "font_size": self.style.fontsize,
-                "color": self.style.fg_inactive.tup,
-                "background_color": None,
-                "wrap": False}
         else:
             raise AttributeError(
                 "CalendarCol instance has no such attribute: " +
@@ -307,7 +298,7 @@ schedule, possibly several.
 
     def __init__(
             self, db, board, left, right, top, bot, visible, interactive,
-            scrolled_to):
+            rows_on_screen, scrolled_to):
         self.board = board
         self.left_prop = left
         self.right_prop = right
@@ -315,7 +306,7 @@ schedule, possibly several.
         self.bot_prop = bot
         self._visible = visible
         self._interactive = interactive
-        self.old_scrolled = scrolled_to
+        self.rows_on_screen = rows_on_screen
         self.scrolled_to = scrolled_to
         self.oldstate = None
         self.sprite = None
@@ -353,10 +344,6 @@ schedule, possibly several.
             return self._visible and len(self.coldict) > 0
         elif attrn == 'interactive':
             return self._interactive
-        elif attrn == 'rows_on_screen':
-            return self.height / self.row_height
-        elif attrn == 'scrolled_pix':
-            return self.scrolled_to * self.row_height
         else:
             raise AttributeError(
                 "Calendar instance has no such attribute: " +
@@ -417,30 +404,11 @@ longer present.
             self.col_width = self.width / len(self.coldict)
         else:
             self.col_width = 0
-        self.row_height = 0
+        self.row_height = self.height / self.rows_on_screen
         i = 0
         for col in self.coldict.itervalues():
             col.idx = i
-            col_row_height = col.style.fontsize + col.style.spacing
-            if col_row_height > self.row_height:
-                self.row_height = col_row_height
             i += 1
-        for col in self.coldict.itervalues():
-            col_end = max(col.item.schedule.events_ending.viewkeys())
-            new_text = ""
-            for j in xrange(0, col_end):
-                if j in col.item.schedule.events_starting:
-                    ev = col.item.schedule.events_starting[j]
-                    new_text += ev.text
-                    if ev.name not in col.celldict:
-                        col.celldict[ev.name] = CalendarCell(col, ev)
-                new_text += "\n"
-            if col.layout is not None:
-                col.layout.begin_update()
-            col.document.text = new_text
-            col.document.set_style(0, len(new_text), col.pyglet_style)
-            if col.layout is not None:
-                col.layout.end_update()
             for ev in iter(col.item.schedule):
                 if ev.name not in col.celldict:
                     col.celldict[ev.name] = CalendarCell(col, ev)
