@@ -195,19 +195,32 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen.add(newstate)
                 self.onscreen.discard(self.calendar.oldstate)
                 self.calendar.oldstate = newstate
-                for calcol in self.calcols:
+                for calcol in self.calendar:
                     if calcol.sprite is not None:
                         try:
                             calcol.sprite.delete()
                         except AttributeError:
                             pass
                     if calcol.visible:
-                        if calcol.width != calcol.old_width:
-                            print "Remaking calcol image"
-                            calcol.old_image = calcol.inactive_pattern.create_image(
-                                calcol.width, calcol.height)
-                            calcol.old_width = calcol.width
-                        image = calcol.old_image
+                        try:
+                            calcol.layout.delete()
+                        except AttributeError:
+                            pass
+                        calcol.layout = pyglet.text.layout.ScrollableTextLayout(
+                            calcol.document,
+                            calcol.width,
+                            calcol.height,
+                            multiline=True,
+                            batch=self.batch,
+                            group=self.labelgroup)
+                        calcol.layout.begin_update()
+                        calcol.layout.x = calcol.window_left
+                        calcol.layout.y = calcol.window_bot
+                        calcol.layout.anchor_y = "top"
+                        calcol.layout.view_y = self.calendar.scrolled_pix
+                        calcol.layout.end_update()
+                        image = calcol.inactive_pattern.create_image(
+                            calcol.width, calcol.height)
                         calcol.sprite = pyglet.sprite.Sprite(
                             image,
                             calcol.window_left,
@@ -227,46 +240,17 @@ board; all visible menus; and the calendar, if it's visible."""
                                 pass
                         if cel.visible:
                             if self.hovered == cel:
-                                color = cel.style.fg_active.tup
-                                if (
-                                        cel.old_active_image is None or
-                                        cel.old_width != cel.width or
-                                        cel.old_height != cel.height):
-                                    print "Remaking calcel image"
-                                    cel.old_active_image = cel.active_pattern.create_image(
-                                        cel.width, cel.height).texture
-                                    cel.old_width = cel.width
-                                    cel.old_height = cel.height
-                                image = cel.old_active_image
+                                image = cel.active_pattern.create_image(
+                                    cel.width, cel.height)
                             else:
-                                color = cel.style.fg_inactive.tup
-                                if (
-                                        cel.old_inactive_image is None or
-                                        cel.old_width != cel.width or
-                                        cel.old_height != cel.height):
-                                    cel.old_inactive_image = cel.inactive_pattern.create_image(
-                                        cel.width, cel.height).texture
-                                    cel.old_width = cel.width
-                                    cel.old_height = cel.height
-                                image = cel.old_inactive_image
+                                image = cel.inactive_pattern.create_image(
+                                    cel.width, cel.height)
                             cel.sprite = pyglet.sprite.Sprite(
                                 image,
                                 cel.window_left,
                                 cel.window_bot,
                                 batch=self.batch,
                                 group=self.cellgroup)
-                            y = cel.window_top - cel.label_height
-                            cel.label = pyglet.text.Label(
-                                cel.text,
-                                cel.style.fontface,
-                                cel.style.fontsize,
-                                width=cel.width,
-                                height=cel.height,
-                                x=cel.window_left,
-                                y=y,
-                                multiline=True,
-                                batch=self.batch,
-                                group=self.labelgroup)
             if self.last_age != self.gamestate.age:
                 # draw the time line on top of the calendar
                 if (

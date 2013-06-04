@@ -721,16 +721,12 @@ processions_between, and conclusions_between."""
 length already."""
         self.events[ev.name] = ev
         ev_end = ev.start + ev.length
-        if ev.start not in self.events_starting:
-            self.events_starting[ev.start] = set()
-        if ev_end not in self.events_ending:
-            self.events_ending[ev_end] = set()
         for i in xrange(ev.start+1, ev_end-1):
             if i not in self.events_ongoing:
                 self.events_ongoing[i] = set()
             self.events_ongoing[i].add(ev)
-        self.events_starting[ev.start].add(ev)
-        self.events_ending[ev_end].add(ev)
+        self.events_starting[ev.start] = ev
+        self.events_ending[ev_end] = ev
         self.trash_cache(ev.start)
         if self.db is not None:
             self.db.add_event(ev)
