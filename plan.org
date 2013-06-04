@@ -168,3 +168,9 @@
 *** Spots are also contained in SpotGraphs
 *** How do I store those all in the database?
 *** Do I even need SpotGraphs? What are they for?
+* interface
+** place places (w. spots)
+** place things (w. pawns)
+** edit places, things, and portals
+** the hand
+** cards

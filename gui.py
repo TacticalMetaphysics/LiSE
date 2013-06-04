@@ -203,12 +203,11 @@ board; all visible menus; and the calendar, if it's visible."""
                             pass
                     if calcol.visible:
                         if calcol.width != calcol.old_width:
-                            calcol.old_width = calcol.width
-                            image = calcol.inactive_pattern.create_image(
+                            print "Remaking calcol image"
+                            calcol.old_image = calcol.inactive_pattern.create_image(
                                 calcol.width, calcol.height)
-                            calcol.old_image = image
-                        else:
-                            image = calcol.old_image
+                            calcol.old_width = calcol.width
+                        image = calcol.old_image
                         calcol.sprite = pyglet.sprite.Sprite(
                             image,
                             calcol.window_left,
@@ -233,8 +232,11 @@ board; all visible menus; and the calendar, if it's visible."""
                                         cel.old_active_image is None or
                                         cel.old_width != cel.width or
                                         cel.old_height != cel.height):
+                                    print "Remaking calcel image"
                                     cel.old_active_image = cel.active_pattern.create_image(
                                         cel.width, cel.height).texture
+                                    cel.old_width = cel.width
+                                    cel.old_height = cel.height
                                 image = cel.old_active_image
                             else:
                                 color = cel.style.fg_inactive.tup
@@ -244,6 +246,8 @@ board; all visible menus; and the calendar, if it's visible."""
                                         cel.old_height != cel.height):
                                     cel.old_inactive_image = cel.inactive_pattern.create_image(
                                         cel.width, cel.height).texture
+                                    cel.old_width = cel.width
+                                    cel.old_height = cel.height
                                 image = cel.old_inactive_image
                             cel.sprite = pyglet.sprite.Sprite(
                                 image,
@@ -263,8 +267,6 @@ board; all visible menus; and the calendar, if it's visible."""
                                 multiline=True,
                                 batch=self.batch,
                                 group=self.labelgroup)
-                            cel.old_width = cel.width
-                            cel.old_height = cel.height
             if self.last_age != self.gamestate.age:
                 # draw the time line on top of the calendar
                 if (
