@@ -58,6 +58,9 @@ class GameWindow:
                 self.calcols.append(pawn.calcol)
 
         self.calendar = self.board.calendar
+        self.caltex = None
+        self.calcolhsh = None
+        self.last_scrolled_to = None
         self.drawn_board = None
         self.drawn_edges = None
         self.timeline = None
@@ -195,59 +198,77 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen.add(newstate)
                 self.onscreen.discard(self.calendar.oldstate)
                 self.calendar.oldstate = newstate
-                for calcol in self.calcols:
-                    if calcol.sprite is not None:
+                colhash = self.calendar.colhash()
+                if colhash != self.calcolhsh:
+                    # Columns have been rearranged somehow, which
+                    # means I have to make a new texture for the
+                    # calendar. First calculate its height, including
+                    # the bits not onscreen at the moment.
+                    self.calcolhsh = colhash
+                    last_event_end = 0
+                    for col in self.calendar.coldict.itervalues():
+                        last_event_end_in_col = max(col.item.schedule.events_ending.viewkeys())
+                        if last_event_end_in_col > last_event_end:
+                            last_event_end = last_event_end_in_col
+                    calendar_height = self.calendar.row_height * last_event_end
+                    self.calendar.buf = pyglet.image.Texture.create(
+                        self.calendar.width,
+                        calendar_height)
+                    for col in self.calendar.coldict.itervalues():
+                        # double size cos it needs to be power of 2
+                        image = col.inactive_pattern.create_image(
+                            col.width * 2, calendar_height * 2)
+                        y = col.idx * self.calendar.col_width
+                        self.calendar.buf.blit_into(
+                            image,
+                            0,
+                            y,
+                            0)
+                        for cel in col:
+                            if not cel._visible:
+                                continue
+                            pat = cel.active_pattern
+                            color = cel.style.fg_active.tup
+                            image = pat.create_image(cel.width, cel.height)
+                            left = y + cel.style.spacing
+                            bot = calendar_height - cel.start * self.calendar.row_height
+                            self.calendar.buf.blit_into(image, left, bot, 0)
+                if self.calendar.scrolled_to != self.last_scrolled_to:
+                    self.last_scrolled_to = self.calendar.scrolled_to
+                    if self.calendar.sprite is not None:
                         try:
-                            calcol.sprite.delete()
+                            calendar.sprite.delete()
                         except AttributeError:
                             pass
-                    if calcol.visible:
-                        image = calcol.inactive_pattern.create_image(
-                            calcol.width, calcol.height)
-                        calcol.sprite = pyglet.sprite.Sprite(
-                            image,
-                            calcol.window_left,
-                            calcol.window_bot,
-                            batch=self.batch,
-                            group=self.calendargroup)
-                    for cel in calcol.celldict.itervalues():
-                        if cel.sprite is not None:
-                            try:
-                                cel.sprite.delete()
-                            except AttributeError:
-                                pass
-                        if cel.label is not None:
-                            try:
-                                cel.label.delete()
-                            except AttributeError:
-                                pass
-                        if cel.visible:
-                            if self.hovered == cel:
-                                pat = cel.active_pattern
-                                color = cel.style.fg_active.tup
-                            else:
-                                pat = cel.inactive_pattern
-                                color = cel.style.fg_inactive.tup
-                            image = pat.create_image(
-                                cel.width, cel.height)
-                            cel.sprite = pyglet.sprite.Sprite(
-                                image,
-                                cel.window_left,
-                                cel.window_bot,
-                                batch=self.batch,
-                                group=self.cellgroup)
-                            y = cel.window_top - cel.label_height
-                            cel.label = pyglet.text.Label(
-                                cel.text,
-                                cel.style.fontface,
-                                cel.style.fontsize,
-                                width=cel.width,
-                                height=cel.height,
-                                x=cel.window_left,
-                                y=y,
-                                multiline=True,
-                                batch=self.batch,
-                                group=self.labelgroup)
+                    off_the_top = self.calendar.scrolled_to * self.calendar.row_height
+                    from_the_bot = (
+                        calendar_height - off_the_top -
+                        self.calendar.rows_on_screen * self.calendar.row_height)
+                    cal_img = self.calendar.buf.get_region(
+                        0,
+                        from_the_bot,
+                        self.calendar.width,
+                        self.calendar.height)
+                    self.calendar.sprite = pyglet.sprite.Sprite(
+                        cal_img,
+                        self.calendar.window_left,
+                        self.calendar.window_bot,
+                        batch=self.batch,
+                        group=self.calendargroup)
+            for col in self.calendar:
+                for cel in col:
+                    cel.label = pyglet.text.Label(
+                        cel.text,
+                        cel.style.fontface,
+                        cel.style.fontsize,
+                        color=cel.style.fg_inactive.tup,
+                        x=cel.window_left,
+                        y=cel.window_bot,
+                        width=cel.width,
+                        height=cel.height,
+                        multiline=True,
+                        batch=self.batch,
+                        group=self.labelgroup)
             if self.last_age != self.gamestate.age:
                 # draw the time line on top of the calendar
                 if (

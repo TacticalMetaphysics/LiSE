@@ -301,6 +301,7 @@ schedule, possibly several.
         self.rows_on_screen = rows_on_screen
         self.scrolled_to = scrolled_to
         self.oldstate = None
+        self.sprite = None
         self.tweaks = 0
         if stringlike(self.board):
             boardname = self.board
@@ -380,10 +381,9 @@ self.coldict being itself unraveled.
         db = self.db
         if stringlike(self.board):
             self.board = db.boarddict[self.board]
-        if self.board.dimension.name in db.calcoldict:
-            self.coldict = db.calcoldict[self.board.dimension.name]
-        else:
-            self.coldict = OrderedDict()
+        if self.board.dimension.name not in db.calcoldict:
+            db.calcoldict[self.board.dimension.name] = OrderedDict()
+        self.coldict = db.calcoldict[self.board.dimension.name]
         for column in self.coldict.itervalues():
             column.unravel()
 
@@ -490,7 +490,6 @@ columns."""
     def pop(self, colname):
         """Return and remove the CalendarCol by the given name."""
         r = self.coldict.pop(colname)
-        self.adjust()
         return r
 
     def toggle_visibility(self):
