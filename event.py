@@ -189,7 +189,7 @@ class PortalTravelEvent(Event):
     """Event representing a thing's travel through a single portal, from
 one place to another."""
     name_format = "PortalTravelEvent {0}: {1}: {2}-{3}->{4}"
-    text_format = "Travel\nfrom {0}\nto {1}"
+    text_format = "Travel from {0} to {1}"
 
     def __init__(self, db, thing, portal, ongoing):
         dimname = thing.dimension.name
