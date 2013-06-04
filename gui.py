@@ -202,8 +202,13 @@ board; all visible menus; and the calendar, if it's visible."""
                         except AttributeError:
                             pass
                     if calcol.visible:
-                        image = calcol.inactive_pattern.create_image(
-                            calcol.width, calcol.height)
+                        if calcol.width != calcol.old_width:
+                            calcol.old_width = calcol.width
+                            image = calcol.inactive_pattern.create_image(
+                                calcol.width, calcol.height)
+                            calcol.old_image = image
+                        else:
+                            image = calcol.old_image
                         calcol.sprite = pyglet.sprite.Sprite(
                             image,
                             calcol.window_left,
@@ -223,13 +228,27 @@ board; all visible menus; and the calendar, if it's visible."""
                                 pass
                         if cel.visible:
                             if self.hovered == cel:
-                                pat = cel.active_pattern
                                 color = cel.style.fg_active.tup
+                                if (
+                                        cel.old_active_image is not None and
+                                        cel.old_width == cel.width and
+                                        cel.old_height == cel.height):
+                                    image = cel.old_active_image
+                                else:
+                                    image = cel.active_pattern.create_image(
+                                        cel.width, cel.height)
+                                    cel.old_active_image = image
                             else:
-                                pat = cel.inactive_pattern
                                 color = cel.style.fg_inactive.tup
-                            image = pat.create_image(
-                                cel.width, cel.height)
+                                if (
+                                        cel.old_inactive_image is not None and
+                                        cel.old_width == cel.width and
+                                        cel.old_height == cel.height):
+                                    image = cel.old_inactive_image
+                                else:
+                                    image = cel.inactive_pattern.create_image(
+                                        cel.width, cel.height)
+                                    cel.old_inactive_image = image
                             cel.sprite = pyglet.sprite.Sprite(
                                 image,
                                 cel.window_left,

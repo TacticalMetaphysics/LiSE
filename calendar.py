@@ -27,6 +27,11 @@ represents to calculate its dimensions and coordinates.
         else:
             self.text = self.event.text
         self.oldstate = None
+        self.was_hovered = False
+        self.old_width = None
+        self.old_height = None
+        self.old_active_image = None
+        self.old_inactive_image = None
         self.sprite = None
         self.label = None
         self._visible = True
@@ -82,8 +87,8 @@ represents to calculate its dimensions and coordinates.
             return self.window_right - self.window_left
         elif attrn == 'height':
             return self.window_top - self.window_bot
-        elif attrn == 'label_bot':
-            return self.window_top - self.style.fontsize - self.style.spacing
+        elif attrn == 'label_height':
+            return self.style.fontsize + self.style.spacing
         elif attrn == 'visible':
             return (
                 self._visible and
@@ -153,9 +158,12 @@ cells.
         self.style = style
         self.cel_style = cel_style
         self.oldstate = None
+        self.old_width = None
+        self.old_image = None
         self.sprite = None
         self.celldict = {}
         self.cell_cache = {}
+        self.oldwidth = None
         if stringlike(self.dimension):
             dimname = self.dimension
         else:
