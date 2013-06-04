@@ -18,7 +18,7 @@ class GameWindow:
             raise AttributeError(
                 "GameWindow has no attribute named {0}".format(attrn))
 
-    def __init__(self, gamestate, boardname, batch=None):
+    def __init__(self, gamestate, boardname):
         self.db = gamestate.db
         self.gamestate = gamestate
 
@@ -45,11 +45,9 @@ class GameWindow:
         self.prev_view_bot = 0
 
         window = pyglet.window.Window()
-        if batch is None:
-            batch = pyglet.graphics.Batch()
 
         self.window = window
-        self.batch = batch
+        self.batch = pyglet.graphics.Batch()
 
         self.board = self.db.boarddict[boardname]
         self.board.set_gw(self)
@@ -137,7 +135,10 @@ board; all visible menus; and the calendar, if it's visible."""
                         pass
                 if pawn.visible:
                     pawn.sprite = pyglet.sprite.Sprite(
-                        pawn.img, pawn.window_left, pawn.window_bot, batch=self.batch,
+                        pawn.img,
+                        pawn.window_left,
+                        pawn.window_bot,
+                        batch=self.batch,
                         group=self.pawngroup)
             # draw the menus, really just their backgrounds for the moment
             for menu in self.board.menudict.itervalues():
@@ -204,8 +205,11 @@ board; all visible menus; and the calendar, if it's visible."""
                         image = calcol.inactive_pattern.create_image(
                             calcol.width, calcol.height)
                         calcol.sprite = pyglet.sprite.Sprite(
-                            image, calcol.window_left, calcol.window_bot,
-                            batch=self.batch, group=self.calendargroup)
+                            image,
+                            calcol.window_left,
+                            calcol.window_bot,
+                            batch=self.batch,
+                            group=self.calendargroup)
                     for cel in calcol.celldict.itervalues():
                         if cel.sprite is not None:
                             try:
@@ -227,14 +231,23 @@ board; all visible menus; and the calendar, if it's visible."""
                             image = pat.create_image(
                                 cel.width, cel.height)
                             cel.sprite = pyglet.sprite.Sprite(
-                                image, cel.window_left, cel.window_bot,
-                                batch=self.batch, group=self.cellgroup)
+                                image,
+                                cel.window_left,
+                                cel.window_bot,
+                                batch=self.batch,
+                                group=self.cellgroup)
+                            y = cel.window_top - cel.label_height
                             cel.label = pyglet.text.Label(
-                                cel.text, cel.style.fontface,
-                                cel.style.fontsize, color=color,
+                                cel.text,
+                                cel.style.fontface,
+                                cel.style.fontsize,
+                                width=cel.width,
+                                height=cel.height,
                                 x=cel.window_left,
-                                y=cel.label_bot,
-                                batch=self.batch, group=self.labelgroup)
+                                y=y,
+                                multiline=True,
+                                batch=self.batch,
+                                group=self.labelgroup)
             if self.last_age != self.gamestate.age:
                 # draw the time line on top of the calendar
                 if (
@@ -248,8 +261,9 @@ board; all visible menus; and the calendar, if it's visible."""
                 left = self.calendar.window_left
                 right = self.calendar.window_right
                 rowheight = self.calendar.row_height
+                rows = self.calendar.scrolled_to
                 age = self.gamestate.age
-                y = top - rowheight * age
+                y = top - rowheight * (age - rows)
                 color = (255, 0, 0)
                 if (
                         self.calendar.visible and

@@ -82,8 +82,8 @@ represents to calculate its dimensions and coordinates.
             return self.window_right - self.window_left
         elif attrn == 'height':
             return self.window_top - self.window_bot
-        elif attrn == 'label_bot':
-            return self.window_top - self.style.fontsize - self.style.spacing
+        elif attrn == 'label_height':
+            return self.style.fontsize + self.style.spacing
         elif attrn == 'visible':
             return (
                 self._visible and
