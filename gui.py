@@ -230,25 +230,21 @@ board; all visible menus; and the calendar, if it's visible."""
                             if self.hovered == cel:
                                 color = cel.style.fg_active.tup
                                 if (
-                                        cel.old_active_image is not None and
-                                        cel.old_width == cel.width and
-                                        cel.old_height == cel.height):
-                                    image = cel.old_active_image
-                                else:
-                                    image = cel.active_pattern.create_image(
-                                        cel.width, cel.height)
-                                    cel.old_active_image = image
+                                        cel.old_active_image is None or
+                                        cel.old_width != cel.width or
+                                        cel.old_height != cel.height):
+                                    cel.old_active_image = cel.active_pattern.create_image(
+                                        cel.width, cel.height).texture
+                                image = cel.old_active_image
                             else:
                                 color = cel.style.fg_inactive.tup
                                 if (
-                                        cel.old_inactive_image is not None and
-                                        cel.old_width == cel.width and
-                                        cel.old_height == cel.height):
-                                    image = cel.old_inactive_image
-                                else:
-                                    image = cel.inactive_pattern.create_image(
-                                        cel.width, cel.height)
-                                    cel.old_inactive_image = image
+                                        cel.old_inactive_image is None or
+                                        cel.old_width != cel.width or
+                                        cel.old_height != cel.height):
+                                    cel.old_inactive_image = cel.inactive_pattern.create_image(
+                                        cel.width, cel.height).texture
+                                image = cel.old_inactive_image
                             cel.sprite = pyglet.sprite.Sprite(
                                 image,
                                 cel.window_left,
@@ -267,6 +263,8 @@ board; all visible menus; and the calendar, if it's visible."""
                                 multiline=True,
                                 batch=self.batch,
                                 group=self.labelgroup)
+                            cel.old_width = cel.width
+                            cel.old_height = cel.height
             if self.last_age != self.gamestate.age:
                 # draw the time line on top of the calendar
                 if (
