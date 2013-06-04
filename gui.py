@@ -220,11 +220,6 @@ board; all visible menus; and the calendar, if it's visible."""
                                 cel.sprite.delete()
                             except AttributeError:
                                 pass
-                        if cel.label is not None:
-                            try:
-                                cel.label.delete()
-                            except AttributeError:
-                                pass
                         if cel.visible:
                             if self.hovered == cel:
                                 color = cel.style.fg_active.tup
@@ -256,17 +251,21 @@ board; all visible menus; and the calendar, if it's visible."""
                                 batch=self.batch,
                                 group=self.cellgroup)
                             y = cel.window_top - cel.label_height
-                            cel.label = pyglet.text.Label(
-                                cel.text,
-                                cel.style.fontface,
-                                cel.style.fontsize,
-                                width=cel.width,
-                                height=cel.height,
-                                x=cel.window_left,
-                                y=y,
-                                multiline=True,
-                                batch=self.batch,
-                                group=self.labelgroup)
+                            if cel.label is None:
+                                cel.label = pyglet.text.Label(
+                                    cel.text,
+                                    cel.style.fontface,
+                                    cel.style.fontsize,
+                                    width=cel.width,
+                                    height=cel.height,
+                                    x=cel.window_left,
+                                    y=y,
+                                    multiline=True,
+                                    batch=self.batch,
+                                    group=self.labelgroup)
+                            else:
+                                cel.label.x = cel.window_left
+                                cel.label.y = y
             if self.last_age != self.gamestate.age:
                 # draw the time line on top of the calendar
                 if (
