@@ -71,12 +71,15 @@ class GameWindow:
             """Draw the background image; all spots, pawns, and edges on the
 board; all visible menus; and the calendar, if it's visible."""
             # draw the background image
-            s = pyglet.sprite.Sprite(
-                self.board.wallpaper,
-                self.board.offset_x,
-                self.board.offset_y,
-                batch=self.batch, group=self.boardgroup)
-            self.drawn_board = s
+            if self.drawn_board is None:
+                self.drawn_board = pyglet.sprite.Sprite(
+                    self.board.wallpaper.tex,
+                    self.board.offset_x,
+                    self.board.offset_y,
+                    batch=self.batch, group=self.boardgroup)
+            else:
+                self.drawn_board.x = self.board.offset_x
+                self.drawn_board.y = self.board.offset_y
             # draw the edges, representing portals
             e = []
             for dests in self.board.dimension.portalorigdestdict.itervalues():
@@ -108,18 +111,23 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen.discard(spot.oldstate)
                 self.onscreen.add(newstate)
                 spot.oldstate = newstate
-                if spot.sprite is not None:
-                    try:
-                        spot.sprite.delete()
-                    except AttributeError:
-                        pass
                 if spot.visible:
-                    spot.sprite = pyglet.sprite.Sprite(
-                        spot.img,
-                        spot.window_left,
-                        spot.window_bot,
-                        batch=self.batch,
-                        group=self.spotgroup)
+                    try:
+                        spot.sprite.x = spot.window_left
+                        spot.sprite.y = spot.window_bot
+                    except AttributeError:
+                        spot.sprite = pyglet.sprite.Sprite(
+                            spot.img.tex,
+                            spot.window_left,
+                            spot.window_bot,
+                            batch=self.batch,
+                            group=self.spotgroup)
+                else:
+                    if spot.sprite is not None:
+                        try:
+                            spot.sprite.delete()
+                        except AttributeError:
+                            pass
             # draw the pawns, representing things
             for pawn in self.board.pawndict.itervalues():
                 newstate = pawn.get_state_tup()
@@ -128,18 +136,24 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen.discard(pawn.oldstate)
                 self.onscreen.add(newstate)
                 pawn.oldstate = newstate
-                if pawn.sprite is not None:
-                    try:
-                        pawn.sprite.delete()
-                    except AttributeError:
-                        pass
                 if pawn.visible:
-                    pawn.sprite = pyglet.sprite.Sprite(
-                        pawn.img,
-                        pawn.window_left,
-                        pawn.window_bot,
-                        batch=self.batch,
-                        group=self.pawngroup)
+                    try:
+                        pawn.sprite.x = pawn.window_left
+                        pawn.sprite.y = pawn.window_bot
+                    except AttributeError:
+                        pawn.sprite = pyglet.sprite.Sprite(
+                            pawn.img.tex,
+                            pawn.window_left,
+                            pawn.window_bot,
+                            batch=self.batch,
+                            group=self.pawngroup)
+                else:
+                    if pawn.sprite is not None:
+                        try:
+                            pawn.sprite.delete()
+                        except AttributeError:
+                            pass
+
             # draw the menus, really just their backgrounds for the moment
             for menu in self.board.menudict.itervalues():
                 for menu_item in menu:

@@ -76,6 +76,7 @@ arguments.
         self.endevdict = {}
         self.itemdict = {}
         self.placedict = {}
+        self.hi_place = 0
         self.thingdict = {}
         self.spotdict = {}
         self.imgdict = {}
@@ -129,7 +130,13 @@ arguments.
             'editor_paste': noop,
             'editor_delete': noop,
             'new_place': noop,
-            'new_thing': noop}
+            'new_thing': noop,
+            'create_place':
+            self.create_place,
+            'create_generic_place':
+            self.create_generic_place,
+            'create_spot':
+            self.create_spot}
         self.func.update(xfuncs)
 
     def __del__(self):
@@ -195,13 +202,6 @@ the function.
             self.func[func.__name__] = func
         else:
             self.func[name] = func
-
-    def call_func(self, fname, farg):
-        """Look up a function by its name in self.func, then call it with
-argument farg.
-
-Returns whatever that function does."""
-        return self.func[fname](farg)
 
     def load_dimensions(self, dimname):
         """Load all dimensions with names in the given list.
@@ -545,7 +545,32 @@ destination.
         thing = self.thingdict[dimname][thingname]
         return thing.journey.next()
 
-            
+    def create_place(self, arg, evt):
+        """Take a dotstring like dimension.place, and create that place.
+
+This includes unraveling the place after creation but before return."""
+        rex = ITEM_RE
+        (dimname, placename) = re.match(rex, arg).groups()
+        place = Place(self, dimname, placename)
+        place.unravel()
+        return place
+
+    def create_generic_place(self, arg, evt):
+        """Take the name of a dimension and return a place in it with a boring name."""
+        placename = "Place_{0}".format(self.hi_place + 1)
+        place = Place(self, arg, placename)
+        place.unravel()
+        return place
+
+    def create_spot(self, arg, evt):
+        """Create a spot with the default sprite representing some extant place.
+
+The place is specified like dimension.placename"""
+        rex = ITEM_RE
+        (dimname, placename) = re.match(rex, arg).groups()
+        spot = Spot(self, dimname, placename)
+        spot.unravel()
+        return spot
 
 
 def load_game(dbfilen, language):

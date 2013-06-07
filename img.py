@@ -40,6 +40,17 @@ provided."""
     def __str__(self):
         return self.name
 
+    def __getattr__(self, attrn):
+        if attrn == 'width':
+            return self.tex.width
+        elif attrn == 'height':
+            return self.tex.height
+        elif attrn == 'center':
+            return (self.tex.width/2, self.tex.height/2)
+        else:
+            raise AttributeError(
+                "Img instance has no attribute {0}.".format(attrn))
+
     def get_tabdict(self):
         return {
             "img": {
@@ -63,17 +74,7 @@ transparent.
                 self.tex = load_regular_img(db, self.name, self.path)
 
     def get_texture(self):
-        """Return the Pyglet texture object."""
         return self.tex
-
-    def getwidth(self):
-        """Return the underlying texture's width."""
-        return self.tex.width
-
-    def getheight(self):
-        """Return the underlying texture's height."""
-        return self.tex.height
-
 
 def load_rltile(db, name, path):
     """Load a Windows bitmap, and replace ffGll -> 00Gll and ff. -> 00."""

@@ -63,9 +63,9 @@ With db, register in db's pawndict.
         elif attrn == 'window_bot':
             return self.getcoords()[1]
         elif attrn == 'width':
-            return self.img.getwidth()
+            return self.img.width
         elif attrn == 'height':
-            return self.img.getheight()
+            return self.img.height
         elif attrn == 'window_right':
             return self.window_left + self.width
         elif attrn == 'window_top':

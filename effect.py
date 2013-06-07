@@ -1,4 +1,5 @@
 from util import SaveableMetaclass, dictify_row, stringlike
+from pyglet.window import ImageMouseCursor
 
 
 class Effect:
@@ -43,12 +44,59 @@ called with the given argument. Register in db.effectdict."""
     def unravel(self):
         """If the function was supplied as a string, look up what it refers
 to."""
-        if stringlike(self.func):
+        if hasattr(self, 'func') and stringlike(self.func):
             self.func = self.db.func[self.func]
 
     def do(self, event):
         """Call the function with the argument."""
         return self.func(self.arg, event)
+
+
+class SetMouseCursorEffect(Effect):
+    """Effect to change the mouse cursor in a game window to an image."""
+    def __init__(self, db, gw, imgn):
+        img = db.imgdict[imgn]
+        (hotx, hoty) = img.center
+        self.curs = ImageMouseCursor(img.tex, hot_x=hotx, hot_y=hoty)
+        self.window = gw.window
+
+    def do(self, event):
+        self.window.set_mouse_cursor(self.curs)
+
+
+class UnsetMouseCursorEffect(Effect):
+    """Effect to return the mouse cursor to normal."""
+    def __init__(self, gw):
+        self.window = gw.window
+
+    def do(self, event):
+        self.window.set_mouse_cursor(
+            self.window.get_system_mouse_cursor(
+                self.window.CURSOR_DEFAULT))
+
+
+class CreatePlaceEffect(Effect):
+    """Effect to make a place with the given dimension and name."""
+    func = 'create_place'
+    def __init__(self, db, dimension, name):
+        self.arg = '{0}.{1}'.format(dimension, name)
+        Effect.__init__(self)
+
+
+class CreateGenericPlaceEffect(Effect):
+    """Effect to make a place in a dimension with no particular name."""
+    func = 'create_generic_place'
+    def __init__(self, db, dimension):
+        self.arg = str(dimension)
+        Effect.__init__(self)
+
+
+class CreateSpotEffect(Effect):
+    """Effect to make a spot representing a place that already exists."""
+    func = 'create_spot'
+    def __init__(self, db, dimension, placename):
+        self.arg = "{0}.{1}".format(dimension, placename)
+        Effect.__init__(self)
 
 
 class PortalEntryEffect(Effect):

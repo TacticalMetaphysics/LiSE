@@ -967,6 +967,9 @@ place_dimension_qryfmt = (
         ", ".join(Place.colns), "{0}"))
 
 
+generic_place_re = re.compile("Place_([0-9])+")
+
+
 def read_places_in_dimensions(db, dimnames):
     """Read and instantiate, but do not unravel, all places in the given
 dimensions.
@@ -983,6 +986,11 @@ Return them in a 2D dict keyed by dimension name, then place name.
     for row in db.c:
         rowdict = dictify_row(row, Place.colnames["place"])
         rowdict["db"] = db
+        m = re.match(generic_place_re, rowdict["name"])
+        if m is not None:
+            num = int(m.groups()[0])
+            if num > db.hi_place:
+                db.hi_place = num
         r[rowdict["dimension"]][rowdict["name"]] = Place(**rowdict)
     return r
 

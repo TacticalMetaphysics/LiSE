@@ -66,9 +66,9 @@ With db, register the spot with spotdict.
 
     def __getattr__(self, attrn):
         if attrn == 'width':
-            return self.img.getwidth()
+            return self.img.width
         elif attrn == 'height':
-            return self.img.getheight()
+            return self.img.height
         elif attrn == 'rx':
             return self.width / 2
         elif attrn == 'ry':
@@ -79,13 +79,13 @@ With db, register the spot with spotdict.
             else:
                 return self.ry
         elif attrn == 'left':
-            return self.y - self.ry
-        elif attrn == 'bot':
             return self.x - self.rx
+        elif attrn == 'bot':
+            return self.y - self.ry
         elif attrn == 'top':
-            return self.x + self.rx
-        elif attrn == 'right':
             return self.y + self.ry
+        elif attrn == 'right':
+            return self.x + self.rx
         elif attrn == 'window_x':
             return self.x + self.board.offset_x
         elif attrn == 'window_y':
@@ -134,17 +134,10 @@ graphics calculations."""
         if stringlike(self.img):
             self.img = db.imgdict[self.img]
         self.place.spot = self
-        self.rx = self.img.getwidth() / 2
-        self.ry = self.img.getheight() / 2
-        self.left = self.x - self.rx
-        self.right = self.x + self.rx
-        self.top = self.y + self.ry
-        self.bot = self.y - self.ry
-        self.place.spot = self
 
     def gettup(self):
         """Return my image, left, and bottom"""
-        return (self.img, self.getleft(), self.getbot())
+        return (self.img, self.left, self.bot)
 
     def onclick(self):
         """Does nothing yet"""
