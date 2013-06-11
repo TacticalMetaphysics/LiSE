@@ -171,6 +171,23 @@
 * interface
 ** place places (w. spots)
 ** place things (w. pawns)
-** edit places, things, and portals
+** properties windows
+*** Link items to characters and vice versa.
+*** Little nested list demonstrating containment hierarchy.
+*** Implicit definition of character attributes.
+    Set an att to a value and that value gets permitted.
+
+    In the case of numerical values, there's interpolation. It would
+    be weird to permit values 0 and 2 but not 1, so assume.
+
+    There'll be an explicit definition window anyway, and using that
+    but once overrides the implicit definition forever.
+
+    This feature isn't very Pythonic. Is that bad? Should this thing
+    be Pythonic?
 ** the hand
-** cards
+*** arrange cards manually or automatically
+*** push cards aside to provide a drop zone
+*** cards
+**** with image
+**** without

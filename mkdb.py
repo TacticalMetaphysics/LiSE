@@ -13,33 +13,12 @@ from pawn import Pawn
 from board import Board
 from sqlite3 import OperationalError
 from rltileins import ins_rltiles
+from util import schemata
 
 
 """Make an empty database of LiSE's schema. It will be called
 empty.sqlite. popdb.py will make a copy of that and put data in."""
 
-
-tabclasses = [
-    Schedule,
-    Character,
-    Item,
-    Thing,
-    Place,
-    Portal,
-    Journey,
-    Effect,
-    EffectDeck,
-    Event,
-    EventDeck,
-    Img,
-    Color,
-    Style,
-    Menu,
-    MenuItem,
-    CalendarCol,
-    Spot,
-    Pawn,
-    Board]
 
 DB_NAME = 'default.sqlite'
 
@@ -50,12 +29,12 @@ except OSError:
 
 db = rumor.RumorMill(DB_NAME)
 
-for clas in tabclasses:
-    for tab in clas.schemata:
-        try:
-            db.c.execute(tab)
-        except OperationalError as oe:
-            raise Exception(repr(oe) + "\n" + tab)
+for schema in iter(schemata):
+    try:
+        db.c.execute(schema)
+    except OperationalError as oe:
+        raise OperationalError(
+            str(oe) + " while trying to execute: \n" + schema)
 
 game_decl = """CREATE TABLE game
  (front_board TEXT DEFAULT 'Physical', age INTEGER DEFAULT 0,

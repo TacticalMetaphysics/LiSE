@@ -51,21 +51,21 @@ With db, register the spot with spotdict.
         self.newstate = None
         self.hovered = False
         self.tweaks = 0
-        if stringlike(self.dimension):
-            dimname = self.dimension
-        else:
-            dimname = self.dimension.name
-        if stringlike(self.place):
-            placename = self.place
-        else:
-            placename = self.place.name
+        dimname = str(self.dimension)
+        placename = str(self.place)
         if dimname not in db.spotdict:
             db.spotdict[dimname] = {}
         db.spotdict[dimname][placename] = self
         self.db = db
 
     def __getattr__(self, attrn):
-        if attrn == 'width':
+        if attrn == 'board':
+            return self.db.boarddict[str(self.dimension)]
+        elif attrn == 'gw':
+            return self.board.gw
+        elif attrn == 'window':
+            return self.gw.window
+        elif attrn == 'width':
             return self.img.width
         elif attrn == 'height':
             return self.img.height
@@ -142,9 +142,6 @@ graphics calculations."""
     def onclick(self):
         """Does nothing yet"""
         pass
-
-    def set_gw(self, gw):
-        self.gw = gw
 
     def set_hovered(self):
         """Become hovered"""

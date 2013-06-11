@@ -16,6 +16,9 @@ a Portal, and it made no sense."""
     pass
 
 
+schemata = set()
+
+
 class SaveableMetaclass(type):
     """Sort of an object relational mapper.
 
@@ -88,7 +91,6 @@ and your table will be ready.
             primarykeys[name] = pkey
             foreignkeys[name] = fkeys
             checks[name] = cks
-        schemata = []
         inserts = {}
         deletes = {}
         detects = {}
@@ -166,7 +168,7 @@ and your table will be ready.
             missing_stmt_start = "SELECT %s FROM %s WHERE (%s) NOT IN " % (
                 colnamestr[tablename], tablename, pkeynamestr)
             missings[tablename] = missing_stmt_start
-            schemata.append(create_stmt)
+            schemata.add(create_stmt)
 
         def insert_rowdicts_table(db, rowdicts, tabname):
             sample = rowdicts[0]

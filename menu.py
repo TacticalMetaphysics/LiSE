@@ -120,9 +120,9 @@ it starts with an @ character."""
         if self.text[0] == "@":
             self.text = db.get_text(self.text[1:])
 
-    def onclick(self, button, modifiers):
+    def onclick(self):
         """Event handler that fires the effect deck."""
-        self.effect_deck.do()
+        self.effect_deck.do(None)
 
     def set_hovered(self):
         """Become hovered if I'm not already."""
@@ -343,16 +343,35 @@ With db, register with db's menudict.
         self.db = db
 
     def __getattr__(self, attrn):
-        if attrn == 'visible':
+        if attrn == 'gw':
+            if not hasattr(self.board, 'gw'):
+                return None
+            else:
+                return self.board.gw
+        elif attrn == 'window':
+            return self.gw.window
+        elif attrn == 'visible':
             return self._visible
         elif attrn == 'window_left':
-            return int(self.gw.width * self.left_prop)
+            if self.gw is None:
+                return 0
+            else:
+                return int(self.gw.width * self.left_prop)
         elif attrn == 'window_bot':
-            return int(self.gw.height * self.bot_prop)
+            if self.gw is None:
+                return 0
+            else:
+                return int(self.gw.height * self.bot_prop)
         elif attrn == 'window_top':
-            return int(self.gw.height * self.top_prop)
+            if self.gw is None:
+                return 0
+            else:
+                return int(self.gw.height * self.top_prop)
         elif attrn == 'window_right':
-            return int(self.gw.width * self.right_prop)
+            if self.gw is None:
+                return 0
+            else:
+                return int(self.gw.width * self.right_prop)
         elif attrn == 'width':
             return self.window_right - self.window_left
         elif attrn == 'height':
@@ -389,19 +408,11 @@ and unravel style and all items."""
         bga = self.style.bg_active.tup
         self.inactive_pattern = pyglet.image.SolidColorImagePattern(bgi)
         self.active_pattern = pyglet.image.SolidColorImagePattern(bga)
-        if stringlike(self.board):
-            boardname = self.board
-        else:
-            boardname = self.board.name
+        boardname = str(self.board)
+        self.board = db.boarddict[boardname]
         self.items = db.menuitemdict[boardname][self.name]
         for item in self.items:
             item.unravel()
-
-    def set_gw(self, gw):
-        """Remember the given gamewindow for use in later graphics
-calculations. Then do the calculations once."""
-        self.gw = gw
-        self.adjust()
 
     def adjust(self):
         """Assign absolute coordinates to myself and all my items."""
@@ -446,10 +457,10 @@ calculations. Then do the calculations once."""
         if self.visible:
             self.toggle_visibility()
 
-    def onclick(self, button, modifiers):
+    def onclick(self):
         """If one of my items is hovered, activate it"""
         if self.hovered is not None:
-            self.hovered.onclick(button, modifiers)
+            self.hovered.onclick()
 
     def get_state_tup(self):
         """Return a tuple containing everything you need to decide how to draw

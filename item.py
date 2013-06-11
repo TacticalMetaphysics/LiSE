@@ -376,10 +376,7 @@ Also add self to location, if applicable.
 
     def __getattr__(self, attrn):
         if attrn == 'location':
-            if stringlike(self.dimension):
-                dimn = self.dimension
-            else:
-                dimn = self.dimension.name
+            dimn = str(self.dimension)
             return self.db.locdict[dimn][self.name]
         else:
             raise AttributeError(
@@ -390,7 +387,7 @@ Also add self to location, if applicable.
         return self.hsh
 
     def __str__(self):
-        return "(%s, %s)" % (self.dimension, self.name)
+        return self.name
 
     def __iter__(self):
         return (self.dimension, self.name)

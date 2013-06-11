@@ -42,21 +42,21 @@ With db, register in db's pawndict.
         self.newstate = None
         self.hovered = False
         self.tweaks = 0
-        if stringlike(dimension):
-            dimname = dimension
-        else:
-            dimname = self.dimension.name
-        if stringlike(self.thing):
-            thingname = self.thing
-        else:
-            thingname = self.thing.name
+        dimname = str(self.dimension)
+        thingname = str(self.thing)
         if dimname not in db.pawndict:
             db.pawndict[dimname] = {}
         db.pawndict[dimname][thingname] = self
         self.db = db
 
     def __getattr__(self, attrn):
-        if attrn == 'interactive':
+        if attrn == 'board':
+            return self.db.boarddict[str(self.dimension)]
+        elif attrn == 'gw':
+            return self.board.gw
+        elif attrn == 'window':
+            return self.gw.window
+        elif attrn == 'interactive':
             return self._interactive
         elif attrn == 'window_left':
             return self.getcoords()[0]
@@ -90,9 +90,6 @@ With db, register in db's pawndict.
             raise AttributeError(
                 "Pawn instance has no such attribute: " +
                 attrn)
-
-    def set_gw(self, gw):
-        self.gw = gw
 
     def __eq__(self, other):
         """Essentially, compare the state tuples of the two pawns."""

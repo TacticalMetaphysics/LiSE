@@ -4,9 +4,10 @@ import dimension
 import item
 import re
 from collections import OrderedDict
-from style import read_colors
+from style import read_colors, read_styles
 from spot import Spot
 from pawn import Pawn
+from card import load_cards
 
 
 """The database backend, with dictionaries of loaded objects.
@@ -64,8 +65,8 @@ arguments.
         self.conn = sqlite3.connect(dbfilen)
         self.cursor = self.conn.cursor()
         self.c = self.cursor
-        self.altered = set()
-        self.removed = set()
+        self.handdict = {}
+        self.handcarddict = {}
         self.dimensiondict = {}
         self.caldict = {}
         self.calcoldict = OrderedDict()
@@ -571,6 +572,32 @@ The place is specified like dimension.placename"""
         spot = Spot(self, dimname, placename)
         spot.unravel()
         return spot
+
+    def load_cards(self, names):
+        load_cards(self, names)
+
+    def load_card(self, name):
+        load_card(self, [name])
+
+    def get_card_base(self, name):
+        """Return the CardBase named thus, loading it first if necessary."""
+        if name not in self.carddict:
+            self.load_card(name)
+        return self.carddict[name]
+
+    def load_styles(self, names):
+        """Load all styles with names in the given iterable."""
+        read_styles(self, names)
+
+    def load_style(self, name):
+        """Load the style by the given name."""
+        read_styles(self, [name])
+
+    def get_style(self, name):
+        """Return the Style by the given name, loading it first if necessary."""
+        if name not in self.styledict:
+            self.load_styles(name)
+        return self.styledict[name]
 
 
 def load_game(dbfilen, language):

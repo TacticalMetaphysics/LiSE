@@ -263,10 +263,6 @@ cells.
         else:
             self.hide()
 
-    def set_cal(self, cal):
-        if cal is not self.cal:
-            self.cal = cal
-
     def celhash(self):
         hashes = [
             hash(cel.get_state_tup())
@@ -294,11 +290,12 @@ class Calendar:
 schedule, possibly several.
 
 """
-    scroll_factor = 10
+    scroll_factor = 1
 
     def __init__(
-            self, db, board, left, right, top, bot, visible, interactive,
+            self, board, left, right, top, bot, visible, interactive,
             rows_on_screen, scrolled_to):
+        self.db = board.db
         self.board = board
         self.left_prop = left
         self.right_prop = right
@@ -311,15 +308,8 @@ schedule, possibly several.
         self.oldstate = None
         self.sprite = None
         self.tweaks = 0
-        if stringlike(self.board):
-            boardname = self.board
-        else:
-            if stringlike(self.board.dimension):
-                boardname = board.dimension
-            else:
-                boardname = board.dimension.name
-        db.caldict[boardname] = self
-        self.db = db
+        self.db.caldict[str(self.board)] = self
+
 
     def __iter__(self):
         return self.coldict.itervalues()
@@ -328,14 +318,31 @@ schedule, possibly several.
         return len(self.coldict)
 
     def __getattr__(self, attrn):
-        if attrn == 'window_top':
-            return int(self.top_prop * self.gw.height)
+        if attrn == 'gw':
+            if not hasattr(self.board, 'gw'):
+                return None
+            else:
+                return self.board.gw
+        elif attrn == 'window_top':
+            if self.gw is None:
+                return 0
+            else:
+                return int(self.top_prop * self.gw.height)
         elif attrn == 'window_bot':
-            return int(self.bot_prop * self.gw.height)
+            if self.gw is None:
+                return 0
+            else:
+                return int(self.bot_prop * self.gw.height)
         elif attrn == 'window_left':
-            return int(self.left_prop * self.gw.width)
+            if self.gw is None:
+                return 0
+            else:
+                return int(self.left_prop * self.gw.width)
         elif attrn == 'window_right':
-            return int(self.right_prop * self.gw.width)
+            if self.gw is None:
+                return 0
+            else:
+                return int(self.right_prop * self.gw.width)
         elif attrn == 'width':
             return self.window_right - self.window_left
         elif attrn == 'height':
@@ -387,13 +394,12 @@ self.coldict being itself unraveled.
 
         """
         db = self.db
-        if stringlike(self.board):
-            self.board = db.boarddict[self.board]
-        if self.board.dimension.name not in db.calcoldict:
-            db.calcoldict[self.board.dimension.name] = OrderedDict()
-        self.coldict = db.calcoldict[self.board.dimension.name]
+        if str(self.board) not in db.calcoldict:
+            db.calcoldict[str(self.board)] = OrderedDict()
+        self.coldict = db.calcoldict[str(self.board)]
         for column in self.coldict.itervalues():
             column.unravel()
+        
 
     def adjust(self):
         """Create missing calendar cells. Delete those whose events are no
@@ -407,6 +413,7 @@ longer present.
         self.row_height = self.height / self.rows_on_screen
         i = 0
         for col in self.coldict.itervalues():
+            col.cal = self
             col.idx = i
             i += 1
             for ev in iter(col.item.schedule):
@@ -415,23 +422,6 @@ longer present.
             for evname in col.celldict:
                 if evname not in col.item.schedule.events:
                     del col.celldict[evname]
-
-    def set_gw(self, gw):
-        """Pair up with the given GameWindow.
-
-Results in self.gw pointing to the given GameWindow, to be later used
-in calculating absolute coordinates. Adds self to the caldict in gw's
-database, though that's probably redundant.
-
-As this will affect the positioning of all CalendarCol herein, use
-their set_cal methods to make them adapt appropriately.
-
-        """
-        self.gw = gw
-        self.gw.db.caldict[self.board.dimension.name] = self
-        for col in self.coldict.itervalues():
-            col.set_cal(self)
-        self.adjust()
 
     def gettop(self):
         """Get the absolute Y value of my top edge."""
