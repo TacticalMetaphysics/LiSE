@@ -106,6 +106,11 @@ time.
             return -1 * self.view_left
         elif attrn == "offset_y":
             return -1 * self.view_bot
+        elif attrn == "edges":
+            return self.edgedict.itervalues()
+        else:
+            raise AttributeError(
+                "Board instance has no attribute {0}".format(attrn))
 
     def __eq__(self, other):
         return (
@@ -151,10 +156,13 @@ and menus herein.
             db.menudict[str(self)] = {}
         if str(self) not in db.handdict:
             db.handdict[str(self)] = {}
+        if str(self) not in db.edgedict:
+            db.edgedict[str(self)] = {}
         self.pawndict = db.pawndict[str(self)]
         self.spotdict = db.spotdict[str(self)]
         self.menudict = db.menudict[str(self)]
         self.handdict = db.handdict[str(self)]
+        self.edgedict = db.edgedict[str(self)]
         for pwn in self.pawndict.itervalues():
             pwn.unravel()
         for spt in self.spotdict.itervalues():
@@ -164,6 +172,8 @@ and menus herein.
             mnu.unravel()
         for hand in self.handdict.itervalues():
             hand.unravel()
+        for edge in self.edgedict.itervalues():
+            edge.unravel()
         self.calendar.unravel()
 
     def set_gw(self, gw):

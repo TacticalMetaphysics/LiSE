@@ -1,4 +1,5 @@
 import pyglet
+from edge import Edge
 
 
 """All the graphics code unique to LiSE."""
@@ -51,12 +52,13 @@ class GameWindow:
 
         self.board = self.db.boarddict[boardname]
         self.board.set_gw(self)
-
+        # replace this
+        for port in self.board.dimension.portals:
+            Edge(self.board.db, self.board.dimension, port).unravel()
         self.calcols = []
         for pawn in self.board.pawndict.itervalues():
             if hasattr(pawn, 'calcol'):
                 self.calcols.append(pawn.calcol)
-
         self.calendar = self.board.calendar
         self.drawn_board = None
         self.drawn_edges = None
@@ -70,39 +72,33 @@ class GameWindow:
         def on_draw():
             """Draw the background image; all spots, pawns, and edges on the
 board; all visible menus; and the calendar, if it's visible."""
-            # draw the background image
-            if self.drawn_board is None:
-                self.drawn_board = pyglet.sprite.Sprite(
-                    self.board.wallpaper.tex,
-                    self.board.offset_x,
-                    self.board.offset_y,
-                    batch=self.batch, group=self.boardgroup)
-            else:
-                self.drawn_board.x = self.board.offset_x
-                self.drawn_board.y = self.board.offset_y
             # draw the edges, representing portals
-            e = []
-            for dests in self.board.dimension.portalorigdestdict.itervalues():
-                for port in dests.itervalues():
-                    origspot = port.orig.spot
-                    destspot = port.dest.spot
-                    if origspot.visible or destspot.visible:
-                        edge = (origspot.window_x,
-                                origspot.window_y,
-                                destspot.window_x,
-                                destspot.window_y)
-                        e.extend(edge)
-            if (
-                    self.drawn_edges is not None and
-                    self.drawn_edges.domain.allocator.starts):
-                try:
-                    self.drawn_edges.delete()
-                except AttributeError:
-                    pass
-            if len(e) > 0:
-                self.drawn_edges = self.batch.add(
-                    len(e) / 2, pyglet.graphics.GL_LINES,
-                    self.edgegroup, ('v2i', e))
+            for edge in self.board.edges:
+                newstate = edge.get_state_tup()
+                if newstate in self.onscreen:
+                    continue
+                self.onscreen.discard(edge.oldstate)
+                self.onscreen.add(newstate)
+                edge.oldstate = newstate
+                if edge.visible:
+                    e = [
+                            edge.orig.window_x,
+                            edge.orig.window_y,
+                            edge.dest.window_x,
+                            edge.dest.window_y]
+                    if edge.vertlist is None:
+                        edge.vertlist = self.batch.add(
+                            2, pyglet.graphics.GL_LINES,
+                            self.edgegroup, ('v2i', tuple(e)))
+                    else:
+                        edge.vertlist.vertices = e
+                else:
+                    ovl = edge.vertlist
+                    edge.vertlist = None
+                    try:
+                        ovl.delete()
+                    except:
+                        pass
             # draw the spots, representing places
             for spot in self.board.spotdict.itervalues():
                 newstate = spot.get_state_tup()
@@ -217,7 +213,6 @@ board; all visible menus; and the calendar, if it's visible."""
                             pass
                     if calcol.visible:
                         if calcol.width != calcol.old_width:
-                            print "Remaking calcol image"
                             calcol.old_image = calcol.inactive_pattern.create_image(
                                 calcol.width, calcol.height)
                             calcol.old_width = calcol.width
@@ -241,7 +236,6 @@ board; all visible menus; and the calendar, if it's visible."""
                                         cel.old_active_image is None or
                                         cel.old_width != cel.width or
                                         cel.old_height != cel.height):
-                                    print "Remaking calcel image"
                                     cel.old_active_image = cel.active_pattern.create_image(
                                         cel.width, cel.height).texture
                                     cel.old_width = cel.width
@@ -306,6 +300,18 @@ board; all visible menus; and the calendar, if it's visible."""
                         ('c3B', color * 2))
                 self.last_age = self.gamestate.age
                 self.last_timeline_y = y
+            # draw the background image
+            if self.drawn_board is None:
+                self.drawn_board = pyglet.sprite.Sprite(
+                    self.board.wallpaper.tex,
+                    self.board.offset_x,
+                    self.board.offset_y,
+                    batch=self.batch, group=self.boardgroup)
+            else:
+                if self.drawn_board.x != self.board.offset_x:
+                    self.drawn_board.x = self.board.offset_x
+                if self.drawn_board.y != self.board.offset_y:
+                    self.drawn_board.y = self.board.offset_y
             # well, I lied. I was really only adding those things to the batch.
             # NOW I'll draw them.
             self.batch.draw()

@@ -5,6 +5,7 @@ from item import (
     read_portals_in_dimensions,
     read_schedules_in_dimensions,
     read_journeys_in_dimensions)
+from util import DictValues2DIterator
 
 
 """Class and loaders for dimensions--the top of the world hierarchy."""
@@ -27,6 +28,13 @@ keyed with their names.
         self.name = name
         db.dimensiondict[name] = self
         self.db = db
+
+    def __getattr__(self, attrn):
+        if attrn == 'portals':
+            return DictValues2DIterator(self.portalorigdestdict)
+        else:
+            raise AttributeError(
+                "Dimension instance has no attribute {0}.".format(attrn))
 
     def __hash__(self):
         """Return the hash of this dimension's name, since the database

@@ -70,6 +70,7 @@ arguments.
         self.dimensiondict = {}
         self.caldict = {}
         self.calcoldict = OrderedDict()
+        self.edgedict = {}
         self.scheduledict = {}
         self.eventdict = {}
         self.startevdict = {}
