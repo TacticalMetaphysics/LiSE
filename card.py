@@ -1,6 +1,7 @@
 import pyglet
 import rumor
 from util import SaveableMetaclass, stringlike
+from style import PatternHolder
 
 """Rectangle shaped widget with picture on top and words on bottom."""
 
@@ -67,6 +68,21 @@ class Card:
         return r
 
 
+class TextHolder:
+    def __init__(self, cardwidget):
+        self.cardwidget = cardwidget
+        self.bg_active = None
+        self.bg_inactive = None
+
+    def __getattr__(self, attrn):
+        if attrn == "style":
+            return self.cardwidget.base.style
+        elif attrn == "window_left":
+            return self.cardwidget.x + self.style.spacing
+        elif attrn == "window_right":
+            return self.window_left + self.width
+
+
 class CardWidget:
     def __init__(self, base, x, y):
         self.base = base
@@ -78,6 +94,12 @@ class CardWidget:
         self.interactive = True
         self.hovered = False
         self.tweaks = 0
+        self.pats = PatternHolder(self.base.style)
+        self.bgimage_active = None
+        self.bgimage_inactive = None
+        self.bgsprite = None
+        self.textholder = None
+        self.imgsprite = None
 
     def __getattr__(self, attrn):
         if attrn == 'img':
@@ -119,8 +141,7 @@ class CardWidget:
         elif attrn == 'window_top':
             return self.y + self.height
         else:
-            raise AttributeError(
-                "Card has no such attribute: {0}".format(atttrn))
+            return getattr(self.base, attrn)
 
     def __hash__(self):
         return hash(self.get_state_tup())
@@ -132,6 +153,12 @@ class CardWidget:
 
     def save(self):
         self.base.save()
+
+    def genimgs(self):
+        self.bgimage_active = self.pats.bg_active.make_image(self.window_width, self.window_height)
+        self.bgimage_inactive = self.pats.bg_inactive.make_image(self.window_width, self.window_height)
+        self.text_bgimage_active = self.pats.fg_active.make_image(self.window_width, self.window_height)
+        self.text_bgimage_inactive = self.pats.fg_inactive.make_image(self.window_width, self.window_height)
 
     def toggle_visibility(self):
         self.visible = not self.visible
@@ -195,8 +222,9 @@ class Hand:
             ("idx>=0",)
         ),
     ]
-    def __init__(self, db, board, visible, interactive, style, left, right, bot, top):
+    def __init__(self, db, name, board, visible, interactive, style, left, right, bot, top):
         self.db = db
+        self.name = name
         self.board = board
         self._visible = visible
         self._interactive = interactive
@@ -207,6 +235,7 @@ class Hand:
         self._top = top
         self.carddict = None
         self.oldstate = None
+        self.pats = PatternHolder(self.style)
 
     def __hash__(self):
         return hash(self.get_state_tup())
@@ -257,6 +286,9 @@ class Hand:
     def __len__(self):
         return len(self.carddict)
 
+    def __str__(self):
+        return self.name
+
     def _translate_index(self, idx):
         if idx > 0 and idx < len(self):
             return idx
@@ -269,7 +301,9 @@ class Hand:
         return idx
 
     def get_state_tup(self):
-        card_hashes = [hash(card) for card in iter(self)]
+        cardbits = []
+        for card in self.cards:
+            cardbits.extend(iter(card.get_state_tup()))
         return (
             self._visible,
             self._interactive,
@@ -282,7 +316,9 @@ class Hand:
     def unravel(self):
         if stringlike(self.board):
             self.board = self.db.boarddict[self.board]
-        self.carddict = db.handcarddict[self.name]
+        if str(self) not in self.db.handcarddict:
+            self.db.handcarddict[str(self)] = {}
+        self.carddict = db.handcarddict[str(self)]
 
     def append(self, card):
         idx = len(self)
@@ -319,6 +355,8 @@ class Hand:
             card.y = windobot
 
     def unravel(self):
+        if self.carddict is None:
+            if 
         for card in self.carddict.itervalues():
             card.unravel()
 

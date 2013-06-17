@@ -133,6 +133,16 @@ spacing"""
                      self.bg_inactive, self.bg_active, self.fg_inactive,
                      self.fg_active))
 
+class PatternHolder:
+    """Takes a style and makes pyglet.image.SolidColorImagePatterns out of
+its four colors, accessible through the attributes bg_active,
+bg_inactive, fg_active, and fg_inactive."""
+    def __init__(self, sty):
+        self.bg_inactive = pyglet.image.SolidColorImagePattern(sty.bg_inactive.tup)
+        self.bg_active = pyglet.image.SolidColorImagePattern(sty.bg_active.tup)
+        self.fg_inactive = pyglet.image.SolidColorImagePattern(sty.fg_inactive.tup)
+        self.fg_active = pyglet.image.SolidColorImagePattern(sty.fg_active.tup)
+
 read_colors_fmt = (
     "SELECT {0} FROM color WHERE name IN ({1})".format(Color.colnstr, "{0}"))
 

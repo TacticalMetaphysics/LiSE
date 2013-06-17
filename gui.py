@@ -300,6 +300,25 @@ board; all visible menus; and the calendar, if it's visible."""
                         ('c3B', color * 2))
                 self.last_age = self.gamestate.age
                 self.last_timeline_y = y
+            # draw any and all hands
+            for hand in self.board.handdict.itervalues():
+                # No state management yet because the hand itself has no graphics. The cards in it do.
+                for card in hand:
+                    if card.bgimage is None or card.bgimage.width != card.window_width or card.bgimage.height != card.window_height:
+                        card.genimgs()
+                    if card.visible:
+                        if card.hovered:
+                            if card.bgsprite is None or card.bgsprite.width != card.window_width or card.bgsprite.height != card.window_height:
+                                card.bgsprite = pyglet.sprite.Sprite(
+                                    card.bgimage_active,
+                                    card.window_x,
+                                    card.window_y,
+                                    batch=self.batch,
+                                    group=self.cardbggroup)
+                            else:
+                                card.bgsprite.set_position(card.window_x, card.window_y)
+
+                        
             # draw the background image
             if self.drawn_board is None:
                 self.drawn_board = pyglet.sprite.Sprite(
