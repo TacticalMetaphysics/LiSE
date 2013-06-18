@@ -45,7 +45,7 @@ you do in a Personal Information Management app. Developers can do
 this whenever they want, of course.
 
 The distinction between a player and a developer is a matter of
-launching the game engine with or without a given argument. If you
+launching the game engine with or without the developer's option. If you
 don't want players to modify your game, this may not be the engine for
 you.
 
@@ -121,34 +121,32 @@ This is not even a prerelease. Call it a technical preview, maybe?
 
 ## UI
 
-Get calendars, cards, and hands working.
+[ ] Show more than one board at a time.
 
-Show more than one board at a time.
+### Widgets
+[x] Calendars
+[ ] Cards
 
 ## World model
 
-Get effects to do more than open and close menus.
+[x] Get effects to do more than open and close menus.
 
-Get events and schedules working.
+They move things around now! Huzzah?
 
-That last calls for a main loop--for the game state only, not the
+[x] Get events and schedules working.
+
+[x] That last calls for a main loop--for the game state only, not the
 UI--that polls the schedule, calls the events that are happening, and
 advances the clock.
 
 ## Database
 
-It initializes and loads just fine, but I want to synchronize the
-game-in-memory with the game-on-disk at arbitrary intervals,
-eg. whenever the player pauses the game.
-
-I think I may have to implement my own journal in order to get the
-branching timelines to work. I guess it's kind of like branches in
-Git, but there isn't really any concept of "commits" to use here,
-unless you're okay with committing *every second* the game runs,
-seriously. Though, I'll have to look into the particulars of how
-SQLite's journaling works.
-
-Add the ability to import and export particular game elements to other
+[x] Sync the state of the UI.
+[ ] Sync changes to the world model.
+[ ] Keep a *branching* journal of the aforementioned changes.
+[ ] Roll-back and replay those changes in the most recent branch.
+[ ] Select a branch and replay it.
+[ ]Add the ability to import and export particular game elements to other
 databases.
 
 ## Templates
@@ -156,3 +154,5 @@ databases.
 I'll have to actually make a simulator in order to demonstrate the
 concepts. Then I'll genericize the components of it and package them
 as things you can drop into your own projects.
+
+The premise of the test sim is that you are the headmaster of a wizarding school. It has a dungeon or two in it, and you've got to keep the monsters therein from getting out, and maybe retrieve valuables and do some research down there; but your main source of income is your students, who may inadvertently transmute one another.
