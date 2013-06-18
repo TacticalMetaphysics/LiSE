@@ -142,10 +142,15 @@ advances the clock.
 ## Database
 
 [x] Sync the state of the UI.
+
 [ ] Sync changes to the world model.
+
 [ ] Keep a *branching* journal of the aforementioned changes.
+
 [ ] Roll-back and replay those changes in the most recent branch.
+
 [ ] Select a branch and replay it.
+
 [ ]Add the ability to import and export particular game elements to other
 databases.
 
