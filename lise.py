@@ -18,7 +18,7 @@ for arg in argv:
         DEBUG = True
     elif arg[-2:] != "py":
         try:
-            connect(arg).cursor().execute("SHOW TABLES")
+            connect(arg).cursor().execute("SELECT * FROM game;")
             dbfn = arg
         except DatabaseError:
             print "Couldn't connect to the database named {0}.".format(arg)

@@ -67,6 +67,7 @@ arguments.
         self.c = self.cursor
         self.handdict = {}
         self.handcarddict = {}
+        self.carddict = {}
         self.dimensiondict = {}
         self.caldict = {}
         self.calcoldict = OrderedDict()

@@ -8,6 +8,7 @@ from util import (
 from event import (
     read_events,
     lookup_between,
+    read_events,
     Event,
     SenselessEvent,
     ImpossibleEvent,
@@ -647,8 +648,8 @@ true of events in different schedules.
         ("scheduled_event",
          {"dimension": "text not null default 'Physical'",
           "item": "text not null",
-          "start": "integer not null",
           "event": "text not null",
+          "start": "integer not null",
           "length": "integer not null default 1"},
          ("dimension", "item"),
          {"dimension, item": ("item", "dimension, name"),
@@ -681,12 +682,38 @@ contevdict, and endevdict."""
         db.scheduledict[dimname][itemname] = self
         self.db = db
 
+    def tabdict(self):
+        return {
+            "scheduled_event": [
+                {
+                    "dimension": self.dimension.name,
+                    "item": self.item.name,
+                    "start": ev.start,
+                    "event": ev.name,
+                    "length": ev.length}
+                for ev in self.events_starting.itervalues()]}
+
     def __iter__(self):
         """Return iterator over my events in order of their start times."""
         return self.events.itervalues()
 
     def __len__(self):
         return max(self.events_ongoing.viewkeys())
+    
+    def __contains__(self, ev):
+        if not (
+            hasattr(ev, 'start') and hasattr(ev, 'length')):
+            return False
+        ev_end = ev.start + ev.length
+        if not (
+            ev.start in self.events_starting and
+            ev_end in self.events_ending):
+            return False
+        # Assume that self.add did its job right and I don't have to check all 
+        # the inbetween periods.
+        return (
+            ev in self.events_starting[ev.start] and
+            ev in self.events_ending[ev_end])
 
     def unravel(self):
         db = self.db
@@ -804,11 +831,30 @@ timeframe."""
                 self.processions_between(start, end),
                 self.conclusions_between(start, end))
 
+SCHEDULE_DIMENSION_QRYFMT = """SELECT {0} FROM scheduled_event WHERE dimension 
+IN ({1})""".format(", ".join(Schedule.colns), "{0}")
+
+def read_schedules_in_dimensions(db, dimnames):
+    qryfmt = SCHEDULE_DIMENSION_QRYFMT
+    qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
+    db.c.execute(qrystr, dimnames)
+    r = {}
+    events = set()
+    for name in dimnames:
+        r[name] = {}
+    for row in db.c:
+        rowdict = dictify_row(row, Schedule.colns)
+        dimn = rowdict["dimension"]
+        itn = rowdict["item"]
+        if itn not in r[dimn]:
+            r[dimn][itn] = Schedule(dimn, itn, db)
+        events.add(rowdict["event"])
+    read_events(db, events)
+    return r
 
 schedule_qvals = (
     ["scheduled_event.item"] +
     ["scheduled_event." + valn for valn in Schedule.valns])
-
 
 def lookup_loc(db, it):
     """Return the item that the given one is inside, possibly None."""
@@ -883,6 +929,7 @@ def read_schedules_in_dimensions(db, dimnames):
     read_events(db, events)
     return r
 
+
 def load_schedules_in_dimensions(db, dimnames):
     r = read_schedules_in_dimensions(db, dimnames)
     for dim in r.itervalues():
@@ -906,7 +953,7 @@ Return a 2D dict keyed by dimension name, then item name.
     """
     qryfmt = journey_dimension_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(dimnames)))
-    db.c.execute(qrystr, dimnames)
+    db.c.execute(qrystr, tuple(dimnames))
     r = {}
     for name in dimnames:
         r[name] = {}

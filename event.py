@@ -184,6 +184,15 @@ it."""
         # strings in some other table and this refers to that
         return self.name
 
+    def tabdict(self):
+        return {
+            "event": {
+                "name": self.name,
+                "ongoing": self.ongoing,
+                "commence_effects": self.commence_effects.name,
+                "proceed_effects": self.proceed_effects.name,
+                "conclude_effects": self.conclude_effects.name}}
+
 
 class PortalTravelEvent(Event):
     """Event representing a thing's travel through a single portal, from
