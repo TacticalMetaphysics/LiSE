@@ -242,7 +242,7 @@ Return a dictionary keyed by name.
     """
     qryfmt = load_effect_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, names)
+    db.c.execute(qrystr, tuple(names))
     r = {}
     for row in db.c:
         rowdict = dictify_row(row, Effect.colnames["effect"])
@@ -287,7 +287,7 @@ Return a dictionary of EffectDeck keyed by name.
     names = tuple(names)
     qryfmt = load_deck_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, names)
+    db.c.execute(qrystr, tuple(names))
     r = {}
     effectnames = set()
     for row in db.c:

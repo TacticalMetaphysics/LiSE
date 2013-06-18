@@ -79,6 +79,7 @@ transparent.
     def get_texture(self):
         return self.tex
 
+
 def load_rltile(db, name, path):
     """Load a Windows bitmap, and replace ffGll -> 00Gll and ff. -> 00."""
     badimg = image(path)

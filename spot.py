@@ -34,9 +34,6 @@ class Spot:
         """Return a new spot on the board for the given dimension,
 representing the given place with the given image. It will be at the
 given coordinates, and visible or interactive as indicated.
-
-With db, register the spot with spotdict.
-
         """
         self.dimension = dimension
         self.place = place

@@ -125,11 +125,11 @@ Objects will be instantiated to represent the lot, and a dictionary
 thereof will be returned, but the objects won't be unraveled yet.
 
     """
-    read_schedules_in_dimensions(db, names)
-    read_journeys_in_dimensions(db, names)
     read_things_in_dimensions(db, names)
     read_places_in_dimensions(db, names)
     read_portals_in_dimensions(db, names)
+    read_schedules_in_dimensions(db, names)
+    read_journeys_in_dimensions(db, names)
     r = {}
     for name in names:
         r[name] = Dimension(db, name)
