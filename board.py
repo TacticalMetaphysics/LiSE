@@ -1,3 +1,4 @@
+# TODO: hands are not being loaded. fix.
 from util import SaveableMetaclass, dictify_row, stringlike
 from menu import read_menus_in_boards
 from img import load_imgs
@@ -6,7 +7,7 @@ from spot import read_spots_in_boards
 from calendar import Calendar, read_calendar_cols_in_boards
 from pawn import read_pawns_in_boards
 from dimension import read_dimensions, load_dimensions
-from card import Hand, read_cards
+from card import read_hands_in_boards
 
 
 """Class for user's view on gameworld, and support functions."""
@@ -49,28 +50,7 @@ time.
          {"wallpaper": ("image", "name")},
          ["calendar_rows_on_screen>0", "calendar_scrolled_to>=0",
           "view_left>=0", "view_bot>=0", "view_left<width",
-          "view_bot<height"]),
-        (
-            "hand_board",
-            {
-                "hand": "text not null",
-                "board": "text not null",
-                "visible": "boolean default 1",
-                "interactive": "boolean default 1",
-                "style": "text not null default 'SmallLight'",
-                "left": "float default 0.3",
-                "right": "float default 0.6",
-                "bot": "float default 0.0",
-                "top": "float default 0.3"},
-            ("hand", "board"),
-            {
-                "hand": ("hand_card", "hand"),
-                "board": ("board", "dimension"),
-                "style": ("style", "name")},
-            ("left>=0.0", "left<=1.0", "right>=0.0", "right<=1.0",
-             "bot>=0.0", "bot<=1.0", "top>=0.0", "top<=1.0",
-             "right>left", "top>bot")
-        )
+          "view_bot<height"])
     ]
 
     def __init__(self, db, dimension, width, height, view_left, view_bot,
@@ -284,9 +264,10 @@ dimension names."""
                 styles.add(calcol.style)
             if stringlike(calcol.cel_style):
                 styles.add(calcol.cel_style)
-    for hands in read_hands_in_boards(db, boards).itervalues(): 
-        for hand in hands.itervalues():
-            for card in iter(hand):
+    for hands in read_hands_in_boards(db, boards).itervalues():
+        for handname in hands.iterkeys():
+            for cardn in db.handcarddict[handname]:
+                card = db.carddict[cardn]
                 if stringlike(card.img):
                     imgs.add(card.img)
     load_imgs(db, list(imgs))
@@ -300,33 +281,3 @@ def load_board(db, boardn):
     """From the given database, load the board representing the dimension
 named thus."""
     return load_boards(db, [boardn])[boardn]
-
-
-hand_board_qryfmt = (
-    """SELECT {0} FROM hand_card JOIN hand_board ON
-hand_card.hand=hand_board.hand AND board IN ({1})""".format(
-    """hand_card.hand, idx, card, board, visible, interactive, style,
-left, right, bot, top""", "{0}"))
-
-hand_board_card_colns = (
-    "hand", "idx", "card", "board", "visible", "interactive", "style",
-    "left", "right", "bot", "top")
-
-
-def read_hands_in_boards(db, boards):
-    qryfmt = hand_board_qryfmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(boards)))
-    db.c.execute(qrystr, tuple(boards))
-    r = {}
-    cardset = set()
-    for board in boards:
-        r[board] = {}
-    for row in db.c:
-        rowdict = dictify_row(row, hand_board_card_colns)
-        rowdict["db"] = db
-        cardset.add(rowdict["card"])
-        if rowdict["hand"] not in db.handcarddict:
-            db.handcarddict[rowdict["hand"]] = {}
-        r[rowdict["board"]][rowdict["hand"]] = Hand(**rowdict)
-    read_cards(db, cardset)
-    return r

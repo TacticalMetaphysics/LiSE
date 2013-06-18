@@ -1,6 +1,6 @@
 import pyglet
 import rumor
-from util import SaveableMetaclass, stringlike
+from util import SaveableMetaclass, stringlike, dictify_row
 
 """Rectangle shaped widget with picture on top and words on bottom."""
 
@@ -31,6 +31,7 @@ class Card:
         self.img = image
         self._text = text
         self.style = style
+        self.db.carddict[self.name] = self
 
     def unravel(self):
         if stringlike(self.img):
@@ -172,6 +173,9 @@ class HandIterator:
         self.i = 0
         self.hand = hand
 
+    def __iter__(self):
+        return self
+
     def next(self):
         try:
             r = self.hand[self.i]
@@ -194,9 +198,31 @@ class Hand:
             {"card": ("card", "name")},
             ("idx>=0",)
         ),
+        (
+            "hand_board",
+            {
+                "hand": "text not null",
+                "board": "text not null",
+                "visible": "boolean default 1",
+                "interactive": "boolean default 1",
+                "style": "text not null default 'SmallLight'",
+                "left": "float default 0.3",
+                "right": "float default 0.6",
+                "bot": "float default 0.0",
+                "top": "float default 0.3"},
+            ("hand", "board"),
+            {
+                "hand": ("hand_card", "hand"),
+                "board": ("board", "dimension"),
+                "style": ("style", "name")},
+            ("left>=0.0", "left<=1.0", "right>=0.0", "right<=1.0",
+             "bot>=0.0", "bot<=1.0", "top>=0.0", "top<=1.0",
+             "right>left", "top>bot")
+        )
     ]
-    def __init__(self, db, board, visible, interactive, style, left, right, bot, top):
+    def __init__(self, db, name, board, visible, interactive, style, left, right, bot, top):
         self.db = db
+        self.name = name
         self.board = board
         self._visible = visible
         self._interactive = interactive
@@ -205,6 +231,7 @@ class Hand:
         self._right = right
         self._bot = bot
         self._top = top
+        self.db.handdict[self.name] = self
         self.carddict = None
         self.oldstate = None
 
@@ -255,7 +282,10 @@ class Hand:
             return self.carddict[key]
 
     def __len__(self):
-        return len(self.carddict)
+        if self.carddict is None:
+            return -1
+        else:
+            return len(self.carddict)
 
     def _translate_index(self, idx):
         if idx > 0 and idx < len(self):
@@ -343,4 +373,59 @@ def load_cards(db, names):
     r = read_cards(db, names)
     for card in r.itervalues():
         card.unravel()
+    return r
+
+hand_card_qryfmt = (
+    """SELECT {0} FROM hand_card JOIN card WHERE hand IN ({1})""".format(
+        "hand, idx, card, " + ", ".join(Card.valns), "{0}"))
+
+hand_card_colns = ["hand", "idx", "card"] + Card.valns
+
+def read_cards_in_hands(db, handnames):
+    qryfmt = hand_card_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(handnames)))
+    db.c.execute(qrystr, tuple(handnames))
+    r = {}
+    cards = set()
+    for handname in handnames:
+        r[handname] = []
+    for row in db.c:
+        rowdict = dictify_row(row, hand_card_colns)
+        rowdict["db"] = db
+        handn = rowdict["hand"]
+        cardn = rowdict["card"]
+        idx = rowdict["idx"]
+        while len(r[handn]) <= idx:
+            r[handn].append(None)
+        r[handn][idx] = cardn
+        cards.add(cardn)
+    read_cards(db, tuple(cards))
+    for (handn, cardl) in r.iteritems():
+        for i in xrange(0, len(cardl)-1):
+            cardl[i] = db.carddict[cardl[i]]
+        db.handcarddict[handn] = cardl
+    return r
+
+hands_qryfmt = (
+    """SELECT {0} FROM hand_board WHERE board IN ({1})""".format(
+        ", ".join(Hand.colnames["hand_board"]), "{0}"))
+
+def read_hands_in_boards(db, boardnames):
+    qryfmt = hands_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(boardnames)))
+    db.c.execute(qrystr, tuple(boardnames))
+    r = {}
+    handns = set()
+    for boardname in boardnames:
+        r[boardname] = {}
+    for row in db.c:
+        rowdict = dictify_row(row, Hand.colnames["hand_board"])
+        rowdict["db"] = db
+        boardname = rowdict["board"]
+        handname = rowdict["hand"]
+        handns.add(handname)
+        rowdict["name"] = handname
+        del rowdict["hand"]
+        r[boardname][handname] = Hand(**rowdict)
+    read_cards_in_hands(db, tuple(handns))
     return r
