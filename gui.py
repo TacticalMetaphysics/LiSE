@@ -30,7 +30,10 @@ class GameWindow:
         self.menugroup = pyglet.graphics.OrderedGroup(4)
         self.calendargroup = pyglet.graphics.OrderedGroup(4)
         self.cellgroup = pyglet.graphics.OrderedGroup(5)
-        self.labelgroup = pyglet.graphics.OrderedGroup(6)
+        self.card_bg_group = pyglet.graphics.OrderedGroup(6)
+        self.card_text_bg_group = pyglet.graphics.OrderedGroup(7)
+        self.card_img_group = pyglet.graphics.OrderedGroup(8)
+        self.labelgroup = pyglet.graphics.OrderedGroup(10)
         self.topgroup = pyglet.graphics.OrderedGroup(65535)
 
         self.pressed = None
@@ -302,22 +305,110 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.last_timeline_y = y
             # draw any and all hands
             for hand in self.board.handdict.itervalues():
-                # No state management yet because the hand itself has no graphics. The cards in it do.
+                # No state management yet because the hand itself has
+                # no graphics. The cards in it do.
                 for card in hand:
-                    if card.bgimage is None or card.bgimage.width != card.window_width or card.bgimage.height != card.window_height:
-                        card.genimgs()
+                    if (card.bgimage is None or
+                        card.textholder.bgimage is None or
+                        card.bgimage.width != card.width or
+                        card.bgimage.height != card.height):
+                        redrawn = True
+                        card.bgimage = (
+                            card.pats.bg_inactive.create_image(
+                                card.width, card.height))
+                        card.textholder.bgimage = (
+                            card.pats.bg_active.create_image(
+                                card.width, card.height))
                     if card.visible:
-                        if card.hovered:
-                            if card.bgsprite is None or card.bgsprite.width != card.window_width or card.bgsprite.height != card.window_height:
-                                card.bgsprite = pyglet.sprite.Sprite(
-                                    card.bgimage_active,
-                                    card.window_x,
-                                    card.window_y,
+                        if card.bgsprite is None:
+                            card.bgsprite = pyglet.sprite.Sprite(
+                                card.bgimage,
+                                card.window_left,
+                                card.window_bot,
+                                batch=self.batch,
+                                group=self.card_bg_group)
+                        else:
+                            if card.bgsprite.x != card.window_left:
+                                card.bgsprite.x = card.window_left
+                            if card.bgsprite.y != card.window_bot:
+                                card.bgsprite.y = card.window_bot
+                            if redrawn:
+                                card.bgsprite.image = card.bgimage
+                        if card.textholder.bgsprite is None:
+                            card.textholder.bgsprite = pyglet.sprite.Sprite(
+                                card.textholder.bgimage,
+                                card.textholder.window_left,
+                                card.textholder.window_bot,
+                                batch=self.batch,
+                                group=self.card_text_bg_group)
+                        else:
+                            if card.textholder.bgsprite.x != card.window_left:
+                                card.textholder.bgsprite.x = card.window_left
+                            if card.textholder.bgsprite.y != card.window_bot:
+                                card.textholder.bgsprite.y = card.window_bot
+                            if redrawn:
+                                card.textholder.bgsprite.image = card.textholder.bgimage
+                        if card.textholder.label is None:
+                            card.textholder.label = pyglet.text.Label(
+                                card.text,
+                                card.textholder.window_left,
+                                card.textholder.window_bot,
+                                width=card.textholder.width,
+                                height=card.textholder.height,
+                                multiline=True,
+                                batch=self.batch,
+                                group=self.labelgroup)
+                        else:
+                            if (
+                                    card.textholder.label.x !=
+                                    card.textholder.window_left):
+                                card.textholder.label.x = (
+                                    card.textholder.window_left)
+                            if (
+                                    card.textholder.label.y !=
+                                    card.textholder.window_bot):
+                                card.textholder.label.y = (
+                                    card.textholder.window_bot)
+                            if (
+                                    card.textholder.label.width !=
+                                    card.textholder.width):
+                                card.textholder.label.width = (
+                                    card.textholder.width)
+                            if (
+                                    card.textholder.label.height !=
+                                    card.textholder.height):
+                                card.textholder.label.height = (
+                                    card.textholder.height)
+                        if isinstance(card.img, pyglet.image.AbstractImage):
+                            x = card.window_left + card.style.spacing
+                            y = card.textholder.window_top + card.style.spacing
+                            if card.imgsprite is None:
+                                card.imgsprite = pyglet.sprite.Sprite(
+                                    card.img,
+                                    x, y,
                                     batch=self.batch,
-                                    group=self.cardbggroup)
+                                    group=self.card_img_group)
                             else:
-                                card.bgsprite.set_position(card.window_x, card.window_y)
-
+                                if card.imgsprite.x != x:
+                                    card.imgsprite.x = x
+                                if card.imgsprite.y != y:
+                                    card.imgsprite.y = y
+                    else: # card not visible
+                        for dead in (
+                                card.bgsprite,
+                                card.imgsprite,
+                                card.textholder.bgsprite,
+                                card.textholder.label):
+                            if dead is not None:
+                                try:
+                                    dead.delete()
+                                except:
+                                    pass
+                        card.bgsprite = None
+                        card.imgsprite = None
+                        card.textholder.bgsprite = None
+                        card.textholder.label = None
+                                
                         
             # draw the background image
             if self.drawn_board is None:

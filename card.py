@@ -71,16 +71,28 @@ class Card:
 class TextHolder:
     def __init__(self, cardwidget):
         self.cardwidget = cardwidget
-        self.bg_active = None
-        self.bg_inactive = None
+        self.bgimage = None
+        self.bgsprite = None
+        self.label = None
 
     def __getattr__(self, attrn):
-        if attrn == "style":
-            return self.cardwidget.base.style
+        if attrn == "width":
+            return self.cardwidget.width - 2 * self.cardwidget.style.spacing
+        elif attrn == "height":
+            if isinstance(self.cardwidget.base.img, pyglet.image.AbstractImage):
+                return self.cardwidget.height / 2 - 2 * self.cardwidget.style.spacing
+            else:
+                return self.cardwidget.height - 2 * self.cardwidget.style.spacing
         elif attrn == "window_left":
-            return self.cardwidget.x + self.style.spacing
+            return self.cardwidget.x + self.cardwidget.style.spacing
         elif attrn == "window_right":
             return self.window_left + self.width
+        elif attrn == "window_bot":
+            return self.cardwidget.window_bot + self.cardwidget.style.spacing
+        elif attrn == "window_top":
+            return self.window_bot + self.height
+        else:
+            return getattr(self.cardwidget, attrn)
 
 
 class CardWidget:
@@ -95,10 +107,9 @@ class CardWidget:
         self.hovered = False
         self.tweaks = 0
         self.pats = PatternHolder(self.base.style)
-        self.bgimage_active = None
-        self.bgimage_inactive = None
+        self.bgimage = None
         self.bgsprite = None
-        self.textholder = None
+        self.textholder = TextHolder(self)
         self.imgsprite = None
 
     def __getattr__(self, attrn):
@@ -153,12 +164,6 @@ class CardWidget:
 
     def save(self):
         self.base.save()
-
-    def genimgs(self):
-        self.bgimage_active = self.pats.bg_active.make_image(self.window_width, self.window_height)
-        self.bgimage_inactive = self.pats.bg_inactive.make_image(self.window_width, self.window_height)
-        self.text_bgimage_active = self.pats.fg_active.make_image(self.window_width, self.window_height)
-        self.text_bgimage_inactive = self.pats.fg_inactive.make_image(self.window_width, self.window_height)
 
     def toggle_visibility(self):
         self.visible = not self.visible
