@@ -124,34 +124,25 @@ This is not even a prerelease. Call it a technical preview, maybe?
 [ ] Show more than one board at a time.
 
 ### Widgets
-[x] Calendars
-[ ] Cards
+- [x] Calendars
+- [ ] Cards
 
 ## World model
 
-[x] Get effects to do more than open and close menus.
-
-They move things around now! Huzzah?
-
-[x] Get events and schedules working.
-
-[x] That last calls for a main loop--for the game state only, not the
+- [x] Get effects to do more than open and close menus.
+  They move things around now! Huzzah?
+- [x] Get events and schedules working.
+- [x] That last calls for a main loop--for the game state only, not the
 UI--that polls the schedule, calls the events that are happening, and
 advances the clock.
 
 ## Database
-
-[x] Sync the state of the UI.
-
-[ ] Sync changes to the world model.
-
-[ ] Keep a *branching* journal of the aforementioned changes.
-
-[ ] Roll-back and replay those changes in the most recent branch.
-
-[ ] Select a branch and replay it.
-
-[ ]Add the ability to import and export particular game elements to other
+- [x] Sync the state of the UI.
+- [ ] Sync changes to the world model.
+- [ ] Keep a *branching* journal of the aforementioned changes.
+- [ ] Roll-back and replay those changes in the most recent branch.
+- [ ] Select a branch and replay it.
+- [ ] Add the ability to import and export particular game elements to other
 databases.
 
 ## Templates
