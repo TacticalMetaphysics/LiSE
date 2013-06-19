@@ -1,6 +1,7 @@
 import pyglet
 import rumor
-from util import SaveableMetaclass, stringlike, dictify_row
+from util import SaveableMetaclass, PatternHolder, stringlike, dictify_row
+from style import read_styles
 
 """Rectangle shaped widget with picture on top and words on bottom."""
 
@@ -35,7 +36,10 @@ class Card:
 
     def unravel(self):
         if stringlike(self.img):
-            self.img = self.db.imgdict[self.img]
+            if self.img == '':
+                self.img = None
+            else:
+                self.img = self.db.imgdict[self.img]
         if self._text[0] == "@":
             self.text = self.db.get_text(self._text[1:])
         else:
@@ -46,6 +50,7 @@ class Card:
             self.display_name = self._display_name
         if stringlike(self.style):
             self.style = self.db.get_style(self.style)
+        self.style.unravel()
 
     def get_tabdict(self):
         if self.img is None:
@@ -98,6 +103,7 @@ class TextHolder:
 class CardWidget:
     def __init__(self, base, x, y):
         self.base = base
+        self.base.unravel()
         self.x = x
         self.y = y
         self.db = self.base.db
@@ -147,7 +153,7 @@ class CardWidget:
             return self.x
         elif attrn == 'window_right':
             return self.x + self.width
-        elif atttrn == 'window_bot':
+        elif attrn == 'window_bot':
             return self.y
         elif attrn == 'window_top':
             return self.y + self.height
@@ -161,6 +167,11 @@ class CardWidget:
         if self.base is None:
             self.base = self.db.get_card(self.name)
         self.base.unravel()
+        if self.pats is None:
+            self.pats = PatternHolder(self.base.style)
+        self.base.unravel()
+        if stringlike(self.img):
+            self.img = self.db.imgdict[self.img]
 
     def save(self):
         self.base.save()
@@ -209,11 +220,12 @@ class HandIterator:
 
     def next(self):
         try:
-            r = self.hand[self.i]
+            cardn = self.hand.db.handcarddict[str(self.hand)][self.i]
+            card = self.hand.db.carddict[cardn]
+            self.i += 1
+            return card
         except IndexError:
             raise StopIteration
-        self.i += 1
-        return r
 
 
 class Hand:
@@ -263,9 +275,10 @@ class Hand:
         self._bot = bot
         self._top = top
         self.db.handdict[self.name] = self
-        self.carddict = None
+        if str(self.board) not in self.db.boardhanddict:
+            self.db.boardhanddict[str(self.board)] = {}
+        self.db.boardhanddict[str(self.board)][str(self)] = self
         self.oldstate = None
-        self.pats = PatternHolder(self.style)
 
     def __hash__(self):
         return hash(self.get_state_tup())
@@ -306,18 +319,11 @@ class Hand:
             raise AttributeError(
                 "Hand has no attribute named {0}".format(attrn))
 
-    def __getitem__(self, key):
-        if isinstance(key, int):
-            i = self._translate_index(key)
-            return self.cards[i]
-        else:
-            return self.carddict[key]
+    def __getitem__(self, i):
+        return self.db.handcarddict[str(self)][i]
 
     def __len__(self):
-        if self.carddict is None:
-            return -1
-        else:
-            return len(self.carddict)
+        return len(self.db.handcarddict[str(self)])
 
     def __str__(self):
         return self.name
@@ -335,7 +341,7 @@ class Hand:
 
     def get_state_tup(self):
         cardbits = []
-        for card in self.cards:
+        for card in self:
             cardbits.extend(iter(card.get_state_tup()))
         return (
             self._visible,
@@ -349,33 +355,23 @@ class Hand:
     def unravel(self):
         if stringlike(self.board):
             self.board = self.db.boarddict[self.board]
-        if str(self) not in self.db.handcarddict:
-            self.db.handcarddict[str(self)] = {}
-        self.carddict = db.handcarddict[str(self)]
+        if stringlike(self.style):
+            self.style = self.db.styledict[self.style]
 
     def append(self, card):
-        idx = len(self)
-        self.carddict[idx] = card
-        card.idx = idx
+        self.db.handcarddict[str(self)].append(card)
 
     def insert(self, i, card):
-        for j in xrange(i, len(self)-1):
-            self.carddict[j+1] = self.carddict[j]
-        self.carddict[i] = card
+        self.db.handcarddict[str(self)].insert(i, card)
 
     def remove(self, card):
-        i = card.idx
-        del self.carddict[i]
-        for j in xrange(i+1, len(self)-1):
-            self.carddict[j-1] = self.carddict[j]
+        self.db.handcarddict[str(self)].remove(card)
 
     def index(self, card):
-        return card.idx
+        return self.db.handcarddict[str(self)].index(card)
 
     def pop(self, i=-1):
-        r = self[i]
-        self.remove(r)
-        return r
+        return self.db.handcarddict[str(self)].pop(i)
 
     def adjust(self):
         if len(self) == 0:
@@ -383,15 +379,14 @@ class Hand:
         windobot = self.window_bot + self.style.spacing
         prev_right = self.window_left
         for card in iter(self):
-            card.x = prev_right + self.style.spacing
-            prev_right = card.x + card.width
-            card.y = windobot
-
-    def unravel(self):
-        if self.carddict is None:
-            if 
-        for card in self.carddict.itervalues():
             card.unravel()
+            x = prev_right + self.style.spacing
+            if not hasattr(card, 'widget'):
+                card.widget = CardWidget(card, x, windobot)
+            else:
+                card.widget.x = prev_right + self.style.spacing
+                card.widget.y = windobot
+            prev_right = card.widget.x + card.widget.width
 
 
 cards_qryfmt = (
@@ -403,10 +398,13 @@ def read_cards(db, names):
     qrystr = qryfmt.format(", ".join(["?"] * len(names)))
     db.c.execute(qrystr, tuple(names))
     r = {}
+    styles = set()
     for row in db.c:
         rowdict = dictify_row(row, Card.colns)
         rowdict["db"] = db
         r[rowdict["name"]] = Card(**rowdict)
+        styles.add(rowdict["style"])
+    read_styles(db, tuple(styles))
     return r
 
 
@@ -457,6 +455,7 @@ def read_hands_in_boards(db, boardnames):
     db.c.execute(qrystr, tuple(boardnames))
     r = {}
     handns = set()
+    stylens = set()
     for boardname in boardnames:
         r[boardname] = {}
     for row in db.c:
@@ -467,6 +466,8 @@ def read_hands_in_boards(db, boardnames):
         handns.add(handname)
         rowdict["name"] = handname
         del rowdict["hand"]
+        stylens.add(rowdict["style"])
         r[boardname][handname] = Hand(**rowdict)
     read_cards_in_hands(db, tuple(handns))
+    read_styles(db, stylens)
     return r

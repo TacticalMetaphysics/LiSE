@@ -304,15 +304,16 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.last_age = self.gamestate.age
                 self.last_timeline_y = y
             # draw any and all hands
-            for hand in self.board.handdict.itervalues():
+            for hand in self.board.hands:
                 # No state management yet because the hand itself has
                 # no graphics. The cards in it do.
-                for card in hand:
-                    if (card.bgimage is None or
-                        card.textholder.bgimage is None or
-                        card.bgimage.width != card.width or
-                        card.bgimage.height != card.height):
-                        redrawn = True
+                for cardbase in hand:
+                    card = cardbase.widget
+                    redrawn = (card.bgimage is None or
+                               card.textholder.bgimage is None or
+                               card.bgimage.width != card.width or
+                               card.bgimage.height != card.height)
+                    if redrawn:
                         card.bgimage = (
                             card.pats.bg_inactive.create_image(
                                 card.width, card.height))
@@ -351,8 +352,10 @@ board; all visible menus; and the calendar, if it's visible."""
                         if card.textholder.label is None:
                             card.textholder.label = pyglet.text.Label(
                                 card.text,
-                                card.textholder.window_left,
-                                card.textholder.window_bot,
+                                card.textholder.style.fontface,
+                                card.textholder.style.fontsize,
+                                x=card.textholder.window_left,
+                                y=card.textholder.window_bot,
                                 width=card.textholder.width,
                                 height=card.textholder.height,
                                 multiline=True,
@@ -408,7 +411,6 @@ board; all visible menus; and the calendar, if it's visible."""
                         card.imgsprite = None
                         card.textholder.bgsprite = None
                         card.textholder.label = None
-                                
                         
             # draw the background image
             if self.drawn_board is None:

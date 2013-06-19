@@ -1,3 +1,15 @@
+import pyglet
+
+class PatternHolder:
+    """Takes a style and makes pyglet.image.SolidColorImagePatterns out of
+its four colors, accessible through the attributes bg_active,
+bg_inactive, fg_active, and fg_inactive."""
+    def __init__(self, sty):
+        self.bg_inactive = pyglet.image.SolidColorImagePattern(sty.bg_inactive.tup)
+        self.bg_active = pyglet.image.SolidColorImagePattern(sty.bg_active.tup)
+        self.fg_inactive = pyglet.image.SolidColorImagePattern(sty.fg_inactive.tup)
+        self.fg_active = pyglet.image.SolidColorImagePattern(sty.fg_active.tup)
+
 class DictValues2DIterator:
     def __init__(self, d):
         self.d = d

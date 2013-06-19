@@ -86,6 +86,24 @@ time.
             return -1 * self.view_left
         elif attrn == "offset_y":
             return -1 * self.view_bot
+        elif attrn == "pawndict":
+            return self.db.pawndict[str(self)]
+        elif attrn == "spotdict":
+            return self.db.spotdict[str(self)]
+        elif attrn == "menudict":
+            return self.db.menudict[str(self)]
+        elif attrn == "handdict":
+            return self.db.boardhanddict[str(self)]
+        elif attrn == "edgedict":
+            return self.db.edgedict[str(self)]
+        elif attrn == "pawns":
+            return self.pawndict.itervalues()
+        elif attrn == "spots":
+            return self.spotdict.itervalues()
+        elif attrn == "menus":
+            return self.menudict.itervalues()
+        elif attrn == "hands":
+            return self.handdict.itervalues()
         elif attrn == "edges":
             return self.edgedict.itervalues()
         else:
@@ -138,11 +156,6 @@ and menus herein.
             db.handdict[str(self)] = {}
         if str(self) not in db.edgedict:
             db.edgedict[str(self)] = {}
-        self.pawndict = db.pawndict[str(self)]
-        self.spotdict = db.spotdict[str(self)]
-        self.menudict = db.menudict[str(self)]
-        self.handdict = db.handdict[str(self)]
-        self.edgedict = db.edgedict[str(self)]
         for pwn in self.pawndict.itervalues():
             pwn.unravel()
         for spt in self.spotdict.itervalues():

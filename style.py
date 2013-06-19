@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, dictify_row, stringlike
+from util import SaveableMetaclass, PatternHolder, dictify_row, stringlike
 import pyglet
 
 
@@ -133,16 +133,6 @@ spacing"""
                      self.bg_inactive, self.bg_active, self.fg_inactive,
                      self.fg_active))
 
-class PatternHolder:
-    """Takes a style and makes pyglet.image.SolidColorImagePatterns out of
-its four colors, accessible through the attributes bg_active,
-bg_inactive, fg_active, and fg_inactive."""
-    def __init__(self, sty):
-        self.bg_inactive = pyglet.image.SolidColorImagePattern(sty.bg_inactive.tup)
-        self.bg_active = pyglet.image.SolidColorImagePattern(sty.bg_active.tup)
-        self.fg_inactive = pyglet.image.SolidColorImagePattern(sty.fg_inactive.tup)
-        self.fg_active = pyglet.image.SolidColorImagePattern(sty.fg_active.tup)
-
 read_colors_fmt = (
     "SELECT {0} FROM color WHERE name IN ({1})".format(Color.colnstr, "{0}"))
 
@@ -170,7 +160,7 @@ def read_styles(db, stylenames):
 just yet. Return a dict keyed by style name."""
     qryfmt = read_styles_fmt
     qrystr = qryfmt.format(", ".join(["?"] * len(stylenames)))
-    db.c.execute(qrystr, stylenames)
+    db.c.execute(qrystr, tuple(stylenames))
     r = {}
     colornames = set()
     for row in db.c:
@@ -180,4 +170,19 @@ just yet. Return a dict keyed by style name."""
         rowdict["db"] = db
         r[rowdict["name"]] = Style(**rowdict)
     read_colors(db, list(colornames))
+    return r
+
+
+def read_all_styles(db):
+    qrystr = "SELECT {0} FROM style".format(Style.colnstr)
+    db.c.execute(qrystr)
+    r = {}
+    colornames = set()
+    for row in db.c:
+        rowdict = dictify_row(row, Style.colns)
+        for colorcol in Style.color_cols:
+            colornames.add(rowdict[colorcol])
+        rowdict["db"] = db
+        r[rowdict["name"]] = Style(**rowdict)
+    read_colors(db, tuple(colornames))
     return r
