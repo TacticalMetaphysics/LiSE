@@ -1,4 +1,7 @@
 import pyglet
+from math import sqrt
+
+phi = (1.0 + sqrt(5))/2.0
 
 class PatternHolder:
     """Takes a style and makes pyglet.image.SolidColorImagePatterns out of

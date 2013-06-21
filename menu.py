@@ -54,7 +54,6 @@ With db, register in db's menuitemdict.
         self._visible = visible
         self.interactive = interactive
         self.grabpoint = None
-        self.hovered = False
         self.label = None
         self.oldstate = None
         self.newstate = None
@@ -82,7 +81,13 @@ With db, register in db's menuitemdict.
         self.db = db
 
     def __getattr__(self, attrn):
-        if attrn == 'visible':
+        if attrn == 'gw':
+            return self.board.gw
+        elif attrn == 'hovered':
+            return self.gw.hovered is self
+        elif attrn == 'pressed':
+            return self.gw.pressed is self
+        elif attrn == 'visible':
             return self.menu.visible and self._visible
         elif attrn == 'window_left':
             return self.menu.window_left + self.menu.style.spacing
@@ -123,18 +128,6 @@ it starts with an @ character."""
     def onclick(self):
         """Event handler that fires the effect deck."""
         self.effect_deck.do(None)
-
-    def set_hovered(self):
-        """Become hovered if I'm not already."""
-        if not self.hovered:
-            self.hovered = True
-            self.tweaks += 1
-
-    def unset_hovered(self):
-        """If I'm being hovered, stop it."""
-        if self.hovered:
-            self.hovered = False
-            self.tweaks += 1
 
     def set_pressed(self):
         """Become pressed if I'm not already."""
@@ -205,7 +198,6 @@ just how to display this widget"""
             self.visible,
             self.interactive,
             self.grabpoint,
-            self.hovered,
             self.pressed,
             self.tweaks)
 
@@ -325,7 +317,6 @@ With db, register with db's menudict.
         self.main_for_window = main_for_window
         self._visible = visible
         self.interactive = True
-        self.hovered = False
         self.grabpoint = None
         self.sprite = None
         self.oldstate = None
@@ -350,6 +341,8 @@ With db, register with db's menudict.
                 return self.board.gw
         elif attrn == 'window':
             return self.gw.window
+        elif attrn == 'hovered':
+            return self.gw.hovered is self
         elif attrn == 'visible':
             return self._visible
         elif attrn == 'window_left':
@@ -457,11 +450,6 @@ and unravel style and all items."""
         if self.visible:
             self.toggle_visibility()
 
-    def onclick(self):
-        """If one of my items is hovered, activate it"""
-        if self.hovered is not None:
-            self.hovered.onclick()
-
     def get_state_tup(self):
         """Return a tuple containing everything you need to decide how to draw
 me"""
@@ -474,7 +462,6 @@ me"""
             self.style,
             self.main_for_window,
             self.visible,
-            self.hovered,
             self.grabpoint,
             self.pressed,
             self.tweaks)

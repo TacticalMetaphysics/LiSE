@@ -40,7 +40,6 @@ With db, register in db's pawndict.
         self.sprite = None
         self.oldstate = None
         self.newstate = None
-        self.hovered = False
         self.tweaks = 0
         dimname = str(self.dimension)
         thingname = str(self.thing)
@@ -54,6 +53,12 @@ With db, register in db's pawndict.
             return self.db.boarddict[str(self.dimension)]
         elif attrn == 'gw':
             return self.board.gw
+        elif attrn == 'hovered':
+            return self.gw.hovered is self
+        elif attrn == 'pressed':
+            return self.gw.pressed is self
+        elif attrn == 'grabbed':
+            return self.gw.grabbed is self
         elif attrn == 'window':
             return self.gw.window
         elif attrn == 'interactive':
@@ -172,18 +177,6 @@ clicked. This is probably not the ideal."""
         # strictly a hack. replace with effectdeck as soon as reasonable
         if hasattr(self, 'calcol'):
             self.calcol.toggle_visibility()
-
-    def set_hovered(self):
-        """Become hovered."""
-        if not self.hovered:
-            self.hovered = True
-            self.tweaks += 1
-
-    def unset_hovered(self):
-        """Stop being hovered."""
-        if self.hovered:
-            self.hovered = False
-            self.tweaks += 1
 
     def set_pressed(self):
         """Become pressed."""

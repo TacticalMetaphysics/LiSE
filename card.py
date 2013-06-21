@@ -1,6 +1,6 @@
 import pyglet
 import rumor
-from util import SaveableMetaclass, PatternHolder, stringlike, dictify_row
+from util import SaveableMetaclass, PatternHolder, stringlike, dictify_row, phi
 from style import read_styles
 
 """Rectangle shaped widget with picture on top and words on bottom."""
@@ -32,7 +32,19 @@ class Card:
         self.img = image
         self._text = text
         self.style = style
+        self.widget = None
         self.db.carddict[self.name] = self
+
+    def __getattr__(self, attrn):
+        if attrn == 'base':
+            return self
+        elif hasattr(self.widget, attrn):
+            return getattr(self.widget, attrn)
+        else:
+            raise AttributeError("Card has no attribute {0}".format(attrn))
+
+    def __str__(self):
+        return self.name
 
     def unravel(self):
         if stringlike(self.img):
@@ -67,10 +79,9 @@ class Card:
                 "style": stylen}
         }
 
-    def get_widget(self, x, y):
-        r = CardWidget(self.db, self.name, x, y)
-        r.unravel()
-        return r
+    def mkwidget(self, x, y):
+        self.widget = CardWidget(self, x, y)
+        self.widget.unravel()
 
 
 class TextHolder:
@@ -82,20 +93,28 @@ class TextHolder:
 
     def __getattr__(self, attrn):
         if attrn == "width":
-            return self.cardwidget.width - 2 * self.cardwidget.style.spacing
+            return self.cardwidget.width - 4 * self.cardwidget.style.spacing
         elif attrn == "height":
             if isinstance(self.cardwidget.base.img, pyglet.image.AbstractImage):
-                return self.cardwidget.height / 2 - 2 * self.cardwidget.style.spacing
+                return self.cardwidget.height / 2 - 4 * self.cardwidget.style.spacing
             else:
-                return self.cardwidget.height - 2 * self.cardwidget.style.spacing
+                return self.cardwidget.height - 4 * self.cardwidget.style.spacing
         elif attrn == "window_left":
-            return self.cardwidget.x + self.cardwidget.style.spacing
+            return self.cardwidget.x + 2 * self.cardwidget.style.spacing
         elif attrn == "window_right":
             return self.window_left + self.width
         elif attrn == "window_bot":
-            return self.cardwidget.window_bot + self.cardwidget.style.spacing
+            return self.cardwidget.window_bot + 2 * self.cardwidget.style.spacing
         elif attrn == "window_top":
             return self.window_bot + self.height
+        elif attrn == "text_left":
+            return self.window_left + self.cardwidget.style.spacing
+        elif attrn == "text_bot":
+            return self.window_bot + self.cardwidget.style.spacing
+        elif attrn == "text_width":
+            return self.width - self.cardwidget.style.spacing
+        elif attrn == "text_height":
+            return self.height - self.cardwidget.style.spacing
         else:
             return getattr(self.cardwidget, attrn)
 
@@ -108,9 +127,12 @@ class CardWidget:
         self.y = y
         self.db = self.base.db
         self.grabpoint = None
+        self.oldx = x
+        self.oldy = y
         self.visible = True
         self.interactive = True
         self.hovered = False
+        self.floating = False
         self.tweaks = 0
         self.pats = PatternHolder(self.base.style)
         self.bgimage = None
@@ -119,7 +141,15 @@ class CardWidget:
         self.imgsprite = None
 
     def __getattr__(self, attrn):
-        if attrn == 'img':
+        if attrn == 'gw':
+            return self.hand.gw
+        elif attrn == 'hovered':
+            return self.gw.hovered is self
+        elif attrn == 'pressed':
+            return self.gw.pressed is self
+        elif attrn == 'grabbed':
+            return self.gw.grabbed is self
+        elif attrn == 'img':
             return self.base.img
         elif attrn == 'display_name':
             return self.base.display_name
@@ -137,18 +167,7 @@ class CardWidget:
                 # The width of the image plus some gutterspace on each side
                 return self.img.width + self.style.spacing * 2
         elif attrn == 'height':
-            # The height of the text should be the same as that of the
-            # image. There should be a gutter between the two, as well
-            # as at the top and the bottom. The top gutter is tall
-            # enough for a regular gutter and also a single line of
-            # text.
-            if self.img is None:
-                return 256
-            else:
-                return (
-                    self.img.width * 2 +
-                    self.style.spacing * 3 +
-                    self.style.fontsize)
+            return int(self.width * phi)
         elif attrn == 'window_left':
             return self.x
         elif attrn == 'window_right':
@@ -157,8 +176,12 @@ class CardWidget:
             return self.y
         elif attrn == 'window_top':
             return self.y + self.height
-        else:
+        elif attrn == 'widget':
+            return self
+        elif hasattr(self.base, attrn):
             return getattr(self.base, attrn)
+        else:
+            raise AttributeError("CardWidget has no attribute {0}".format(attrn))
 
     def __hash__(self):
         return hash(self.get_state_tup())
@@ -188,15 +211,61 @@ class CardWidget:
         if not self.visible:
             self.toggle_visibility()
 
+    def hovered(self):
+        print "card hovered"
+        self.hovered = True
+
+    def unhovered(self):
+        print "card unhovered"
+        self.hovered = False
+
     def move_with_mouse(self, x, y, dx, dy, buttons, modifiers):
         if self.grabpoint is None:
+            self.oldx = x
+            self.oldy = y
+            self.floating = True
             self.grabpoint = (x - self.x, y - self.y)
+            self.hand.adjust()
         (grabx, graby) = self.grabpoint
         self.x = x - grabx + dx
         self.y = y - graby + dy
 
     def dropped(self, x, y, button, modifiers):
+        if (
+                x > self.hand.window_left and
+                x < self.hand.window_right and
+                y > self.hand.window_bot and
+                y < self.hand.window_top):
+            min_x = self.hand.window_right
+            max_x = 0
+            for card in self.hand:
+                if card.window_left < min_x:
+                    min_x = card.window_left
+                if card.window_right > max_x:
+                    max_x = card.window_right
+                if (
+                        x > card.window_left and
+                        x < card.window_bot):
+                    print "Dropped {0} on {1}".format(str(self), str(card))
+                    self.hand.discard(self)
+                    self.hand.insert(self.hand.index(card), self)
+                    break
+            # I am either to the left of all cards in hand, or to the right.
+            # Which edge am I closer to?
+            space_left = x - min_x
+            space_right = max_x - x
+            if space_left < space_right:
+                print "Dropped {0} to the left of the hand".format(str(self))
+                self.hand.discard(self)
+                self.hand.insert(0, self)
+            else:
+                print "Dropped {0} to the right of the hand".format(str(self))
+                self.hand.discard(self)
+                self.hand.append(self)
+            
+        self.floating = False
         self.grabpoint = None
+        self.hand.adjust()
 
     def get_state_tup(self):
         return (
@@ -220,7 +289,7 @@ class HandIterator:
 
     def next(self):
         try:
-            cardn = self.hand.db.handcarddict[str(self.hand)][self.i]
+            cardn = str(self.hand.db.handcarddict[str(self.hand)][self.i])
             card = self.hand.db.carddict[cardn]
             self.i += 1
             return card
@@ -287,7 +356,11 @@ class Hand:
         return HandIterator(self)
 
     def __getattr__(self, attrn):
-        if attrn == "visible":
+        if attrn == "gw":
+            return self.board.gw
+        elif attrn == "hovered":
+            return self.gw.hovered is self
+        elif attrn == "visible":
             return self._visible and hasattr(self.board, 'gw')
         elif attrn == "interactive":
             return self._interactive
@@ -315,6 +388,8 @@ class Hand:
                 return int(self._top * self.window.height)
             except AttributeError:
                 return 0
+        elif attrn == 'cards':
+            return self.db.handcarddict[str(self)]
         else:
             raise AttributeError(
                 "Hand has no attribute named {0}".format(attrn))
@@ -359,34 +434,49 @@ class Hand:
             self.style = self.db.styledict[self.style]
 
     def append(self, card):
-        self.db.handcarddict[str(self)].append(card)
+        card.hand = self
+        self.db.handcarddict[str(self)].append(str(card))
 
     def insert(self, i, card):
-        self.db.handcarddict[str(self)].insert(i, card)
+        card.hand = self
+        self.db.handcarddict[str(self)].insert(i, str(card))
 
     def remove(self, card):
-        self.db.handcarddict[str(self)].remove(card)
+        self.db.handcarddict[str(self)].remove(str(card))
+
+    def discard(self, card):
+        if str(card) in self.db.handcarddict[str(self)]:
+            self.remove(card)
 
     def index(self, card):
-        return self.db.handcarddict[str(self)].index(card)
+        return self.db.handcarddict[str(self)].index(str(card))
 
     def pop(self, i=-1):
-        return self.db.handcarddict[str(self)].pop(i)
+        r = self.db.handcarddict[str(self)].pop(i)
+        return r
 
     def adjust(self):
         if len(self) == 0:
             return
         windobot = self.window_bot + self.style.spacing
         prev_right = self.window_left
+        print "Adjusting hand {0} at ({1},{2})".format(str(self), str(prev_right), str(windobot))
+        print "Cards in hand:"
+        print self.cards
         for card in iter(self):
-            card.unravel()
+            print "Adjusting card {0}".format(str(card))
+            if card.widget is not None and card.widget.floating:
+                print "Skipping adjustment of {0} because it's floating.".format(str(card))
+                continue
+            card.hand = self
             x = prev_right + self.style.spacing
-            if not hasattr(card, 'widget'):
-                card.widget = CardWidget(card, x, windobot)
+            print "Moving {0} to ({1},{2})".format(str(card), str(x), str(windobot))
+            if card.widget is None:
+                card.mkwidget(x, windobot)
             else:
-                card.widget.x = prev_right + self.style.spacing
+                card.widget.x = x
                 card.widget.y = windobot
-            prev_right = card.widget.x + card.widget.width
+            prev_right = x + card.widget.width
 
 
 cards_qryfmt = (
@@ -440,8 +530,6 @@ def read_cards_in_hands(db, handnames):
         cards.add(cardn)
     read_cards(db, tuple(cards))
     for (handn, cardl) in r.iteritems():
-        for i in xrange(0, len(cardl)-1):
-            cardl[i] = db.carddict[cardl[i]]
         db.handcarddict[handn] = cardl
     return r
 

@@ -279,8 +279,8 @@ dimension names."""
                 styles.add(calcol.cel_style)
     for hands in read_hands_in_boards(db, boards).itervalues():
         for handname in hands.iterkeys():
-            for cardn in db.handcarddict[handname]:
-                card = db.carddict[cardn]
+            for card in db.handcarddict[handname]:
+                card = db.carddict[str(card)]
                 if stringlike(card.img):
                     imgs.add(card.img)
     load_imgs(db, list(imgs))

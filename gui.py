@@ -1,3 +1,4 @@
+
 import pyglet
 from edge import Edge
 
@@ -100,7 +101,7 @@ board; all visible menus; and the calendar, if it's visible."""
                     edge.vertlist = None
                     try:
                         ovl.delete()
-                    except:
+                    except (AttributeError, AssertionError):
                         pass
             # draw the spots, representing places
             for spot in self.board.spotdict.itervalues():
@@ -125,7 +126,7 @@ board; all visible menus; and the calendar, if it's visible."""
                     if spot.sprite is not None:
                         try:
                             spot.sprite.delete()
-                        except AttributeError:
+                        except (AttributeError, AssertionError):
                             pass
             # draw the pawns, representing things
             for pawn in self.board.pawndict.itervalues():
@@ -150,7 +151,7 @@ board; all visible menus; and the calendar, if it's visible."""
                     if pawn.sprite is not None:
                         try:
                             pawn.sprite.delete()
-                        except AttributeError:
+                        except (AttributeError, AssertionError):
                             pass
 
             # draw the menus, really just their backgrounds for the moment
@@ -165,7 +166,7 @@ board; all visible menus; and the calendar, if it's visible."""
                     if menu_item.label is not None:
                         try:
                             menu_item.label.delete()
-                        except AttributeError:
+                        except (AttributeError, AssertionError):
                             pass
                     if menu_item.visible:
                         sty = menu.style
@@ -191,7 +192,7 @@ board; all visible menus; and the calendar, if it's visible."""
                 if menu.sprite is not None:
                     try:
                         menu.sprite.delete()
-                    except AttributeError:
+                    except (AttributeError, AssertionError):
                         pass
                 if menu.visible:
                     image = (
@@ -212,7 +213,7 @@ board; all visible menus; and the calendar, if it's visible."""
                     if calcol.sprite is not None:
                         try:
                             calcol.sprite.delete()
-                        except AttributeError:
+                        except (AttributeError, AssertionError):
                             pass
                     if calcol.visible:
                         if calcol.width != calcol.old_width:
@@ -230,7 +231,7 @@ board; all visible menus; and the calendar, if it's visible."""
                         if cel.sprite is not None:
                             try:
                                 cel.sprite.delete()
-                            except AttributeError:
+                            except (AttributeError, AssertionError):
                                 pass
                         if cel.visible:
                             if self.hovered == cel:
@@ -284,7 +285,7 @@ board; all visible menus; and the calendar, if it's visible."""
                         self.timeline.domain.allocator.starts):
                     try:
                         self.timeline.delete()
-                    except AttributeError:
+                    except (AttributeError, AssertionError):
                         pass
                 top = self.calendar.window_top
                 left = self.calendar.window_left
@@ -307,19 +308,30 @@ board; all visible menus; and the calendar, if it's visible."""
             for hand in self.board.hands:
                 # No state management yet because the hand itself has
                 # no graphics. The cards in it do.
-                for cardbase in hand:
-                    card = cardbase.widget
+                for card in hand:
+                    ctxth = card.textholder
                     redrawn = (card.bgimage is None or
-                               card.textholder.bgimage is None or
+                               ctxth.bgimage is None or
                                card.bgimage.width != card.width or
                                card.bgimage.height != card.height)
                     if redrawn:
                         card.bgimage = (
                             card.pats.bg_inactive.create_image(
                                 card.width, card.height))
-                        card.textholder.bgimage = (
+                        ctxth.bgimage = (
                             card.pats.bg_active.create_image(
-                                card.width, card.height))
+                                ctxth.width,
+                                ctxth.height))
+                        try:
+                            card.bgsprite.delete()
+                        except (AttributeError, AssertionError):
+                            pass
+                        try:
+                            ctxth.bgsprite.delete()
+                        except (AttributeError, AssertionError):
+                            pass
+                        card.bgsprite = None
+                        ctxth.bgsprite = None
                     if card.visible:
                         if card.bgsprite is None:
                             card.bgsprite = pyglet.sprite.Sprite(
@@ -335,56 +347,57 @@ board; all visible menus; and the calendar, if it's visible."""
                                 card.bgsprite.y = card.window_bot
                             if redrawn:
                                 card.bgsprite.image = card.bgimage
-                        if card.textholder.bgsprite is None:
-                            card.textholder.bgsprite = pyglet.sprite.Sprite(
-                                card.textholder.bgimage,
-                                card.textholder.window_left,
-                                card.textholder.window_bot,
+                        if ctxth.bgsprite is None:
+                            ctxth.bgsprite = pyglet.sprite.Sprite(
+                                ctxth.bgimage,
+                                ctxth.window_left,
+                                ctxth.window_bot,
                                 batch=self.batch,
                                 group=self.card_text_bg_group)
                         else:
-                            if card.textholder.bgsprite.x != card.window_left:
-                                card.textholder.bgsprite.x = card.window_left
-                            if card.textholder.bgsprite.y != card.window_bot:
-                                card.textholder.bgsprite.y = card.window_bot
+                            if ctxth.bgsprite.x != ctxth.window_left:
+                                ctxth.bgsprite.x = ctxth.window_left
+                            if ctxth.bgsprite.y != ctxth.window_bot:
+                                ctxth.bgsprite.y = ctxth.window_bot
                             if redrawn:
-                                card.textholder.bgsprite.image = card.textholder.bgimage
-                        if card.textholder.label is None:
-                            card.textholder.label = pyglet.text.Label(
+                                ctxth.bgsprite.image = ctxth.bgimage
+                        if ctxth.label is None:
+                            ctxth.label = pyglet.text.Label(
                                 card.text,
-                                card.textholder.style.fontface,
-                                card.textholder.style.fontsize,
-                                x=card.textholder.window_left,
-                                y=card.textholder.window_bot,
-                                width=card.textholder.width,
-                                height=card.textholder.height,
+                                ctxth.style.fontface,
+                                ctxth.style.fontsize,
+                                anchor_y='bottom',
+                                x=ctxth.text_left,
+                                y=ctxth.text_bot,
+                                width=ctxth.text_width,
+                                height=ctxth.text_height,
                                 multiline=True,
                                 batch=self.batch,
                                 group=self.labelgroup)
                         else:
                             if (
-                                    card.textholder.label.x !=
-                                    card.textholder.window_left):
-                                card.textholder.label.x = (
-                                    card.textholder.window_left)
+                                    ctxth.label.x !=
+                                    ctxth.text_left):
+                                ctxth.label.x = (
+                                    ctxth.text_left)
                             if (
-                                    card.textholder.label.y !=
-                                    card.textholder.window_bot):
-                                card.textholder.label.y = (
-                                    card.textholder.window_bot)
+                                    ctxth.label.y !=
+                                    ctxth.text_bot):
+                                ctxth.label.y = (
+                                    ctxth.text_bot)
                             if (
-                                    card.textholder.label.width !=
-                                    card.textholder.width):
-                                card.textholder.label.width = (
-                                    card.textholder.width)
+                                    ctxth.label.width !=
+                                    ctxth.text_width):
+                                ctxth.label.width = (
+                                    ctxth.text_width)
                             if (
-                                    card.textholder.label.height !=
-                                    card.textholder.height):
-                                card.textholder.label.height = (
-                                    card.textholder.height)
+                                    ctxth.label.height !=
+                                    ctxth.text_height):
+                                ctxth.label.height = (
+                                    ctxth.text_height)
                         if isinstance(card.img, pyglet.image.AbstractImage):
                             x = card.window_left + card.style.spacing
-                            y = card.textholder.window_top + card.style.spacing
+                            y = ctxth.window_top + card.style.spacing
                             if card.imgsprite is None:
                                 card.imgsprite = pyglet.sprite.Sprite(
                                     card.img,
@@ -400,8 +413,8 @@ board; all visible menus; and the calendar, if it's visible."""
                         for dead in (
                                 card.bgsprite,
                                 card.imgsprite,
-                                card.textholder.bgsprite,
-                                card.textholder.label):
+                                ctxth.bgsprite,
+                                ctxth.label):
                             if dead is not None:
                                 try:
                                     dead.delete()
@@ -409,8 +422,8 @@ board; all visible menus; and the calendar, if it's visible."""
                                     pass
                         card.bgsprite = None
                         card.imgsprite = None
-                        card.textholder.bgsprite = None
-                        card.textholder.label = None
+                        ctxth.bgsprite = None
+                        ctxth.label = None
                         
             # draw the background image
             if self.drawn_board is None:
@@ -434,7 +447,21 @@ board; all visible menus; and the calendar, if it's visible."""
             """Find the widget, if any, that the mouse is over, and highlight
 it."""
             if self.hovered is None:
-                for menu in self.board.menudict.itervalues():
+                for hand in self.board.hands:
+                    if (
+                            hand.visible and
+                            x > hand.window_left and
+                            x < hand.window_right and
+                            y > hand.window_bot and
+                            y < hand.window_top):
+                        for card in hand:
+                            if (
+                                    x > card.window_left and
+                                    x < card.window_right):
+                                self.hovered = card
+                                card.tweaks += 1
+                                return
+                for menu in self.board.menus:
                     if (
                             menu.visible and
                             x > menu.window_left and
@@ -443,35 +470,30 @@ it."""
                             y < menu.window_top):
                         for item in menu.items:
                             if (
-                                    x > item.window_left and
-                                    x < item.window_right and
                                     y > item.window_bot and
                                     y < item.window_top):
-                                if hasattr(item, 'set_hovered'):
-                                    item.set_hovered()
                                 self.hovered = item
+                                item.tweaks += 1
                                 return
-                for spot in self.board.spotdict.itervalues():
+                for spot in self.board.spots:
                     if (
                             spot.visible and
                             x > spot.window_left and
                             x < spot.window_right and
                             y > spot.window_bot and
                             y < spot.window_top):
-                        if hasattr(spot, 'set_hovered'):
-                            spot.set_hovered()
                         self.hovered = spot
+                        spot.tweaks += 1
                         return
-                for pawn in self.board.pawndict.itervalues():
+                for pawn in self.board.pawns:
                     if (
                             pawn.visible and
                             x > pawn.window_left and
                             x < pawn.window_right and
                             y > pawn.window_bot and
                             y < pawn.window_top):
-                        if hasattr(pawn, 'set_hovered'):
-                            pawn.set_hovered()
                         self.hovered = pawn
+                        pawn.tweaks += 1
                         return
             else:
                 if (
@@ -479,8 +501,7 @@ it."""
                         x > self.hovered.window_right or
                         y < self.hovered.window_bot or
                         y > self.hovered.window_top):
-                    if hasattr(self.hovered, 'unset_hovered'):
-                        self.hovered.unset_hovered()
+                    self.hovered.tweaks += 1
                     self.hovered = None
 
         @window.event
@@ -491,8 +512,6 @@ still over it when pressed, it's been half-way clicked; remember this."""
                 return
             else:
                 self.pressed = self.hovered
-                if hasattr(self.pressed, 'set_pressed'):
-                    self.pressed.set_pressed()
 
         @window.event
         def on_mouse_release(x, y, button, modifiers):
@@ -505,8 +524,6 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                     self.grabbed.dropped(x, y, button, modifiers)
                 self.grabbed = None
             if self.pressed is not None:
-                if hasattr(self.pressed, 'unset_pressed'):
-                    self.pressed.unset_pressed()
                 if (
                         hasattr(self.pressed, 'onclick') and
                         x > self.pressed.window_left and
@@ -547,7 +564,6 @@ move_with_mouse method, use it.
                     self.board.view_left -= effective_dx
                     self.board.view_bot -= effective_dy
                     if self.pressed is not None:
-                        self.pressed.unset_pressed()
                         self.pressed = None
                     self.grabbed = None
             else:

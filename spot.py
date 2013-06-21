@@ -46,7 +46,6 @@ given coordinates, and visible or interactive as indicated.
         self.sprite = None
         self.oldstate = None
         self.newstate = None
-        self.hovered = False
         self.tweaks = 0
         dimname = str(self.dimension)
         placename = str(self.place)
@@ -60,6 +59,12 @@ given coordinates, and visible or interactive as indicated.
             return self.db.boarddict[str(self.dimension)]
         elif attrn == 'gw':
             return self.board.gw
+        elif attrn == 'hovered':
+            return self.gw.hovered is self
+        elif attrn == 'pressed':
+            return self.gw.pressed is self
+        elif attrn == 'grabbed':
+            return self.gw.grabbed is self
         elif attrn == 'window':
             return self.gw.window
         elif attrn == 'width':
@@ -140,13 +145,13 @@ graphics calculations."""
         """Does nothing yet"""
         pass
 
-    def set_hovered(self):
+    def hovered(self):
         """Become hovered"""
         if not self.hovered:
             self.hovered = True
             self.tweaks += 1
 
-    def unset_hovered(self):
+    def unhovered(self):
         """Stop being hovered"""
         if self.hovered:
             self.hovered = False
