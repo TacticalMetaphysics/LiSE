@@ -152,8 +152,8 @@ and menus herein.
             db.spotdict[str(self)] = {}
         if str(self) not in db.menudict:
             db.menudict[str(self)] = {}
-        if str(self) not in db.handdict:
-            db.handdict[str(self)] = {}
+        if str(self) not in db.boardhanddict:
+            db.boardhanddict[str(self)] = {}
         if str(self) not in db.edgedict:
             db.edgedict[str(self)] = {}
         for pwn in self.pawndict.itervalues():

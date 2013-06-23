@@ -6,6 +6,8 @@ class Edge:
         self.dimension = dimension
         self.portal = portal
         self.vertlist = None
+        self.wedge_a = None
+        self.wedge_b = None
         self.oldstate = None
         dimname = str(self.dimension)
         portname = str(self.portal)

@@ -1,15 +1,17 @@
-
 import pyglet
+import math
 from edge import Edge
 
 
 """All the graphics code unique to LiSE."""
 
 
+ninety = math.pi / 2
+
+fortyfive = math.pi / 4
 class GameWindow:
     """Instantiates a Pyglet window and displays the given board in it."""
-    arrowhead_angle = 45
-    arrowhead_len = 10
+    arrowhead_size = 50
 
     def __getattr__(self, attrn):
         if attrn == 'width':
@@ -76,33 +78,144 @@ class GameWindow:
         def on_draw():
             """Draw the background image; all spots, pawns, and edges on the
 board; all visible menus; and the calendar, if it's visible."""
+            from math import atan
             # draw the edges, representing portals
             for edge in self.board.edges:
-                newstate = edge.get_state_tup()
-                if newstate in self.onscreen:
-                    continue
-                self.onscreen.discard(edge.oldstate)
-                self.onscreen.add(newstate)
-                edge.oldstate = newstate
+                # newstate = edge.get_state_tup()
+                # if newstate in self.onscreen:
+                #     continue
+                # self.onscreen.discard(edge.oldstate)
+                # self.onscreen.add(newstate)
+                # edge.oldstate = newstate
                 if edge.visible:
-                    e = [
-                            edge.orig.window_x,
-                            edge.orig.window_y,
-                            edge.dest.window_x,
-                            edge.dest.window_y]
+                    # Try getting the coordinates of the arrowhead's
+                    # edges using trigonometry. In case of
+                    # zero-division, fudge it by hand.
+                    #
+                    # I'm going to use destination coordinates that
+                    # are a little bit shorter than the edge really
+                    # is, so as to prevent the arrowhead from being
+                    # covered by the spot.
+                    ox = float(edge.orig.window_x)
+                    oy = float(edge.orig.window_y)
+                    dx = float(edge.dest.window_x)
+                    dy = float(edge.dest.window_y)
+                    r = float(self.arrowhead_size)
+                    rise = dy - oy
+                    run = dx - ox
+                    if ox == dx:
+                        if oy > dy:
+                            oy -= edge.orig.r
+                            dy += edge.dest.r
+                        else:
+                            oy += edge.orig.r
+                            dy -= edge.dest.r
+                    elif oy == dy:
+                        if ox > dx:
+                            ox -= edge.orig.r
+                            dx += edge.dest.r
+                        else:
+                            ox += edge.orig.r
+                            dx -= edge.dest.r
+                    else:
+                        slope = rise / run
+                        theta = math.atan(slope)
+                        nudge_xo = math.cos(theta) * edge.orig.r
+                        nudge_yo = math.sin(theta) * edge.orig.r
+                        nudge_xd = math.cos(theta) * edge.dest.r
+                        nudge_yd = math.sin(theta) * edge.dest.r
+                        if ox > dx:
+                            ox -= nudge_xo
+                            dx += nudge_xd
+                        else:
+                            ox += nudge_xo
+                            dx -= nudge_xd
+                        if oy > dy:
+                            oy -= nudge_yo
+                            dy += nudge_yd
+                        else:
+                            oy += nudge_yo
+                            dy -= nudge_yd
+                        rise = dy - oy
+                        run = dx - ox
+                    goodlen = math.sqrt(rise ** 2 + run ** 2)
+                    try:
+                        if dy > oy:
+                            rise = dy - oy
+                        else:
+                            rise = oy - dy
+                        if dx > ox:
+                            run = dx - ox
+                        else:
+                            run = ox - dx
+                        theta = math.atan(rise/run)
+                        tobox = goodlen - r
+                        box_x_rel = math.cos(theta) * tobox
+                        box_y_rel = math.sin(theta) * tobox
+                        box_x = box_x_rel + ox
+                        box_y = box_y_rel + oy
+                        box_w = math.sin(fortyfive) * r
+                        theta2 = 0.75 * math.pi - theta
+                        off_x1 = math.sin(theta2) * box_w
+                        off_y1 = math.cos(theta2) * box_w
+                        theta3 = math.pi / 2 - theta2
+                        off_x2 = math.sin(theta3) * box_w
+                        off_y2 = math.cos(theta3) * box_w
+                        if dx > ox:
+                            xa = dx - off_x1
+                            xb = dx - off_x2
+                        else:
+                            xa = dx + off_x1
+                            xb = dx + off_x2
+                        if dy > oy:
+                            ya = dy - off_y1
+                            yb = dy - off_y2
+                        else:
+                            ya = dy + off_y1
+                            yb = dy + off_y2
+                        wedge_a = (int(xa), int(ya))
+                        wedge_b = (int(xb), int(yb))
+                    except ZeroDivisionError:
+                        if dx > ox:
+                            x1 = dx - r
+                            y2 = dy - r
+                        else:
+                            x1 = dx + r
+                            y2 = dy + r
+                        wedge_a = (int(x1), int(dy))
+                        wedge_b = (int(dx), int(y2))
+                    e = [edge.orig.window_x,
+                         edge.orig.window_y,
+                         edge.dest.window_x,
+                         edge.dest.window_y]
                     if edge.vertlist is None:
                         edge.vertlist = self.batch.add(
                             2, pyglet.graphics.GL_LINES,
                             self.edgegroup, ('v2i', tuple(e)))
                     else:
                         edge.vertlist.vertices = e
+                    ewa = wedge_a + (int(dx), int(dy))
+                    ewal = list(ewa)
+                    ewb = wedge_b + (int(dx), int(dy))
+                    ewbl = list(ewb)
+                    if edge.wedge_a is None:
+                        edge.wedge_a = self.batch.add(
+                            2, pyglet.graphics.GL_LINES,
+                            self.edgegroup, ('v2i', ewa))
+                    elif edge.wedge_a.vertices != ewal:
+                        edge.wedge_a.vertices = ewal
+                    if edge.wedge_b is None:
+                        edge.wedge_b = self.batch.add(
+                            2, pyglet.graphics.GL_LINES,
+                            self.edgegroup, ('v2i', ewb))
+                    elif edge.wedge_b.vertices != ewbl:
+                        edge.wedge_b.vertices = ewbl
                 else:
-                    ovl = edge.vertlist
-                    edge.vertlist = None
-                    try:
-                        ovl.delete()
-                    except (AttributeError, AssertionError):
-                        pass
+                    if edge.vertlist is not None:
+                        try:
+                            edge.vertlist.delete()
+                        except (AttributeError, AssertionError):
+                            pass
             # draw the spots, representing places
             for spot in self.board.spotdict.itervalues():
                 newstate = spot.get_state_tup()
