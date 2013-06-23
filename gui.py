@@ -14,7 +14,7 @@ threesixty = math.pi * 2
 
 class GameWindow:
     """Instantiates a Pyglet window and displays the given board in it."""
-    arrowhead_size = 50
+    arrowhead_size = 10
 
     def __getattr__(self, attrn):
         if attrn == 'width':
@@ -103,118 +103,65 @@ board; all visible menus; and the calendar, if it's visible."""
                     oy = float(edge.orig.window_y)
                     dx = float(edge.dest.window_x)
                     dy = float(edge.dest.window_y)
-                    r = float(self.arrowhead_size)
-                    rise = dy - oy
-                    run = dx - ox
-                    if ox == dx:
-                        if oy > dy:
-                            dy += edge.dest.r
-                        else:
-                            dy -= edge.dest.r
-                    elif oy == dy:
-                        if ox > dx:
-                            dx += edge.dest.r
-                        else:
-                            dx -= edge.dest.r
+                    taillen = float(self.arrowhead_size)
+                    if dy > oy:
+                        rise = dy - oy
                     else:
-                        slope = rise / run
-                        theta = math.atan(slope)
-                        nudge_xo = math.cos(theta) * edge.orig.r
-                        nudge_yo = math.sin(theta) * edge.orig.r
-                        nudge_xd = math.cos(theta) * edge.dest.r
-                        nudge_yd = math.sin(theta) * edge.dest.r
-                        if ox > dx:
-                            dx += nudge_xd
-                        else:
-                            dx -= nudge_xd
-                        if oy > dy:
-                            dy += nudge_yd
-                        else:
-                            dy -= nudge_yd
+                        rise = 0 - oy - dy
+                    if dx > ox:
+                        run = dx - ox
+                    else:
+                        run = 0 - ox - dx
+
+                    if run < 0:
+                        xco = -1
+                    else:
+                        xco = 1
+                    if rise < 0:
+                        yco = -1
+                    else:
+                        yco = 1
+                    ox *= xco
+                    dx *= xco
+                    oy *= yco
+                    dy *= yco
                     rise = dy - oy
                     run = dx - ox
-                    goodlen = math.sqrt(rise**2 + run**2)
+                    length = math.sqrt(rise**2 + run**2)
+                    betterlength = length - edge.dest.r
                     try:
-                        edge_slope_theta = math.atan(rise/run)
-                        edge_unslope_theta = ninety - edge_slope_theta
-                        box_width = math.sin(edge_slope_theta) * r
-                        if dx > ox:
-                            if dy > oy:
-                                if abs(rise) > abs(run):
-                                    gap_theta1 = edge_slope_theta - fortyfive
-                                    xoff1 = math.cos(gap_theta1) * box_width
-                                    yoff1 = math.sin(gap_theta1) * box_width
-                                    gap_theta2 = math.pi - edge_slope_theta - fortyfive
-                                    xoff2 = math.cos(gap_theta2) * box_width
-                                    yoff2 = math.sin(gap_theta2) * box_width
-                                else:
-                                    gap_theta1 = math.pi - edge_unslope_theta - fortyfive
-                                    xoff1 = math.sin(gap_theta1) * box_width
-                                    yoff1 = math.cos(gap_theta1) * box_width
-                                    gap_theta2 = edge_unslope_theta - fortyfive
-                                    xoff2 = math.sin(gap_theta2) * box_width
-                                    yoff2 = math.cos(gap_theta2) * box_width
-                            else:
-                                if abs(rise) > abs(run):
-                                    gap_theta1 = math.pi - edge_slope_theta - fortyfive
-                                    xoff1 = math.cos(gap_theta1) * box_width
-                                    yoff1 = math.sin(gap_theta1) * box_width
-                                    gap_theta2 = edge_unslope_theta - fortyfive
-                                    xoff2 = math.cos(gap_theta2) * box_width
-                                    yoff2 = math.sin(gap_theta2) * box_width
-                                else:
-                                    gap_theta1 = edge_unslope_theta - fortyfive
-                                    xoff1 = math.sin(gap_theta1) * box_width
-                                    yoff1 = math.cos(gap_theta1) * box_width
-                                    gap_theta2 = math.pi - edge_unslope_theta - fortyfive
-                                    xoff2 = math.sin(gap_theta2) * box_width
-                                    yoff2 = math.cos(gap_theta2) * box_width
-                        else:
-                            if dy > oy:
-                                if abs(rise) > abs(run):
-                                    gap_theta1 = math.pi - edge_slope_theta - fortyfive
-                                    xoff1 = math.cos(gap_theta1) * box_width
-                                    yoff1 = math.sin(gap_theta1) * box_width
-                                    gap_theta2 = edge_slope_theta - fortyfive
-                                    xoff2 = math.cos(gap_theta2) * box_width
-                                    yoff2 = math.sin(gap_theta2) * box_width
-                                else:
-                                    gap_theta1 = edge_unslope_theta - fortyfive
-                                    xoff1 = math.sin(gap_theta1) * box_width
-                                    yoff1 = math.cos(gap_theta1) * box_width
-                                    gap_theta2 = math.pi - edge_unslope_theta - fortyfive
-                                    xoff2 = math.sin(gap_theta2) * box_width
-                                    yoff2 = math.cos(gap_theta2) * box_width
-                            else:
-                                if abs(rise) > abs(run):
-                                    gap_theta1 = edge_unslope_theta - fortyfive
-                                    xoff1 = math.cos(gap_theta1) * box_width
-                                    yoff1 = math.sin(gap_theta1) * box_width
-                                    gap_theta2 = math.pi - edge_unslope_theta - fortyfive
-                                    xoff2 = math.cos(gap_theta2) * box_width
-                                    yoff2 = math.sin(gap_theta2) * box_width
-                                else:
-                                    gap_theta1 = math.pi - edge_slope_theta - fortyfive
-                                    xoff1 = math.sin(gap_theta1) * box_width
-                                    yoff1 = math.cos(gap_theta1) * box_width
-                                    gap_theta2 = edge_slope_theta - fortyfive
-                                    xoff2 = math.sin(gap_theta2) * box_width
-                                    yoff2 = math.cos(gap_theta2) * box_width
-                        x1 = dx + xoff1
-                        x2 = dx + xoff2
-                        y1 = dy + yoff1
-                        y2 = dy + yoff2
-                        wedge_a = (int(x1), int(y1))
-                        wedge_b = (int(x2), int(y2))
+                        theta = math.atan(rise/run)
                     except ZeroDivisionError:
-                        if dx > ox:
-                            x1 = dx - r
-                            y2 = dy - r
-                        else:
-                            x1 = dx + r
-                            y2 = dy + r
-                        wedge_a = (int(x1), int(dy))
-                        wedge_b = (int(dx), int(y2))
+                        theta = ninety
+                    dx = ox + math.cos(theta) * betterlength
+                    dy = oy + math.sin(theta) * betterlength
+                    rise = dy - oy
+                    run = dx - ox
+                    try:
+                        slope = rise/run
+                        slope_theta = math.atan(slope)
+                        opp_theta = math.atan(run/rise)
+                    except ZeroDivisionError:
+                        slope_theta = ninety
+                        opp_theta = 0.0
+                    if rise > run:
+                        top_theta = slope_theta - fortyfive
+                        bot_theta = math.pi - opp_theta - fortyfive
+                    else:
+                        bot_theta = slope_theta - fortyfive
+                        top_theta = math.pi - opp_theta - fortyfive
+                    xoff1 = math.cos(top_theta) * taillen
+                    yoff1 = math.sin(top_theta) * taillen
+                    xoff2 = math.cos(bot_theta) * taillen
+                    yoff2 = math.sin(bot_theta) * taillen
+                    x1 = int(dx - xoff1) * xco
+                    x2 = int(dx - xoff2) * xco
+                    y1 = int(dy -  yoff1) * yco
+                    y2 = int(dy -  yoff2) * yco
+                    ox *= xco
+                    dx *= xco
+                    oy *= yco
+                    dy *= yco
                     e = [edge.orig.window_x,
                          edge.orig.window_y,
                          edge.dest.window_x,
@@ -225,9 +172,9 @@ board; all visible menus; and the calendar, if it's visible."""
                             self.edgegroup, ('v2i', tuple(e)))
                     else:
                         edge.vertlist.vertices = e
-                    ewa = wedge_a + (int(dx), int(dy))
+                    ewa = (x1, y1, int(dx), int(dy))
                     ewal = list(ewa)
-                    ewb = wedge_b + (int(dx), int(dy))
+                    ewb = (x2, y2, int(dx), int(dy))
                     ewbl = list(ewb)
                     if edge.wedge_a is None:
                         edge.wedge_a = self.batch.add(
