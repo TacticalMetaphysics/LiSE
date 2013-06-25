@@ -91,10 +91,6 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen.add(newstate)
                 edge.oldstate = newstate
                 if edge.visible:
-                    # Try getting the coordinates of the arrowhead's
-                    # edges using trigonometry. In case of
-                    # zero-division, fudge it by hand.
-                    #
                     # I'm going to use destination coordinates that
                     # are a little bit shorter than the edge really
                     # is, so as to prevent the arrowhead from being
@@ -104,39 +100,32 @@ board; all visible menus; and the calendar, if it's visible."""
                     dx = float(edge.dest.window_x)
                     dy = float(edge.dest.window_y)
                     taillen = float(self.arrowhead_size)
-                    if dy > oy:
-                        rise = dy - oy
-                    else:
-                        rise = 0 - oy - dy
-                    if dx > ox:
-                        run = dx - ox
-                    else:
-                        run = 0 - ox - dx
 
-                    if run < 0:
-                        xco = -1
-                    else:
-                        xco = 1
-                    if rise < 0:
+                    if dy < oy:
                         yco = -1
                     else:
                         yco = 1
-                    ox *= xco
-                    dx *= xco
-                    oy *= yco
-                    dy *= yco
-                    rise = dy - oy
-                    run = dx - ox
+                    if dx < ox:
+                        xco = -1
+                    else:
+                        xco = 1
+                    leftx = ox * xco
+                    rightx = dx * xco
+                    boty = oy * yco
+                    topy = dy * yco
+
+                    rise = topy - boty
+                    run = rightx - leftx
                     length = math.sqrt(rise**2 + run**2)
                     betterlength = length - edge.dest.r
                     try:
                         theta = math.atan(rise/run)
                     except ZeroDivisionError:
                         theta = ninety
-                    dx = ox + math.cos(theta) * betterlength
-                    dy = oy + math.sin(theta) * betterlength
-                    rise = dy - oy
-                    run = dx - ox
+                    rightx = leftx + math.cos(theta) * betterlength
+                    topy = boty + math.sin(theta) * betterlength
+                    rise = topy - boty
+                    run = rightx - leftx
                     try:
                         slope = rise/run
                         slope_theta = math.atan(slope)
@@ -154,14 +143,11 @@ board; all visible menus; and the calendar, if it's visible."""
                     yoff1 = math.sin(top_theta) * taillen
                     xoff2 = math.cos(bot_theta) * taillen
                     yoff2 = math.sin(bot_theta) * taillen
-                    x1 = int(dx - xoff1) * xco
-                    x2 = int(dx - xoff2) * xco
-                    y1 = int(dy -  yoff1) * yco
-                    y2 = int(dy -  yoff2) * yco
-                    ox *= xco
-                    dx *= xco
-                    oy *= yco
-                    dy *= yco
+                    x1 = int(rightx - xoff1) * xco
+                    x2 = int(rightx - xoff2) * xco
+                    y1 = int(topy -  yoff1) * yco
+                    y2 = int(topy -  yoff2) * yco
+
                     e = [edge.orig.window_x,
                          edge.orig.window_y,
                          edge.dest.window_x,
@@ -172,9 +158,11 @@ board; all visible menus; and the calendar, if it's visible."""
                             self.edgegroup, ('v2i', tuple(e)))
                     else:
                         edge.vertlist.vertices = e
-                    ewa = (x1, y1, int(dx), int(dy))
+                    endx = rightx * xco
+                    endy = topy * yco
+                    ewa = (x1, y1, int(endx), int(endy))
                     ewal = list(ewa)
-                    ewb = (x2, y2, int(dx), int(dy))
+                    ewb = (x2, y2, int(endx), int(endy))
                     ewbl = list(ewb)
                     if edge.wedge_a is None:
                         edge.wedge_a = self.batch.add(
