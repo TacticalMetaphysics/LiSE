@@ -1,5 +1,4 @@
 import pyglet
-import rumor
 from util import SaveableMetaclass, PatternHolder, stringlike, dictify_row, phi
 from style import read_styles
 

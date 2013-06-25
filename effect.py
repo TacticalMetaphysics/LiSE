@@ -132,6 +132,15 @@ in, incidentally taking it out of the portal."""
         Effect.__init__(self, db, name, "thing_out_of_portal", arg)
 
 
+class PlaceCreationEffect:
+    """Effect to add a new Place to the game world. On its own this does
+not add the corresponding Spot."""
+    def __init__(self, db, dimension_name, place_name):
+        arg = "{0}.{1}".format(dimension_name, place_name)
+        name = "create_place({0})".format(arg)
+        Effect.__init__(self, db, name, "create_place", arg)
+
+
 class EffectDeck:
     """An ordered collection of Effects that may be executed in a
 batch."""
