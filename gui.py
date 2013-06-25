@@ -84,12 +84,12 @@ board; all visible menus; and the calendar, if it's visible."""
             from math import atan
             # draw the edges, representing portals
             for edge in self.board.edges:
-                # newstate = edge.get_state_tup()
-                # if newstate in self.onscreen:
-                #     continue
-                # self.onscreen.discard(edge.oldstate)
-                # self.onscreen.add(newstate)
-                # edge.oldstate = newstate
+                newstate = edge.get_state_tup()
+                if newstate in self.onscreen:
+                    continue
+                self.onscreen.discard(edge.oldstate)
+                self.onscreen.add(newstate)
+                edge.oldstate = newstate
                 if edge.visible:
                     # Try getting the coordinates of the arrowhead's
                     # edges using trigonometry. In case of
