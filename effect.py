@@ -20,16 +20,25 @@ may be fired by calling the do() method.
          {},
          [])]
 
-    def __init__(self, db, name, func, arg):
+    def __init__(self, db=None, name=None, func=None, arg=None):
         """Return an Effect of the given name, where the given function is
 called with the given argument. Register in db.effectdict."""
-        if name is None:
-            name = "{0}({1})".format(func, arg)
-        self.name = name
-        self.func = func
-        self.arg = arg
+        if not hasattr(self, 'func'):
+            self.func = func
+        if not hasattr(self, 'arg'):
+            self.arg = arg
+        if hasattr(self, 'name'):
+            name = self.name
+        else:
+            if name is None:
+                name = "{0}({1})".format(func, arg)
+            self.name = name
+        if hasattr(self, 'db'):
+            db = self.db
+        else:
+            self.db = db
         db.effectdict[name] = self
-        self.db = db
+        assert(None not in (self.db, self.name, self.func, self.arg))
 
     def get_rowdict(self):
         return {
@@ -47,68 +56,40 @@ to."""
         if hasattr(self, 'func') and stringlike(self.func):
             self.func = self.db.func[self.func]
 
-    def do(self, event):
+    def do(self, event, deck):
         """Call the function with the argument."""
-        return self.func(self.arg, event)
-
-
-class SetMouseCursorEffect(Effect):
-    """Effect to change the mouse cursor in a game window to an image."""
-    def __init__(self, db, gw, imgn):
-        img = db.imgdict[imgn]
-        (hotx, hoty) = img.center
-        self.curs = ImageMouseCursor(img.tex, hot_x=hotx, hot_y=hoty)
-        self.window = gw.window
-
-    def do(self, event):
-        self.window.set_mouse_cursor(self.curs)
-
-
-class UnsetMouseCursorEffect(Effect):
-    """Effect to return the mouse cursor to normal."""
-    def __init__(self, gw):
-        self.window = gw.window
-
-    def do(self, event):
-        self.window.set_mouse_cursor(
-            self.window.get_system_mouse_cursor(
-                self.window.CURSOR_DEFAULT))
+        r = self.func(event, deck, self, self.arg)
+        if r is None:
+            return (self, None)
+        else:
+            return r
 
 
 class CreatePlaceEffect(Effect):
     """Effect to make a place with the given dimension and name."""
-    func = 'create_place'
     def __init__(self, db, dimension, name):
-        self.arg = '{0}.{1}'.format(dimension, name)
-        Effect.__init__(self)
+        arg = '{0}.{1}'.format(str(dimension), name)
+        func = 'create_place'
+        name = '{0}({1})'.format(func, arg)
+        Effect.__init__(self, db, name, func, arg)
 
 
 class CreateGenericPlaceEffect(Effect):
     """Effect to make a place in a dimension with no particular name."""
-    func = 'create_generic_place'
     def __init__(self, db, dimension):
-        self.arg = str(dimension)
-        Effect.__init__(self)
+        arg = str(dimension)
+        func = 'create_generic_place'
+        name = '{0}({1})'.format(func, arg)
+        Effect.__init__(self, db, name, func, arg)
 
 
 class CreateSpotEffect(Effect):
     """Effect to make a spot representing a place that already exists."""
-    func = 'create_spot'
     def __init__(self, db, dimension, placename):
-        self.arg = "{0}.{1}".format(dimension, placename)
-        Effect.__init__(self)
-
-
-class PortalEntryEffect(Effect):
-    """Effect to put an item in a portal when it wasn't before."""
-    def __init__(self, db, item, portal):
-        self.item = item
-        self.portal = portal
-        dimname = item.dimension.name
-        arg = "{0}.{1}->{2}".format(
-            dimname, self.item.name, self.portal.name)
-        name = "thing_into_portal({0})".format(arg)
-        Effect.__init__(self, db, name, "thing_into_portal", arg)
+        arg = "{0}.{1}".format(dimension, placename)
+        func = "create_spot"
+        name = "{0}({1})".format(func, arg)
+        Effect.__init__(self, db, name, func, arg)
 
 
 class PortalProgressEffect(Effect):
@@ -132,19 +113,94 @@ in, incidentally taking it out of the portal."""
         Effect.__init__(self, db, name, "thing_out_of_portal", arg)
 
 
-class PlaceCreationEffect:
-    """Effect to add a new Place to the game world. On its own this does
-not add the corresponding Spot."""
-    def __init__(self, db, dimension_name, place_name):
-        arg = "{0}.{1}".format(dimension_name, place_name)
-        name = "create_place({0})".format(arg)
-        Effect.__init__(self, db, name, "create_place", arg)
+class EffectWhile(Effect):
+    """An effect that fires another effect in a loop, as long as the
+condition passed to the constructor returns True.
+
+The condition should be a string that is the key to a function stored
+in the RumorMill.
+
+    """
+    def __init__(self, db, effect, condition):
+        self.name = "while({0}):{1}".format(str(condition), str(effect))
+        self.db = db
+        if isinstance(effect, Effect):
+            self.effect = effect
+        else:
+            self.effect = self.db.effectdict[str(effect)]
+        self.condition = db.func[condition]
+        self.db.effectdict[self.name] = self
+
+    def do(self, event, deck):
+        r = []
+        while self.condition():
+            r.extend(self.effect(event, deck))
+        return r
+
+
+class DeckIter:
+    """Abstract class for iterators over EffectDecks.
+
+With reset=True, the deck will be put back in its original state when
+the iteration ends.
+
+depth controls the maximum number of Effects to iterate over. It
+defaults to None, iterating over all the Effects in the deck. Set it
+to some positive integer to eg. limit iteration over infinitely long
+decks.
+
+    """
+    def __init__(self, efd, reset=False, depth=None):
+        self.efd = efd
+        self.reset = reset
+        self.depth = depth
+        self.i = 0
+        self.effects_backup = list(self.efd.effects)
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        try:
+            self.i += 1
+            if self.depth is not None and self.i >= self.depth:
+                raise IndexError
+            return self._next()
+        except IndexError:
+            if self.reset:
+                self.efd.effects = self.effects_backup
+            raise StopIteration
+
+
+class FILODeckIter(DeckIter):
+    def _next(self):
+        return self.efd.effects.pop()
+
+
+class FIFODeckIter(DeckIter):
+    def _next(self):
+        return self.efd.effects.pop(0)
+
+
+class RandomDiscardDeckIter(DeckIter):
+    def _next(self):
+        idx = random.randrange(0, len(self.efd.effects))
+        return self.efd.effects.pop(idx)
+
+
+class RandomReinsertDeckIter(DeckIter):
+    def _next(self):
+        idx = random.randrange(0, len(self.efd.effects))
+        return self.efd.effects[idx]
 
 
 class EffectDeck:
     """An ordered collection of Effects that may be executed in a
 batch."""
     __metaclass__ = SaveableMetaclass
+    draw_order = FILODeckIter
+    reset = False
+    depth = None
     tables = [
         ("effect_deck_link",
          {"deck": "text not null",
@@ -157,9 +213,6 @@ batch."""
     def __init__(self, db, name, effects):
         """Return an EffectDeck with the given name, containing the effects in
 the given list.
-
-If db is supplied, register with it.
-
         """
         self.name = name
         self.effects = effects
@@ -173,7 +226,7 @@ If db is supplied, register with it.
         self.effects[i] = to
 
     def __iter__(self):
-        return iter(self.effects)
+        return self.draw_order(self, reset=self.reset, depth=self.depth)
 
     def __contains__(self, that):
         return that in self.effects
@@ -215,23 +268,46 @@ of an effect, look up the real effect object. Then unravel it."""
             i += 1
 
     def do(self, event):
-        """Fire all the effects in order."""
-        return [effect.do(event) for effect in self.effects]
+        """Fire all the Effects herein, in whatever order my iterator says to.
 
+Return a list. Its first item is this deck. The rest of the items are
+tuples. The first item in each tuple is an Effect object. The list is
+in the order in which these were fired, which may not be the order
+this EffectDeck is in. The remainder (if present) are particular to
+the Effect, and may be thought of as the Effect's "return value".
+
+To decide what order the Effects should be fired in, set my draw_order
+attribute to one of the DeckIter classes. The default is FILODeckIter,
+which behaves the most like an actual deck of cards--but if you want
+something more like a *shuffled* deck of cards, use
+RandomDiscardDeckIter.
+
+        """
+        fritter = iter(self)
+        r = []
+        for eff in fritter:
+            erl = [self]
+            while erl[-1] is not None:
+                erl.extend(eff.do(event, self))
+            r.append((eff,) + tuple(erl))
+        return r
 
 class PortalEntryEffectDeck(EffectDeck):
+    reset = True
     def __init__(self, db, item, portal):
         effect = PortalEntryEffect(db, item, portal)
         EffectDeck.__init__(self, db, effect.name, [effect])
 
 
 class PortalProgressEffectDeck(EffectDeck):
+    reset = True
     def __init__(self, db, item):
         effect = PortalProgressEffect(db, item)
         EffectDeck.__init__(self, db, effect.name, [effect])
 
 
 class PortalExitEffectDeck(EffectDeck):
+    reset = True
     def __init__(self, db, item):
         effect = PortalExitEffect(db, item)
         EffectDeck.__init__(self, db, effect.name, [effect])

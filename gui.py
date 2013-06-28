@@ -12,6 +12,7 @@ fortyfive = math.pi / 4
 
 threesixty = math.pi * 2
 
+
 class GameWindow:
     """Instantiates a Pyglet window and displays the given board in it."""
     arrowhead_size = 10
@@ -45,13 +46,6 @@ class GameWindow:
         self.pressed = None
         self.hovered = None
         self.grabbed = None
-        self.mouse_x = 0
-        self.mouse_y = 0
-        self.mouse_dx = 0
-        self.mouse_dy = 0
-        self.mouse_buttons = 0
-        self.mouse_mods = 0
-        self.prev_view_left = 0
         self.prev_view_bot = 0
 
         window = pyglet.window.Window()
@@ -76,6 +70,14 @@ class GameWindow:
         self.onscreen = set()
         self.last_age = -1
         self.last_timeline_y = -1
+
+        orbimg = self.db.imgdict['default_spot']
+        rx = orbimg.width / 2
+        ry = orbimg.height / 2
+        self.create_place_cursor = pyglet.window.ImageMouseCursor(orbimg, rx, ry)
+        self.create_place_cursor.rx = rx
+        self.create_place_cursor.ry = ry
+        self.placing = False
 
         @window.event
         def on_draw():
@@ -587,7 +589,7 @@ it."""
         def on_mouse_press(x, y, button, modifiers):
             """If there's something already highlit, and the mouse is
 still over it when pressed, it's been half-way clicked; remember this."""
-            if self.hovered is None:
+            if self.placing or self.hovered is None:
                 return
             else:
                 self.pressed = self.hovered
@@ -596,8 +598,13 @@ still over it when pressed, it's been half-way clicked; remember this."""
         def on_mouse_release(x, y, button, modifiers):
             """If something was being dragged, drop it. If something was being
 pressed but not dragged, it's been clicked. Otherwise do nothing."""
-            if self.grabbed is None:
-                self.board.save()
+            if self.placing:
+                placed = self.db.make_generic_place(None, None, None, str(self.board))
+                self.db.make_spot(str(placed.dimension), str(placed), x, y)
+                self.window.set_mouse_cursor()
+                self.placing = False
+            elif self.grabbed is None:
+                pass
             else:
                 if hasattr(self.grabbed, 'dropped'):
                     self.grabbed.dropped(x, y, button, modifiers)
@@ -667,4 +674,7 @@ move_with_mouse method, use it.
                 self.calendar.scrolled_to -= scroll_y * sf
                 if self.calendar.scrolled_to < 0:
                     self.calendar.scrolled_to = 0
-                self.board.save()
+
+    def create_place(self):
+        self.window.set_mouse_cursor(self.create_place_cursor)
+        self.placing = True

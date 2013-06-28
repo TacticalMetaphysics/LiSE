@@ -1,11 +1,3 @@
-from util import SaveableMetaclass, dictify_row, stringlike
-from effect import (
-    read_effect_decks,
-    PortalEntryEffectDeck,
-    PortalProgressEffectDeck,
-    PortalExitEffectDeck)
-
-
 """Containers for EffectDecks that have beginnings, middles, and ends.
 
 Events, in LiSE, resemble events in programming generally insofar as
@@ -18,6 +10,16 @@ Events get passed to the effect decks, which may or may not use them
 for anything in particular.
 
 """
+from util import SaveableMetaclass, dictify_row, stringlike
+from effect import (
+    read_effect_decks,
+    PortalEntryEffectDeck,
+    PortalProgressEffectDeck,
+    PortalExitEffectDeck)
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class SenselessEvent(Exception):
@@ -126,7 +128,8 @@ value in the db.
             self.text = self.db.get_text(self.text[1:])
         for deck in (self.commence_effects, self.proceed_effects,
                      self.conclude_effects):
-            deck.unravel()
+            if deck is not None:
+                deck.unravel()
 
     def cmpcheck(self, other):
         """Check if this event is comparable to the other. Raise TypeError if
@@ -165,16 +168,19 @@ not."""
 
     def commence(self):
         """Perform all commence effects, and set self.ongoing to True."""
-        self.commence_effects.do(self)
+        if self.commence_effects is not None:
+            self.commence_effects.do(self)
         self.ongoing = True
 
     def proceed(self):
         """Perform all proceed effects."""
-        self.proceed_effects.do(self)
+        if self.proceed_effects is not None:
+            self.proceed_effects.do(self)
 
     def conclude(self):
         """Perform all conclude effects, and set self.ongoing to False."""
-        self.conclude_effects.do(self)
+        if self.conclude_effects is not None:
+            self.conclude_effects.do(self)
         self.ongoing = False
 
     def display_str(self):
@@ -213,7 +219,7 @@ one place to another."""
         name = self.name_format.format(
             dimname, thing.name, origname, portal.name, destname)
         text = self.text_format.format(origname, destname)
-        commence_effects = PortalEntryEffectDeck(db, thing, portal)
+        commence_effects = None
         proceed_effects = PortalProgressEffectDeck(db, thing)
         conclude_effects = PortalExitEffectDeck(db, thing)
         Event.__init__(

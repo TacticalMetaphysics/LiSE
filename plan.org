@@ -162,12 +162,36 @@
 *** DONE getmenuitemsin
 *** DONE delmenuitem
 *** DONE delmenuitemsin
-** TODO change loaders so they can handle the case where you try to load something that doesn't exist
+** DONE change loaders so they can handle the case where you try to load something that doesn't exist
 ** TODO schema changes
 *** both Spots and Pawns are contained in Canvases
 *** Spots are also contained in SpotGraphs
 *** How do I store those all in the database?
 *** Do I even need SpotGraphs? What are they for?
+** World database schema
+   Since questions of data model seem to distract me a lot, I'll decide on some basics before going forward with any kind of interaction design.
+
+   The model given here doesn't necessarily represent what's saved in the save files, nor what's used in the program during play. Perhaps this will "merely" be a transitional form that the game world occupies in between loading the save and beginning play.
+
+   It would be kind of cool, though, if I could query the world using SQL.
+*** Top level: Timeline
+    Each record in the timeline represents something that changed in the game world. I don't want to call these "events" because that term's taken by lower-level concerns like the input handler. I'll call them "tocks".
+**** Time
+     Counted in ticks from game-start. The length of wall-time that a tick represents may vary from game to game. That information will have to go into some kind of header.
+**** Order
+     A counter that increments for every tock in a given tick. It resets to zero when the next tick occurs.
+**** Place
+     n-to-n related to Places in the World Map. Places can contain Items and Trails. Trails can represent any option that a traveling entity such as a character can use for traveling somewhere.
+**** Items
+     n-to-n related to Things that occupy Places. Each item related to a given tock was somehow taken into account in the process of determining and resolving the tock's effects on the game world. This includes the things changed, the instigators (if any), the tools used (if any), and possibly a bunch of stuff that doesn't actually make a difference, but could have done so, in principle.
+
+     Items should be given in the same order that they were passed to the function that was used to determine the results of the Action. As such, the table describing the n-to-n relation to Things will need an ordinal integer as the primary key, rather than using the things-related as the primary key, as would be expected.
+**** Action
+     n-to-1 related to an Action, which describes the process used to decide what to change. Actions are in turn 1-to-n related to functions, and include whatever data I need to decide which of those functions is needed to resolve a particular Action, given the Things involved, and the order that the Things are given in.
+**** Change
+     A link to an entry in a journal that represents the before and after states of the world model.
+
+     I'll have to look into journal design, or else choose an appropriate premade journal.
 * interface
 ** place places (w. spots)
 ** place things (w. pawns)
@@ -191,3 +215,83 @@
 *** cards
 **** with image
 **** without
+* Basic features
+  In my opinion, every life sim should have these.
+** Characters
+*** Body model
+**** Standard parts
+***** Humans
+***** Dogs, cats
+***** Mechanical bits
+*** Mind/spirit model
+**** NPC scripting
+**** NPC narrow AI
+**** Knowledge tracking
+*** Skill model
+*** Sense model
+**** Sight
+***** What's here
+***** What's inside
+***** What does it resemble
+**** Mistaken impressions
+**** Incomplete impressions
+** Day/night cycle
+*** Arbitrary number of day-periods, which are not necessarily the smallest meaningful units of time, but which are the smallest units that can be scheduled for
+*** NPCs follow no-thought scripts for each day, unless and until interrupted
+**** The behavior solver will need to know what of the NPC's interests have been served by that point
+**** To that effect, I will also need a need tracker
+***** This will take the NPC's current wishes as parameters and track how they're being served
+***** This information takes the same form that the solver will use
+***** It has conditions under which it instantiates a solver, taking the wishes and their need-states, and gives the solver control of the NPC
+****** These conditions may be thresholds that the need-states can pass
+****** They may be world-states that the NPC is intimately concerned with, eg. a physician getting a call about a patient that they must immediately operate upon
+****** The NPC should pretty much always wake up and pay attention whenever the player character interacts with them directly.
+** User interface
+*** Pyglet
+**** Vertices, draggable
+***** Appearance
+Vertices should not all look the same. They represent places, some of which will be more important than others, and should thus be larger on the screen.
+
+I should be able to use any graphic for a vertex. It should be PNG format, with transparency.
+
+Various tokens may appear on top of a vertex. Normally that means they go in the topright corner. How many? The tokens and the graphic can be changed at any time, perhaps animated.
+
+Certain tokens go in the center. Normally they represent characters.
+***** Interaction
+The vertices are draggable in God Mode, and perhaps otherwise too--in which case their movement must be restricted so that edges that do not cross now, won't cross ever.
+**** Edges, moving with their endpoints
+**** Subscreens
+Little windows with no title bars or anything. They appear when needed and disappear when you click somewhere else.
+***** Character Overview
+***** Social Inventory
+Mostly this will look like the friends display from Kudos 2, although I'd like to let the player see more without clicking.
+***** Carried Inventory
+***** Status Effect Inventory
+***** Statistic Inventory ("Character Sheet")
+***** Event Inventory
+***** God Mode Inventory
+Presents all the things you drag and drop onto the map when you're editing it. Not accessible during normal play.
+***** Place Inventory
+Includes portals and characters, which should be set apart from other stuff somehow.
+***** Quest Log
+Mechanically, "quests" are much the same as in western computer RPGs. However they will frequently be procedurally generated rather than scripted.
+***** Need Inventory
+Actually, significantly similar to the quest log, but with more persistence. The sort of "quest" that you need to do over and over again, like driving to work.
+Maybe I should just have this as a pane within the Quest Log.
+** Programming interface
+* Extra features
+** Stolen from Kudos 2
+*** the social web display
+*** the kudos bar
+*** Significant Others
+*** smallish menu of "good ideas"
+But not restricted to stuff you've "unlocked," just stuff you *know
+about* and which your character considers sensible.
+
+Actually this should just be a sorting priority for the action inventory.
+* Gameplay cycle
+Depending on how many characters you control, and how far each will obey your instructions, it might be an rpg or a time/resource mgmt sim. In either case you collect resource and skill so you can learn of new opportunities to get more resource and skill. The middle-term objectives, possibly "missions," mostly involve raising some stat to some threshold, whether it's money, exp, or coolness. Any time a stat has an effect on the world, it will also (sometimes only) modify other stats that the player should be concerned with.
+
+Sometimes you're actually trying to instantiate some new entity into the world, for which you need to sacrifice some other entity, or one of its stats. This makes a compelling kind of objective because creation has similar effects on the world model to exploration, yet is under player control. I'll pay special attention to enabling strange and unusual crafting systems. Like maybe you can craft entire cities. Abstraction is wonderful for that kind of thing.
+
+

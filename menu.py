@@ -14,8 +14,7 @@ import pyglet
 __metaclass__ = SaveableMetaclass
 
 
-MENU_TOGGLER_RE = re.compile("toggle_menu\((.*)\)")
-CALENDAR_TOGGLER_RE = re.compile("toggle_calendar\((.*)\)")
+ON_CLICK_RE = re.compile("""([a-zA-Z0-9_]+)\((.*)\)""")
 
 
 class MenuItem:
@@ -26,16 +25,15 @@ class MenuItem:
           'menu': 'text not null',
           'idx': 'integer not null',
           'text': 'text not null',
-          'effect_deck': 'text not null',
+          'on_click': 'text not null',
           'closer': "boolean not null default 1",
           'visible': "boolean not null default 1",
           'interactive': "boolean not null default 1"},
          ('board', 'menu', 'idx'),
-         {"board, menu": ("menu", "board, name"),
-          "effect_deck": ("effect_deck_link", "deck")},
+         {"board, menu": ("menu", "board, name")},
          [])]
 
-    def __init__(self, db, board, menu, idx, text, effect_deck, closer,
+    def __init__(self, db, board, menu, idx, text, on_click, closer,
                  visible, interactive):
         """Return a menu item in the given board, the given menu; at the given
 index in that menu; with the given text; which executes the given
@@ -49,7 +47,7 @@ With db, register in db's menuitemdict.
         self.menu = menu
         self.idx = idx
         self.text = text
-        self.effect_deck = effect_deck
+        self._on_click = on_click
         self.closer = closer
         self._visible = visible
         self.interactive = interactive
@@ -59,17 +57,8 @@ With db, register in db's menuitemdict.
         self.newstate = None
         self.pressed = False
         self.tweaks = 0
-        if stringlike(self.board):
-            boardname = self.board
-        else:
-            if stringlike(self.board.dimension):
-                boardname = self.board.dimension
-            else:
-                boardname = self.board.dimension.name
-        if stringlike(self.menu):
-            menuname = self.menu
-        else:
-            menuname = self.menu.name
+        boardname = str(self.board)
+        menuname = str(self.menu)
         if boardname not in db.menuitemdict:
             db.menuitemdict[boardname] = {}
         if menuname not in db.menuitemdict[boardname]:
@@ -111,32 +100,6 @@ With db, register in db's menuitemdict.
                 "MenuItem instance has no such attribute: " +
                 attrn)
 
-    def unravel(self):
-        """Dereference the board, the menu, the effect deck, and the text if
-it starts with an @ character."""
-        db = self.db
-        if stringlike(self.board):
-            self.board = db.boarddict[self.board]
-        if stringlike(self.menu):
-            self.menu = db.menudict[self.board.dimension.name][self.menu]
-        self.parse_effect_deck()
-        while len(self.menu.items) < self.idx:
-            self.menu.items.append(None)
-        if self.text[0] == "@":
-            self.text = db.get_text(self.text[1:])
-
-    def onclick(self):
-        """Event handler that fires the effect deck."""
-        self.effect_deck.do(None)
-
-    def set_pressed(self):
-        """Become pressed if I'm not already."""
-        pass
-
-    def unset_pressed(self):
-        """If I'm being pressed, stop it."""
-        pass
-
     def __eq__(self, other):
         """Compare the menu and the idx to see if these menu items ought to be
 the same."""
@@ -173,6 +136,41 @@ the same."""
         """Show my text"""
         return self.text
 
+    def unravel(self):
+        """Dereference the board, the menu, the effect deck, and the text if
+it starts with an @ character."""
+        db = self.db
+        if stringlike(self.board):
+            self.board = db.boarddict[self.board]
+        if stringlike(self.menu):
+            self.menu = db.menudict[self.board.dimension.name][self.menu]
+        while len(self.menu.items) < self.idx:
+            self.menu.items.append(None)
+        if self.text[0] == "@":
+            self.text = db.get_text(self.text[1:])
+        onclickmatch = re.match(ON_CLICK_RE, self._on_click)
+        if onclickmatch is None:
+            raise Exception("Couldn't understand this function for this menu item.")
+        ocmg = onclickmatch.groups()
+        if len(ocmg) == 2:
+            self.func = self.db.func[ocmg[0]]
+            self.arg = ocmg[1]
+        elif len(ocmg) == 1:
+            self.func = self.db.func[ocmg[0]]
+            self.arg = None
+        else:
+            raise Exception("This is a weird expression to use for an on_click.")
+
+    def onclick(self):
+        """Look in self.db.func for an appropriately named function. Call that
+function on myself and whatever other argument was specified.
+
+        """
+        if self.arg is None:
+            return self.func(self)
+        else:
+            return self.func(self, self.arg)
+
     def toggle_visibility(self):
         """Become visible if invisible or vice versa"""
         self.visible = not self.visible
@@ -200,51 +198,6 @@ just how to display this widget"""
             self.grabpoint,
             self.pressed,
             self.tweaks)
-
-    def parse_effect_deck(self):
-        """Dereference the effect deck, possibly making a new one if it's
-named a certain way."""
-        db = self.db
-        efd = self.effect_deck
-        if isinstance(efd, EffectDeck) or db is None:
-            self.effect_deck = efd
-            return
-        menutogmatch = re.match(MENU_TOGGLER_RE, efd)
-        if menutogmatch is not None:
-            menuspec = menutogmatch.groups()[0]
-            menuspec_split = menuspec.split(".")
-            if len(menuspec_split) == 2:
-                (b, m) = menuspec_split
-                self.effect_deck = make_menu_toggler(db, b, m)
-            else:
-                if stringlike(self.menu.board):
-                    boardname = self.menu.board
-                else:
-                    if stringlike(self.menu.board.dimension):
-                        boardname = self.menu.board.dimension
-                    else:
-                        boardname = self.menu.board.dimension.name
-                self.effect_deck = make_menu_toggler(db, boardname, menuspec)
-                return
-        caltogmatch = re.match(CALENDAR_TOGGLER_RE, efd)
-        if caltogmatch is not None:
-            calspec = caltogmatch.groups()[0]
-            calspec_split = calspec.split(".")
-            if len(calspec_split) == 2:
-                (dimn, itn) = calspec_split
-                self.effect_deck = make_calendar_toggler(db, dimn, itn)
-            else:
-                if stringlike(self.menu.board):
-                    dimname = self.menu.board
-                else:
-                    if stringlike(self.menu.board.dimension):
-                        dimname = self.menu.board.dimension
-                    else:
-                        dimname = self.menu.board.dimension.name
-                self.effect_deck = make_calendar_toggler(db, dimname, calspec)
-            return
-        if efd in db.effectdeckdict:
-            self.effect_deck = db.effectdeckdict[efd]
 
 
 def pull_items_in_menus(db, menunames):

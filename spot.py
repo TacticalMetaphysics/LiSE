@@ -30,7 +30,7 @@ class Spot:
          [])]
 
     def __init__(self, db, dimension, place, img, x, y,
-                 visible, interactive):
+                 visible=True, interactive=True):
         """Return a new spot on the board for the given dimension,
 representing the given place with the given image. It will be at the
 given coordinates, and visible or interactive as indicated.

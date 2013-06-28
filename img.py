@@ -50,6 +50,8 @@ provided."""
             return self.tex.height
         elif attrn == 'center':
             return (self.tex.width/2, self.tex.height/2)
+        elif attrn == 'texture':
+            return self.tex
         else:
             raise AttributeError(
                 "Img instance has no attribute {0}.".format(attrn))

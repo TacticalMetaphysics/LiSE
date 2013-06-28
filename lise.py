@@ -1,9 +1,14 @@
 import pyglet
+import logging
 from gui import GameWindow
 from rumor import load_game
 from state import GameState
 from sys import argv
 from sqlite3 import connect, DatabaseError
+
+logging.basicConfig()
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 
 i = 0
 lang = "English"

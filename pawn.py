@@ -145,11 +145,6 @@ make a new, hidden calendar column to represent the schedule.
         # point between the start and end spots in proportion to the
         # journey's progress. If there is no end spot, behave as if
         # there's no journey.
-        #
-        # I can't assume that img is an actual image because the
-        # loader instantiates things before assigning them data that's
-        # not strings or numbers. Calculate self.rx to save some
-        # division.
         if hasattr(self.thing, 'journey') and\
            self.thing.journey.steps_left() > 0:
             j = self.thing.journey
@@ -166,7 +161,7 @@ portal {1} properly.""".format(repr(self), repr(port)))
             p = self.thing.journey_progress
             x = start.window_x + hdist * p
             y = start.window_y + vdist * p
-            return (x, y)
+            return (int(x), int(y))
         else:
             ls = self.thing.location.spot
             return (ls.window_x, ls.window_y)
@@ -174,29 +169,19 @@ portal {1} properly.""".format(repr(self), repr(port)))
     def onclick(self):
         """For now, pawns toggle their associated calendar columns on being
 clicked. This is probably not the ideal."""
-        # strictly a hack. replace with effectdeck as soon as reasonable
         if hasattr(self, 'calcol'):
             self.calcol.toggle_visibility()
 
-    def set_pressed(self):
-        """Become pressed."""
-        pass
-
-    def unset_pressed(self):
-        """Stop being pressed."""
-        pass
-
     def get_state_tup(self):
         """Return a tuple containing everything you might need to draw me."""
-        (x, y) = self.getcoords()
         return (
             self.img.name,
             self.visible,
             self.interactive,
             self.grabpoint,
             self.hovered,
-            x,
-            y,
+            self.window_left,
+            self.window_bot,
             self.tweaks)
 
 

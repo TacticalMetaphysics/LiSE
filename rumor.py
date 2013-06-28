@@ -1,15 +1,3 @@
-import sqlite3
-import board
-import dimension
-import item
-import re
-from collections import OrderedDict
-from style import read_colors, read_styles
-from spot import Spot
-from pawn import Pawn
-from card import load_cards
-
-
 """The database backend, with dictionaries of loaded objects.
 
 This is a caching database connector. There are dictionaries for all
@@ -20,12 +8,28 @@ SQL. That's in util.py, the class SaveableMetaclass.
 
 """
 
+import sqlite3
+import board
+import dimension
+import item
+import re
+import logging
+from collections import OrderedDict
+from style import read_colors, read_styles
+from spot import Spot
+from pawn import Pawn
+from card import load_cards
+
+
+logger = logging.getLogger(__name__)
+
 
 def noop(*args, **kwargs):
     """Do nothing."""
     pass
 
 ITEM_RE = re.compile("(.*)\.(.*)")
+SPOT_RE = re.compile("create_spot\(([a-zA-Z0-9])\.([a-zA-Z0-9]),(0-9),(0-9)\)")
 THING_INTO_PORTAL_RE = re.compile("(.*)\.(.*)->Portal\((.*)->(.*)\)")
 THING_ALONG_PORTAL_RE = ITEM_RE
 THING_OUT_OF_PORTAL_RE = ITEM_RE
@@ -99,10 +103,10 @@ arguments.
         self.effectdeckdict = {}
         self.stringdict = {}
         self.func = {
-            'toggle_menu_visibility':
-            self.toggle_menu_visibility,
-            'toggle_calendar_visibility':
-            self.toggle_calendar_visibility,
+            'toggle_menu':
+            self.toggle_menu,
+            'toggle_calendar':
+            self.toggle_calendar,
             'hide_menu':
             self.hide_menu,
             'hide_calendar':
@@ -133,14 +137,12 @@ arguments.
             'editor_copy': noop,
             'editor_paste': noop,
             'editor_delete': noop,
-            'new_place': noop,
-            'new_thing': noop,
             'create_place':
             self.create_place,
-            'create_generic_place':
-            self.create_generic_place,
-            'create_spot':
-            self.create_spot}
+            'make_generic_place':
+            self.make_generic_place,
+            'create_thing':
+            self.create_thing}
         self.func.update(xfuncs)
 
     def __del__(self):
@@ -240,19 +242,13 @@ list.
         """Load the color by the given name."""
         return self.load_colors((colorname,))
 
-    def gen_place(self, dimension, name, save=True, unravel=True):
+    def make_place(self, dimension, name):
         """Return a new Place object by the given name, in the given
 dimension.
-
-By default, it will be saved to the database immediately, and then
-unraveled.
-
         """
         pl = item.Place(self, dimension, name)
-        if save:
-            item.save()
-        if unravel:
-            item.unravel()
+        pl.unravel()
+        pl.save()
         return pl
 
     def things_in_place(self, place):
@@ -273,23 +269,17 @@ in the portal between two places.
         return [self.itemdict[dim][name] for name in thingnames]
 
 
-    def gen_spot(self, dimension, place, x, y, img="default-spot",
-                 save=True, unravel=True):
+    def make_spot(self, dimension, place, x, y, img="default_spot"):
         """Return a Spot at the given coordinates, representing the place by
 the given name in the given dimension.
 
-It will use the image named 'default-spot' by default, and will be
-visible and interactive. Also by default, it will be saved to the
-database and unraveled. If the Place doesn't exist, it will be created with gen_place().
-
+It will use the image named 'default_spot' by default.
         """
-        if dimension not in self.placedict or name not in self.placedict[dimension]:
-            self.gen_place(dimension, place, save, unravel)
-        sp = Spot(self, dimension, place, img, x, y, visible, interactive)
-        if save:
-            sp.save()
-        if unravel:
-            sp.unravel()
+        if str(dimension) not in self.placedict or str(place) not in self.placedict[dimension]:
+            self.make_place(str(dimension), str(place), save, unravel)
+        sp = Spot(self, str(dimension), str(place), img, x, y)
+        sp.unravel()
+        sp.save()
         return sp
 
     def pawns_on_spot(self, spot):
@@ -298,118 +288,89 @@ database and unraveled. If the Place doesn't exist, it will be created with gen_
                 spot.place.contents
                 if thing.name in self.pawndict[spot.dimension]]
 
-    def gen_thing(self, dimension, name, location, save=True, unravel=True):
+    def make_thing(self, dimension, name, location):
         """Return a new Thing in the given location of the given dimension, by
 the given name.
 
-By default, it will be saved and unraveled.
-
         """
         th = Thing(dimension, name, location)
-        if save:
-            th.save()
-        if unravel:
-            th.unravel()
+        th.unravel()
+        th.save()
         return th
 
-    def gen_pawn(self, dimension, thing, img,
-                 save=True, unravel=True):
+    def make_pawn(self, dimension, thing, img):
         """Return a new Pawn on the board for the named Dimension representing
 the named Thing with the named Img.
         
-Raises a KeyError if the underlying Thing hasn't been created. By
-default, the Pawn will be saved and unraveled.
-
+Raises a KeyError if the underlying Thing hasn't been created.
         """
         pwn = Pawn(self, dimension, thing, img)
-        if save:
-            pawn.save()
-        if unravel:
-            pawn.unravel()
+        pwn.unravel()
+        pwn.save()
         return pwn
 
-    def gen_portal(self, dimension, origin, destination,
-                   save=True, unravel=True):
+    def make_portal(self, dimension, origin, destination):
         """Return a new Portal connecting the given origin and destination in
 the given dimension.
-
-By default, it will be saved and unraveled.
-
         """
         port = Portal(self, dimension, origin, destination)
-        if save:
-            port.save()
-        if unravel:
-            port.unravel()
+        port.unravel()
+        port.save()
         return port
 
-    def toggle_menu_visibility(self, menuspec, evt=None):
+    def toggle_menu(self, menuitem, menu):
+        boardname = str(menuitem.board)
+        menuname = str(menu)
+        self.hide_other_menus_in_board(boardname, menuname)
+        self.menudict[boardname][menuname].toggle_visibility()
 
-        """Given a string consisting of a board name, a dot, and a menu name,
-toggle the visibility of that menu.
+    def toggle_calendar(self, menuitem, cal):
+        boardname = str(menuitem.board)
+        calname = str(cal)
+        self.hide_other_calendars_in_board(boardname, calname)
+        self.calendardict[boardname][calname].toggle_visibility()
 
-        """
-        (boardn, itn) = menuspec.split('.')
-        self.menudict[boardn][itn].toggle_visibility()
+    def hide_menu(self, menuitem, menuname):
+        """A callback for MenuItem. Hide the menu of the given name, in the
+same board as the caller."""
+        boardname = str(menuitem.board)
+        self.menudict[boardname][menuname].hide()
 
-    def toggle_calendar_visibility(self, calspec, evt=None):
-        """Given a string consisting of a dimension name, a dot, and an item
-name, toggle the visibility of the calendar representing the schedule
-for that item."""
-        (boardn, itn) = calspec.split('.')
-        self.calendardict[boardn][itn].toggle_visibility()
+    def hide_calendar(self, menuitem, calname):
+        boardname = str(menuitem.board)
+        self.calendardict[boardname][calname].hide()
 
-    def hide_menu(self, menuspec, evt=None):
-        """Given a string consisting of a board dimension name, a dot, and a
-menu name, hide the menu in that board by that name."""
-        (boardn, menun) = menuspec.split('.')
-        self.menudict[boardn][menun].hide()
+    def show_menu(self, menuitem, menuname):
+        """A callback for MenuItem. Show the menu of the given name, in the
+same board as the caller."""
+        boardname = str(menuitem.board)
+        self.menudict[boardname][menuname].show()
 
-    def hide_calendar(self, calspec, evt=None):
-        """Given a string consisting of a board dimension name, a dot, and an
-item name, hide the calendar representing the schedule of that item in
-that board."""
-        (boardn, itn) = calspec.split('.')
-        self.calendardict[boardn][itn].hide()
+    def show_calendar(self, menuitem, calname):
+        boardname = str(menuitem.board)
+        self.calendardict[boardname][calname].show()
 
-    def show_menu(self, menuspec, evt=None):
-        """Given a string consisting of a board dimension name, a dot, and a
-menu name, show the menu of that name in that board."""
-        (boardn, menun) = menuspec.split('.')
-        self.menudict[boardn][menun].show()
-
-    def show_calendar(self, calspec, evt=None):
-        """Given a string consisting of a board dimension name, a dot, and an
-item name, show the calendar representing the item's schedule in that
-board."""
-        (boardn, itn) = calspec.split('.')
-        self.calendardict[boardn][itn].show()
-
-    def hide_menus_in_board(self, boardn, evt=None):
-        """Hide every menu, apart from the main menu, in the board with the
-given dimension name."""
+    def hide_menus_in_board(self, board):
+        boardn = str(board)
         for menu in self.menudict[boardn].itervalues():
             if not menu.main_for_window:
                 menu.hide()
 
-    def hide_other_menus_in_board(self, menuspec, evt=None):
-        """Given a string consisting of a board dimension name, a dot, and a
-menu name, hide every menu apart from that one in that board, except
-the main menu."""
-        (boardn, menun) = menuspec.split('.')
+    def hide_other_menus_in_board(self, board, menu):
+        boardn = str(board)
+        menun = str(menu)
         for menu in self.menudict[boardn].itervalues():
             if not menu.main_for_window and menu.name != menun:
                 menu.hide()
 
-    def hide_calendars_in_board(self, boardn, evt=None):
-        """Hide every calendar in the board with the given dimension name."""
+    def hide_calendars_in_board(self, board):
+        boardn = str(board)
         for calendar in self.calendardict[boardn].itervalues():
             calendar.hide()
 
-    def hide_other_calendars_in_board(self, calspec, evt=None):
-        """Given a string consisting of a board dimension name, a dot, and an
-item name, hide every calendar apart from that one in that board."""
-        (boardn, itn) = calspec.split('.')
+    def hide_other_calendars_in_board(self, board, calendar):
+        boardn = str(board)
+        itn = str(calendar)
         for calendar in self.calendardict[boardn].iteritems():
             (itname, cal) = calendar
             if itname != itn:
@@ -496,7 +457,7 @@ a member."""
             if ev_end in self.endevdict:
                 self.endevdict[ev_end].discard(ev)
 
-    def thing_into_portal(self, arg, evt):
+    def thing_into_portal(self, event, deck, effect, arg):
         """Put the item into the portal.
 
 Argument is a mere string, structured as so:
@@ -511,9 +472,9 @@ in the appropriate dictionary.
         (dimname, itname, orig, dest) = re.match(rex, arg).groups()
         thing = self.thingdict[dimname][itname]
         portal = self.portalorigdestdict[dimname][orig][dest]
-        return thing.enter(portal)
+        thing.enter(portal)
 
-    def thing_along_portal(self, arg, evt):
+    def thing_along_portal(self, event, deck, effect, arg):
         """Move the thing some amount along the portal it's in.
 
 Argument is a mere string, structured like:
@@ -527,12 +488,13 @@ some amount, calculated by its speed_thru method.
         rex = THING_ALONG_PORTAL_RE
         (dimname, thingname) = re.match(rex, arg).groups()
         thing = self.thingdict[dimname][thingname]
-        port = thing.location
-        speed = thing.speed_thru(port)
-        amount = 1 / float(speed)
-        return thing.move_thru_portal(amount)
+        journey = thing.journey
+        portal = journey[0]
+        speed = thing.speed_thru(portal)
+        journey.move_thing(speed)
+        return (effect, thing, portal, speed, None)
 
-    def thing_out_of_portal(self, arg, evt):
+    def thing_out_of_portal(self, event, deck, effect, arg):
         """Take the thing out of the portal it's in, and put it in the
 portal's destination.
 
@@ -547,34 +509,22 @@ destination.
         rex = THING_OUT_OF_PORTAL_RE
         (dimname, thingname) = re.match(rex, arg).groups()
         thing = self.thingdict[dimname][thingname]
-        return thing.journey.next()
+        (newplace, newport) = thing.journey.step()
+        return (effect, newplace, newport, None)
 
-    def create_place(self, arg, evt):
-        """Take a dotstring like dimension.place, and create that place.
-
-This includes unraveling the place after creation but before return."""
-        rex = ITEM_RE
-        (dimname, placename) = re.match(rex, arg).groups()
-        place = Place(self, dimname, placename)
-        place.unravel()
-        return place
-
-    def create_generic_place(self, arg, evt):
+    def make_generic_place(self, event, deck, effect, arg):
         """Take the name of a dimension and return a place in it with a boring name."""
         placename = "Place_{0}".format(self.hi_place + 1)
-        place = Place(self, arg, placename)
+        place = item.Place(self, arg, placename)
         place.unravel()
+        place.save()
         return place
 
-    def create_spot(self, arg, evt):
-        """Create a spot with the default sprite representing some extant place.
+    def create_place(self, menuitem, arg):
+        return menuitem.gw.create_place()
 
-The place is specified like dimension.placename"""
-        rex = ITEM_RE
-        (dimname, placename) = re.match(rex, arg).groups()
-        spot = Spot(self, dimname, placename)
-        spot.unravel()
-        return spot
+    def create_thing(self, menuitem, arg):
+        return menuitem.gw.create_thing()
 
     def load_cards(self, names):
         load_cards(self, names)

@@ -94,34 +94,12 @@ INSERT INTO journey_step (thing, idx, from_place, to_place) VALUES
 INSERT INTO calendar_col (item) VALUES 
 ('me'),
 ('mom');
-INSERT INTO effect (name, func) VALUES
-('start_new_map()', 'start_new_map'),
-('open_map()', 'open_map'),
-('quit_map_editor()', 'quit_map_editor'),
-('save_map()', 'save_map'),
-('editor_select()', 'editor_select'),
-('editor_copy()', 'editor_copy'),
-('editor_paste()', 'editor_paste'),
-('editor_delete()', 'editor_delete');
-INSERT INTO easy_effect VALUES
-('new_place', 'commons'),
-('new_place', 'lair'),
-('new_place', 'custom'),
-('new_place', 'workplace'),
-('new_thing', 'custom'),
-('new_thing', 'tool'),
-('new_thing', 'clothing'),
-('new_thing', 'decoration'),
-('toggle_menu', 'Thing'),
-('toggle_menu', 'Game'),
-('toggle_menu', 'Editor'),
-('toggle_menu', 'Place');
 INSERT INTO effect_deck_link (deck, idx, effect)
 SELECT name, 0, name FROM effect;
 INSERT INTO menu (name, bottom, left, right, top, main_for_window, style, visible) VALUES
 ('Main', 0.12, 0.0, 0.1, 1.0, 1, 'BigLight', 1);
-INSERT INTO menu (name) VALUES ('Game'), ('Editor'), ('Place'), ('Thing');
-INSERT INTO menu_item (idx, menu, closer, effect_deck, text) VALUES
+INSERT INTO menu (name) VALUES ('Game'), ('Editor');
+INSERT INTO menu_item (idx, menu, closer, on_click, text) VALUES
 (0, 'Game', 1, 'start_new_map()', '@new_map'),
 (1, 'Game', 1, 'open_map()', '@open_map'),
 (2, 'Game', 1, 'quit_map_editor()', '@quit_maped'),
@@ -130,18 +108,10 @@ INSERT INTO menu_item (idx, menu, closer, effect_deck, text) VALUES
 (1, 'Editor', 1, 'editor_copy()', '@ed_copy'),
 (2, 'Editor', 1, 'editor_paste()', '@ed_paste'),
 (3, 'Editor', 1, 'editor_delete()', '@ed_delete'),
-(0, 'Place', 1, 'new_place(commons)', '@commonplace'),
-(1, 'Place', 1, 'new_place(lair)', '@lairplace'),
-(2, 'Place', 1, 'new_place(custom)', '@custplace'),
-(3, 'Place', 1, 'new_place(workplace)', '@workplace'),
-(0, 'Thing', 1, 'new_thing(custom)', '@custthing'),
-(1, 'Thing', 1, 'new_thing(tool)', '@toolthing'),
-(2, 'Thing', 1, 'new_thing(clothing)', '@clothing'),
-(3, 'Thing', 1, 'new_thing(decoration)', '@decorthing'),
-(0, 'Main', 0, 'toggle_menu(Thing)', '@thing_menu'),
-(1, 'Main', 0, 'toggle_menu(Game)', '@game_menu'),
-(2, 'Main', 0, 'toggle_menu(Editor)', '@editor_menu'),
-(3, 'Main', 0, 'toggle_menu(Place)', '@place_menu');
+(0, 'Main', 0, 'create_thing()', '@thing_menu'),
+(1, 'Main', 0, 'create_place()', '@place_menu'),
+(2, 'Main', 0, 'toggle_menu(Game)', '@game_menu'),
+(3, 'Main', 0, 'toggle_menu(Editor)', '@editor_menu');
 INSERT INTO spot (place, x, y) VALUES
 ('myroom', 400, 100),
 ('mybathroom', 450, 150),
