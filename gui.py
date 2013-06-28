@@ -17,16 +17,9 @@ class GameWindow:
     """Instantiates a Pyglet window and displays the given board in it."""
     arrowhead_size = 10
 
-    def __getattr__(self, attrn):
-        if attrn == 'width':
-            return self.window.width
-        elif attrn == 'height':
-            return self.window.height
-        else:
-            raise AttributeError(
-                "GameWindow has no attribute named {0}".format(attrn))
-
     def __init__(self, gamestate, boardname):
+        self.squareoff = self.arrowhead_size * math.sin(fortyfive)
+
         self.db = gamestate.db
         self.gamestate = gamestate
 
@@ -122,29 +115,36 @@ board; all visible menus; and the calendar, if it's visible."""
                     betterlength = length - edge.dest.r
                     try:
                         theta = math.atan(rise/run)
-                    except ZeroDivisionError:
-                        theta = ninety
-                    rightx = leftx + math.cos(theta) * betterlength
-                    topy = boty + math.sin(theta) * betterlength
-                    rise = topy - boty
-                    run = rightx - leftx
-                    try:
+                        rightx = leftx + math.cos(theta) * betterlength
+                        topy = boty + math.sin(theta) * betterlength
+                        rise = topy - boty
+                        run = rightx - leftx
                         slope = rise/run
                         slope_theta = math.atan(slope)
                         opp_theta = math.atan(run/rise)
+                        if rise > run:
+                            top_theta = slope_theta - fortyfive
+                            bot_theta = math.pi - opp_theta - fortyfive
+                        else:
+                            bot_theta = slope_theta - fortyfive
+                            top_theta = math.pi - opp_theta - fortyfive
+                        xoff1 = math.cos(top_theta) * taillen
+                        yoff1 = math.sin(top_theta) * taillen
+                        xoff2 = math.cos(bot_theta) * taillen
+                        yoff2 = math.sin(bot_theta) * taillen
                     except ZeroDivisionError:
-                        slope_theta = ninety
-                        opp_theta = 0.0
-                    if rise > run:
-                        top_theta = slope_theta - fortyfive
-                        bot_theta = math.pi - opp_theta - fortyfive
-                    else:
-                        bot_theta = slope_theta - fortyfive
-                        top_theta = math.pi - opp_theta - fortyfive
-                    xoff1 = math.cos(top_theta) * taillen
-                    yoff1 = math.sin(top_theta) * taillen
-                    xoff2 = math.cos(bot_theta) * taillen
-                    yoff2 = math.sin(bot_theta) * taillen
+                        if ox == dx:
+                            topy = boty + betterlength
+                            yoff1 = self.squareoff
+                            xoff1 = yoff1
+                            xoff2 = -1 * xoff1
+                            yoff2 = yoff1
+                        else:
+                            rightx = leftx + betterlength
+                            xoff1 = self.squareoff
+                            yoff1 = xoff1
+                            xoff2 = xoff1
+                            yoff2 = -1 * yoff1
                     x1 = int(rightx - xoff1) * xco
                     x2 = int(rightx - xoff2) * xco
                     y1 = int(topy -  yoff1) * yco
@@ -674,6 +674,15 @@ move_with_mouse method, use it.
                 self.calendar.scrolled_to -= scroll_y * sf
                 if self.calendar.scrolled_to < 0:
                     self.calendar.scrolled_to = 0
+
+    def __getattr__(self, attrn):
+        if attrn == 'width':
+            return self.window.width
+        elif attrn == 'height':
+            return self.window.height
+        else:
+            raise AttributeError(
+                "GameWindow has no attribute named {0}".format(attrn))
 
     def create_place(self):
         self.window.set_mouse_cursor(self.create_place_cursor)
