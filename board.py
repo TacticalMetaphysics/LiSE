@@ -62,10 +62,10 @@ time.
 
         """
         self.db = db
-        self.dimension = dimension
+        self._dimension = dimension
         self.width = width
         self.height = height
-        self.wallpaper = wallpaper
+        self._wallpaper = wallpaper
         self.view_left = view_left
         self.view_bot = view_bot
         caldict = {
@@ -79,10 +79,14 @@ time.
             "rows_on_screen": calendar_rows_on_screen,
             "scrolled_to": calendar_scrolled_to}
         self.calendar = Calendar(**caldict)
-        self.db.boarddict[str(self.dimension)] = self
+        self.db.boarddict[str(self)] = self
 
     def __getattr__(self, attrn):
-        if attrn == "offset_x":
+        if attrn == "dimension":
+            return self.db.dimensiondict[self._dimension]
+        elif attrn == "wallpaper":
+            return self.db.imgdict[self._wallpaper]
+        elif attrn == "offset_x":
             return -1 * self.view_left
         elif attrn == "offset_y":
             return -1 * self.view_bot
@@ -132,7 +136,7 @@ dimension's hash.
                len(self.pawndict), len(self.menudict))
 
     def __str__(self):
-        return str(self.dimension)
+        return self._dimension
 
     def unravel(self):
         """Grab the Python objects referred to by self.wallpaper and
@@ -140,22 +144,17 @@ self.dimension, if they are strings; then unravel all pawns, spots,
 and menus herein.
 
         """
-        db = self.db
-        if stringlike(self.wallpaper):
-            self.wallpaper = db.imgdict[self.wallpaper]
-        if stringlike(self.dimension):
-            self.dimension = db.dimensiondict[self.dimension]
         self.dimension.unravel()
-        if str(self) not in db.pawndict:
-            db.pawndict[str(self)] = {}
-        if str(self) not in db.spotdict:
-            db.spotdict[str(self)] = {}
-        if str(self) not in db.menudict:
-            db.menudict[str(self)] = {}
-        if str(self) not in db.boardhanddict:
-            db.boardhanddict[str(self)] = {}
-        if str(self) not in db.edgedict:
-            db.edgedict[str(self)] = {}
+        if str(self) not in self.db.pawndict:
+            self.db.pawndict[str(self)] = {}
+        if str(self) not in self.db.spotdict:
+            self.db.spotdict[str(self)] = {}
+        if str(self) not in self.db.menudict:
+            self.db.menudict[str(self)] = {}
+        if str(self) not in self.db.boardhanddict:
+            self.db.boardhanddict[str(self)] = {}
+        if str(self) not in self.db.edgedict:
+            self.db.edgedict[str(self)] = {}
         for pwn in self.pawndict.itervalues():
             pwn.unravel()
         for spt in self.spotdict.itervalues():

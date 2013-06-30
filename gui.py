@@ -91,83 +91,19 @@ class GameWindow:
 board; all visible menus; and the calendar, if it's visible."""
             from math import atan
             # draw the edges, representing portals
-            if self.portal_from is not None:
-                e = [self.portal_from.window_x,
-                     self.portal_from.window_y,
-                     self.last_mouse_x,
-                     self.last_mouse_y]
-                if self.edge_from_portal_from is None:
-                    self.edge_from_portal_from = self.batch.add(
-                        2, pyglet.graphics.GL_LINES,
-                        self.edgegroup, ('v2i', tuple(e)))
-                else:
-                    self.edge_from_portal_from.vertices = e
-                ox = float(self.portal_from.window_x)
-                oy = float(self.portal_from.window_y)
-                dx = float(self.last_mouse_x)
-                dy = float(self.last_mouse_y)
-                taillen = float(self.arrowhead_size)
-                if dy < oy:
-                    yco = -1
-                else:
-                    yco = 1
-                if dx < ox:
-                    xco = -1
-                else:
-                    xco = 1
-                leftx = ox * xco
-                rightx = dx * xco
-                boty = oy * yco
-                topy = dy * yco
-                rise = topy - boty
-                run = rightx - leftx
-                try:
-                    slope_theta = math.atan(rise/run)
-                    opp_theta = math.atan(run/rise)
-                    if rise > run:
-                        top_theta = slope_theta - fortyfive
-                        bot_theta = math.pi - opp_theta - fortyfive
-                    else:
-                        bot_theta = slope_theta - fortyfive
-                        top_theta = math.pi - opp_theta - fortyfive
-                    xoff1 = math.cos(top_theta) * taillen
-                    yoff1 = math.sin(top_theta) * taillen
-                    xoff2 = math.cos(bot_theta) * taillen
-                    yoff2 = math.sin(bot_theta) * taillen
-                except ZeroDivisionError:
-                    if dx == ox:
-                        xoff1 = self.squareoff
-                        yoff1 = self.squareoff
-                        xoff2 = -1 * self.squareoff
-                        yoff2 = self.squareoff
-                    else:
-                        xoff1 = self.squareoff
-                        yoff1 = self.squareoff
-                        xoff2 = self.squareoff
-                        yoff2 = -1 * self.squareoff
-                x1 = int(rightx - xoff1) * xco
-                x2 = int(rightx - xoff2) * xco
-                y1 = int(topy - yoff1) * yco
-                y2 = int(topy - yoff2) * yco
-                endx = rightx * xco
-                endy = topy * yco
-                ewa = (x1, y1, int(endx), int(endy))
-                ewal = list(ewa)
-                ewb = (x2, y2, int(endx), int(endy))
-                ewbl = list(ewb)
-                if self.left_tail_edge_from_portal_from is None:
-                    self.left_tail_edge_from_portal_from = self.batch.add(
-                        2, pyglet.graphics.GL_LINES,
-                        self.edgegroup, ('v2i', ewa))
-                elif self.left_tail_edge_from_portal_from.vertices != ewal:
-                    self.left_tail_edge_from_portal_from.vertices = ewal
-                if self.right_tail_edge_from_portal_from is None:
-                    self.right_tail_edge_from_portal_from = self.batch.add(
-                        2, pyglet.graphics.GL_LINES,
-                        self.edgegroup, ('v2i', ewb))
-                elif self.right_tail_edge_from_portal_from.vertices != ewbl:
-                    self.right_tail_edge_from_portal_from.vertices = ewbl
-                        
+            if self.portal_from is not None: 
+                (self.left_tail_edge_from_portal_from,
+                 self.edge_from_portal_from,
+                 self.right_tail_edge_from_portal_from
+                ) = self.connect_arrow(
+                    self.portal_from.window_x,
+                    self.portal_from.window_y,
+                    self.last_mouse_x,
+                    self.last_mouse_y,
+                    0,
+                    self.left_tail_edge_from_portal_from,
+                    self.edge_from_portal_from,
+                    self.right_tail_edge_from_portal_from)
             for edge in self.board.edges:
                 newstate = edge.get_state_tup()
                 if newstate in self.onscreen:
@@ -176,101 +112,32 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen.add(newstate)
                 edge.oldstate = newstate
                 if edge.visible:
-                    # I'm going to use destination coordinates that
-                    # are a little bit shorter than the edge really
-                    # is, so as to prevent the arrowhead from being
-                    # covered by the spot.
-                    e = [edge.orig.window_x,
+                    (edge.wedge_a,
+                     edge.vertlist,
+                     edge.wedge_b
+                    ) = self.connect_arrow(
+                         edge.orig.window_x,
                          edge.orig.window_y,
                          edge.dest.window_x,
-                         edge.dest.window_y]
-                    if edge.vertlist is None:
-                        edge.vertlist = self.batch.add(
-                            2, pyglet.graphics.GL_LINES,
-                            self.edgegroup, ('v2i', tuple(e)))
-                    else:
-                        edge.vertlist.vertices = e
-                    ox = float(edge.orig.window_x)
-                    oy = float(edge.orig.window_y)
-                    dx = float(edge.dest.window_x)
-                    dy = float(edge.dest.window_y)
-                    taillen = float(self.arrowhead_size)
-
-                    if dy < oy:
-                        yco = -1
-                    else:
-                        yco = 1
-                    if dx < ox:
-                        xco = -1
-                    else:
-                        xco = 1
-                    leftx = ox * xco
-                    rightx = dx * xco
-                    boty = oy * yco
-                    topy = dy * yco
-
-                    rise = topy - boty
-                    run = rightx - leftx
-                    length = math.sqrt(rise**2 + run**2)
-                    betterlength = length - edge.dest.r
-                    try:
-                        theta = math.atan(rise/run)
-                        rightx = leftx + math.cos(theta) * betterlength
-                        topy = boty + math.sin(theta) * betterlength
-                        rise = topy - boty
-                        run = rightx - leftx
-                        slope = rise/run
-                        slope_theta = math.atan(slope)
-                        opp_theta = math.atan(run/rise)
-                        if rise > run:
-                            top_theta = slope_theta - fortyfive
-                            bot_theta = math.pi - opp_theta - fortyfive
-                        else:
-                            bot_theta = slope_theta - fortyfive
-                            top_theta = math.pi - opp_theta - fortyfive
-                        xoff1 = math.cos(top_theta) * taillen
-                        yoff1 = math.sin(top_theta) * taillen
-                        xoff2 = math.cos(bot_theta) * taillen
-                        yoff2 = math.sin(bot_theta) * taillen
-                    except ZeroDivisionError:
-                        if ox == dx:
-                            topy = boty + betterlength
-                            yoff1 = self.squareoff
-                            xoff1 = yoff1
-                            xoff2 = -1 * xoff1
-                            yoff2 = yoff1
-                        else:
-                            rightx = leftx + betterlength
-                            xoff1 = self.squareoff
-                            yoff1 = xoff1
-                            xoff2 = xoff1
-                            yoff2 = -1 * yoff1
-                    x1 = int(rightx - xoff1) * xco
-                    x2 = int(rightx - xoff2) * xco
-                    y1 = int(topy - yoff1) * yco
-                    y2 = int(topy - yoff2) * yco
-                    endx = rightx * xco
-                    endy = topy * yco
-                    ewa = (x1, y1, int(endx), int(endy))
-                    ewal = list(ewa)
-                    ewb = (x2, y2, int(endx), int(endy))
-                    ewbl = list(ewb)
-                    if edge.wedge_a is None:
-                        edge.wedge_a = self.batch.add(
-                            2, pyglet.graphics.GL_LINES,
-                            self.edgegroup, ('v2i', ewa))
-                    elif edge.wedge_a.vertices != ewal:
-                        edge.wedge_a.vertices = ewal
-                    if edge.wedge_b is None:
-                        edge.wedge_b = self.batch.add(
-                            2, pyglet.graphics.GL_LINES,
-                        self.edgegroup, ('v2i', ewb))
-                    elif edge.wedge_b.vertices != ewbl:
-                        edge.wedge_b.vertices = ewbl
+                         edge.dest.window_y,
+                         edge.dest.r,
+                         edge.wedge_a,
+                         edge.vertlist,
+                         edge.wedge_b)
                 else:
+                    if edge.wedge_a is not None:
+                        try:
+                            edge.wedge_a.delete()
+                        except (AttributeError, AssertionError):
+                            pass
                     if edge.vertlist is not None:
                         try:
                             edge.vertlist.delete()
+                        except (AttributeError, AssertionError):
+                            pass
+                    if edge.wedge_b is not None:
+                        try:
+                            edge.wedge_b.delete()
                         except (AttributeError, AssertionError):
                             pass
             # draw the spots, representing places
@@ -835,3 +702,90 @@ move_with_mouse method, use it.
 
     def create_portal(self):
         self.portaling = True
+
+    def connect_arrow(self, ox, oy, dx, dy, center_shrink=0,
+                      old_vertlist_left=None,
+                      old_vertlist_center=None,
+                      old_vertlist_right=None):
+        # xs and ys should be integers.
+        #
+        # results will be called l, c, r for left tail, center, right tail
+        if old_vertlist_center is None:
+            c = self.batch.add(
+                2, pyglet.graphics.GL_LINES,
+                self.edgegroup, ('v2i', (ox, oy, dx, dy)))
+        else:
+            c = old_vertlist_center
+            c.vertices = [ox, oy, dx, dy]
+        if dy < oy:
+            yco = -1
+        else:
+            yco = 1
+        if dx < ox:
+            xco = -1
+        else:
+            xco = 1
+        leftx = float(ox * xco)
+        rightx = float(dx * xco)
+        boty = float(oy * yco)
+        topy = float(dy * yco)
+        taillen = float(self.arrowhead_size)
+        rise = topy - boty
+        run = rightx - leftx
+        length = math.sqrt(rise**2 + run**2) - center_shrink
+        try:
+            slope_theta = math.atan(rise/run)
+            opp_theta = math.atan(run/rise)
+            if center_shrink != 0:
+                rightx = leftx + math.cos(slope_theta) * length
+                topy = boty + math.sin(slope_theta) * length
+                rise = topy - boty
+                run = rightx - leftx
+            if rise > run:
+                top_theta = slope_theta - fortyfive
+                bot_theta = math.pi - opp_theta - fortyfive
+            else:
+                bot_theta = slope_theta - fortyfive
+                top_theta = math.pi - opp_theta - fortyfive
+            xoff1 = math.cos(top_theta) * taillen
+            yoff1 = math.sin(top_theta) * taillen
+            xoff2 = math.cos(bot_theta) * taillen
+            yoff2 = math.sin(bot_theta) * taillen
+        except ZeroDivisionError:
+            if ox == dx:
+                topy = boty + length
+                yoff1 = self.squareoff
+                xoff1 = yoff1
+                xoff2 = -1 * xoff1
+                yoff2 = yoff1
+            else:
+                rightx = leftx + length
+                xoff1 = self.squareoff
+                yoff1 = xoff1
+                xoff2 = xoff1
+                yoff2 = -1 * yoff1
+        x1 = int(rightx - xoff1) * xco
+        x2 = int(rightx - xoff2) * xco
+        y1 = int(topy - yoff1) * yco
+        y2 = int(topy - yoff2) * yco
+        endx = int(rightx) * xco
+        endy = int(topy) * yco
+        if old_vertlist_left is None:
+            l = self.batch.add(
+                2, pyglet.graphics.GL_LINES,
+                self.edgegroup, ('v2i', (x1, y1, endx, endy)))
+        else:
+            l = old_vertlist_left
+            vertices = [x1, y1, endx, endy]
+            if l.vertices != vertices:
+                l.vertices = vertices
+        if old_vertlist_right is None:
+            r = self.batch.add(
+                2, pyglet.graphics.GL_LINES,
+                self.edgegroup, ('v2i', (x2, y2, endx, endy)))
+        else:
+            r = old_vertlist_right
+            vertices = [x2, y2, endx, endy]
+            if r.vertices != vertices:
+                r.vertices = vertices
+        return (l, c, r)
