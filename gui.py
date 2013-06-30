@@ -776,16 +776,12 @@ move_with_mouse method, use it.
                 self.edgegroup, ('v2i', (x1, y1, endx, endy)))
         else:
             l = old_vertlist_left
-            vertices = [x1, y1, endx, endy]
-            if l.vertices != vertices:
-                l.vertices = vertices
+            l.vertices = [x1, y1, endx, endy]
         if old_vertlist_right is None:
             r = self.batch.add(
                 2, pyglet.graphics.GL_LINES,
                 self.edgegroup, ('v2i', (x2, y2, endx, endy)))
         else:
             r = old_vertlist_right
-            vertices = [x2, y2, endx, endy]
-            if r.vertices != vertices:
-                r.vertices = vertices
+            r.vertices = [x2, y2, endx, endy]
         return (l, c, r)
