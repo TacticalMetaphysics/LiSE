@@ -226,8 +226,7 @@ unraveled. If you want boards that do things, use load_boards().
                 styles.add(menu.style)
     for spots in read_spots_in_boards(db, boards).itervalues():
         for spot in spots.itervalues():
-            if stringlike(spot.img):
-                imgs.add(spot.img)
+            imgs.add(spot._img)
     for pawns in read_pawns_in_boards(db, boards).itervalues():
         for pawn in pawns.itervalues():
             if stringlike(pawn.img):
@@ -265,8 +264,7 @@ dimension names."""
                 styles.add(menu.style)
     for spots in read_spots_in_boards(db, boards).itervalues():
         for spot in spots.itervalues():
-            if stringlike(spot.img):
-                imgs.add(spot.img)
+            imgs.add(spot._img)
     for pawns in read_pawns_in_boards(db, boards).itervalues():
         for pawn in pawns.itervalues():
             if stringlike(pawn.img):

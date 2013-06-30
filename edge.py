@@ -9,10 +9,6 @@ class Edge:
         self.wedge_a = None
         self.wedge_b = None
         self.oldstate = None
-        dimname = str(self.dimension)
-        portname = str(self.portal)
-        self.db.edgedict[dimname][portname] = self
-
     def __str__(self):
         return str(self.portal)
 
@@ -32,6 +28,10 @@ class Edge:
             self.dimension = self.db.dimensiondict[self.dimension]
         if stringlike(self.portal):
             self.portal = self.db[str(self.dimension)][self.portal]
+        dimname = str(self.dimension)
+        portname = str(self.portal)
+        self.db.edgedict[dimname][portname] = self
+
 
     def get_state_tup(self):
         return (

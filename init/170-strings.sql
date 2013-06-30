@@ -3,6 +3,7 @@ INSERT INTO strings (stringname, string) VALUES
 ('editor_menu', 'Editor'),
 ('place_menu', 'Place'),
 ('thing_menu', 'Thing'),
+('portal_menu', 'Portal'),
 ('new_map', 'New world'),
 ('open_map', 'Open world...'),
 ('save_map', 'Save'),

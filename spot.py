@@ -37,7 +37,10 @@ given coordinates, and visible or interactive as indicated.
         """
         self.dimension = dimension
         self.place = place
-        self.img = img
+        if img in (None, ''):
+            self._img = 'default_spot'
+        else:
+            self._img = str(img)
         self.x = x
         self.y = y
         self._visible = visible
@@ -57,6 +60,11 @@ given coordinates, and visible or interactive as indicated.
     def __getattr__(self, attrn):
         if attrn == 'board':
             return self.db.boarddict[str(self.dimension)]
+        elif attrn == 'img':
+            try:
+                return self.db.imgdict[self._img]
+            except:
+                return None
         elif attrn == 'gw':
             return self.board.gw
         elif attrn == 'hovered':
@@ -68,9 +76,15 @@ given coordinates, and visible or interactive as indicated.
         elif attrn == 'window':
             return self.gw.window
         elif attrn == 'width':
-            return self.img.width
+            if self.img is None:
+                return 0
+            else:
+                return self.img.width
         elif attrn == 'height':
-            return self.img.height
+            if self.img is None:
+                return 0
+            else:
+                return self.img.height
         elif attrn == 'rx':
             return self.width / 2
         elif attrn == 'ry':
@@ -133,8 +147,6 @@ graphics calculations."""
             self.dimension = db.dimensiondict[self.dimension]
         if stringlike(self.place):
             self.place = db.itemdict[self.dimension.name][self.place]
-        if stringlike(self.img):
-            self.img = db.imgdict[self.img]
         self.place.spot = self
 
     def gettup(self):
@@ -188,7 +200,7 @@ mouse."""
         """Return a tuple with all the information you might need to draw
 me."""
         return (
-            self.img.name,
+            self._img,
             self.window_x,
             self.window_y,
             self.visible,

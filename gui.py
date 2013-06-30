@@ -1,16 +1,21 @@
 import pyglet
 import math
+import logging
 from edge import Edge
 
-
-"""All the graphics code unique to LiSE."""
-
+logger = logging.getLogger(__name__)
 
 ninety = math.pi / 2
 
 fortyfive = math.pi / 4
 
 threesixty = math.pi * 2
+
+
+class DummyEdge:
+    visible = True
+
+nedge = DummyEdge()
 
 
 class GameWindow:
@@ -40,6 +45,8 @@ class GameWindow:
         self.hovered = None
         self.grabbed = None
         self.prev_view_bot = 0
+        self.last_mouse_x = 0
+        self.last_mouse_y = 0
 
         window = pyglet.window.Window()
 
@@ -71,6 +78,12 @@ class GameWindow:
         self.create_place_cursor.rx = rx
         self.create_place_cursor.ry = ry
         self.placing = False
+        self.thinging = False
+        self.portaling = False
+        self.portal_from = None
+        self.edge_from_portal_from = None
+        self.left_tail_edge_from_portal_from = None
+        self.right_tail_edge_from_portal_from = None
 
         @window.event
         def on_draw():
@@ -78,6 +91,83 @@ class GameWindow:
 board; all visible menus; and the calendar, if it's visible."""
             from math import atan
             # draw the edges, representing portals
+            if self.portal_from is not None:
+                e = [self.portal_from.window_x,
+                     self.portal_from.window_y,
+                     self.last_mouse_x,
+                     self.last_mouse_y]
+                if self.edge_from_portal_from is None:
+                    self.edge_from_portal_from = self.batch.add(
+                        2, pyglet.graphics.GL_LINES,
+                        self.edgegroup, ('v2i', tuple(e)))
+                else:
+                    self.edge_from_portal_from.vertices = e
+                ox = float(self.portal_from.window_x)
+                oy = float(self.portal_from.window_y)
+                dx = float(self.last_mouse_x)
+                dy = float(self.last_mouse_y)
+                taillen = float(self.arrowhead_size)
+                if dy < oy:
+                    yco = -1
+                else:
+                    yco = 1
+                if dx < ox:
+                    xco = -1
+                else:
+                    xco = 1
+                leftx = ox * xco
+                rightx = dx * xco
+                boty = oy * yco
+                topy = dy * yco
+                rise = topy - boty
+                run = rightx - leftx
+                try:
+                    slope_theta = math.atan(rise/run)
+                    opp_theta = math.atan(run/rise)
+                    if rise > run:
+                        top_theta = slope_theta - fortyfive
+                        bot_theta = math.pi - opp_theta - fortyfive
+                    else:
+                        bot_theta = slope_theta - fortyfive
+                        top_theta = math.pi - opp_theta - fortyfive
+                    xoff1 = math.cos(top_theta) * taillen
+                    yoff1 = math.sin(top_theta) * taillen
+                    xoff2 = math.cos(bot_theta) * taillen
+                    yoff2 = math.sin(bot_theta) * taillen
+                except ZeroDivisionError:
+                    if dx == ox:
+                        xoff1 = self.squareoff
+                        yoff1 = self.squareoff
+                        xoff2 = -1 * self.squareoff
+                        yoff2 = self.squareoff
+                    else:
+                        xoff1 = self.squareoff
+                        yoff1 = self.squareoff
+                        xoff2 = self.squareoff
+                        yoff2 = -1 * self.squareoff
+                x1 = int(rightx - xoff1) * xco
+                x2 = int(rightx - xoff2) * xco
+                y1 = int(topy - yoff1) * yco
+                y2 = int(topy - yoff2) * yco
+                endx = rightx * xco
+                endy = topy * yco
+                ewa = (x1, y1, int(endx), int(endy))
+                ewal = list(ewa)
+                ewb = (x2, y2, int(endx), int(endy))
+                ewbl = list(ewb)
+                if self.left_tail_edge_from_portal_from is None:
+                    self.left_tail_edge_from_portal_from = self.batch.add(
+                        2, pyglet.graphics.GL_LINES,
+                        self.edgegroup, ('v2i', ewa))
+                elif self.left_tail_edge_from_portal_from.vertices != ewal:
+                    self.left_tail_edge_from_portal_from.vertices = ewal
+                if self.right_tail_edge_from_portal_from is None:
+                    self.right_tail_edge_from_portal_from = self.batch.add(
+                        2, pyglet.graphics.GL_LINES,
+                        self.edgegroup, ('v2i', ewb))
+                elif self.right_tail_edge_from_portal_from.vertices != ewbl:
+                    self.right_tail_edge_from_portal_from.vertices = ewbl
+                        
             for edge in self.board.edges:
                 newstate = edge.get_state_tup()
                 if newstate in self.onscreen:
@@ -90,6 +180,16 @@ board; all visible menus; and the calendar, if it's visible."""
                     # are a little bit shorter than the edge really
                     # is, so as to prevent the arrowhead from being
                     # covered by the spot.
+                    e = [edge.orig.window_x,
+                         edge.orig.window_y,
+                         edge.dest.window_x,
+                         edge.dest.window_y]
+                    if edge.vertlist is None:
+                        edge.vertlist = self.batch.add(
+                            2, pyglet.graphics.GL_LINES,
+                            self.edgegroup, ('v2i', tuple(e)))
+                    else:
+                        edge.vertlist.vertices = e
                     ox = float(edge.orig.window_x)
                     oy = float(edge.orig.window_y)
                     dx = float(edge.dest.window_x)
@@ -147,19 +247,8 @@ board; all visible menus; and the calendar, if it's visible."""
                             yoff2 = -1 * yoff1
                     x1 = int(rightx - xoff1) * xco
                     x2 = int(rightx - xoff2) * xco
-                    y1 = int(topy -  yoff1) * yco
-                    y2 = int(topy -  yoff2) * yco
-
-                    e = [edge.orig.window_x,
-                         edge.orig.window_y,
-                         edge.dest.window_x,
-                         edge.dest.window_y]
-                    if edge.vertlist is None:
-                        edge.vertlist = self.batch.add(
-                            2, pyglet.graphics.GL_LINES,
-                            self.edgegroup, ('v2i', tuple(e)))
-                    else:
-                        edge.vertlist.vertices = e
+                    y1 = int(topy - yoff1) * yco
+                    y2 = int(topy - yoff2) * yco
                     endx = rightx * xco
                     endy = topy * yco
                     ewa = (x1, y1, int(endx), int(endy))
@@ -175,7 +264,7 @@ board; all visible menus; and the calendar, if it's visible."""
                     if edge.wedge_b is None:
                         edge.wedge_b = self.batch.add(
                             2, pyglet.graphics.GL_LINES,
-                            self.edgegroup, ('v2i', ewb))
+                        self.edgegroup, ('v2i', ewb))
                     elif edge.wedge_b.vertices != ewbl:
                         edge.wedge_b.vertices = ewbl
                 else:
@@ -192,7 +281,7 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen.discard(spot.oldstate)
                 self.onscreen.add(newstate)
                 spot.oldstate = newstate
-                if spot.visible:
+                if spot.visible and spot.img is not None:
                     try:
                         spot.sprite.x = spot.window_left
                         spot.sprite.y = spot.window_bot
@@ -527,6 +616,8 @@ board; all visible menus; and the calendar, if it's visible."""
         def on_mouse_motion(x, y, dx, dy):
             """Find the widget, if any, that the mouse is over, and highlight
 it."""
+            self.last_mouse_x = x
+            self.last_mouse_y = y
             if self.hovered is None:
                 for hand in self.board.hands:
                     if (
@@ -589,7 +680,7 @@ it."""
         def on_mouse_press(x, y, button, modifiers):
             """If there's something already highlit, and the mouse is
 still over it when pressed, it's been half-way clicked; remember this."""
-            if self.placing or self.hovered is None:
+            if self.placing or self.thinging or self.hovered is None:
                 return
             else:
                 self.pressed = self.hovered
@@ -599,10 +690,61 @@ still over it when pressed, it's been half-way clicked; remember this."""
             """If something was being dragged, drop it. If something was being
 pressed but not dragged, it's been clicked. Otherwise do nothing."""
             if self.placing:
-                placed = self.db.make_generic_place(None, None, None, str(self.board))
-                self.db.make_spot(str(placed.dimension), str(placed), x, y)
+                placed = self.db.make_generic_place(str(self.board))
+                self.db.make_spot(str(self.board), str(placed), x, y)
                 self.window.set_mouse_cursor()
                 self.placing = False
+            elif self.thinging:
+                thung = self.db.make_generic_thing(str(self.board))
+                self.db.make_pawn(str(self.board), str(thung))
+                self.thinging = False
+            elif self.portaling:
+                dimn = str(self.board.dimension)
+                if self.portal_from is None:
+                    if hasattr(self.pressed, 'place'):
+                        self.portal_from = self.pressed
+                        logger.debug("Making a portal from %s...", str(self.portal_from.place))
+                    else:
+                        self.portaling = False
+                        self.portal_from = None
+                        try:
+                            self.edge_from_portal_from.delete()
+                        except AttributeError:
+                            pass
+                        try:
+                            self.left_tail_edge_from_portal_from.delete()
+                        except AttributeError:
+                            pass
+                        try:
+                            self.right_tail_edge_from_portal_from.delete()
+                        except AttributeError:
+                            pass
+                else:
+                    if (
+                            hasattr(self.pressed, 'place') and
+                            hasattr(self.portal_from, 'place') and
+                            self.pressed.place != self.portal_from.place):
+                        logger.debug("...to %s", str(self.pressed.place))
+                        port = self.db.make_portal(
+                            str(self.board),
+                            str(self.portal_from.place),
+                            str(self.pressed.place))
+                        edge = Edge(self.board.db, self.board.dimension, port)
+                        edge.unravel()
+                    self.portaling = False
+                    self.portal_from = None
+                    try:
+                        self.edge_from_portal_from.delete()
+                    except AttributeError:
+                        pass
+                    try:
+                        self.left_tail_edge_from_portal_from.delete()
+                    except AttributeError:
+                        pass
+                    try:
+                        self.right_tail_edge_from_portal_from.delete()
+                    except AttributeError:
+                        pass
             elif self.grabbed is None:
                 pass
             else:
@@ -687,3 +829,9 @@ move_with_mouse method, use it.
     def create_place(self):
         self.window.set_mouse_cursor(self.create_place_cursor)
         self.placing = True
+
+    def create_thing(self):
+        self.thinging = True
+
+    def create_portal(self):
+        self.portaling = True

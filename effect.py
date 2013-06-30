@@ -56,9 +56,9 @@ to."""
         if hasattr(self, 'func') and stringlike(self.func):
             self.func = self.db.func[self.func]
 
-    def do(self, event, deck):
+    def do(self, deck=None, event=None):
         """Call the function with the argument."""
-        r = self.func(event, deck, self, self.arg)
+        r = self.func(self.arg, self, deck, event)
         if r is None:
             return (self, None)
         else:
@@ -131,10 +131,10 @@ in the RumorMill.
         self.condition = db.func[condition]
         self.db.effectdict[self.name] = self
 
-    def do(self, event, deck):
+    def do(self, deck=None, event=None):
         r = []
         while self.condition():
-            r.extend(self.effect(event, deck))
+            r.extend(self.effect.do(self, deck, event))
         return r
 
 
@@ -267,14 +267,14 @@ of an effect, look up the real effect object. Then unravel it."""
             eff.unravel()
             i += 1
 
-    def do(self, event):
+    def do(self, event=None):
         """Fire all the Effects herein, in whatever order my iterator says to.
 
 Return a list. Its first item is this deck. The rest of the items are
 tuples. The first item in each tuple is an Effect object. The list is
 in the order in which these were fired, which may not be the order
 this EffectDeck is in. The remainder (if present) are particular to
-the Effect, and may be thought of as the Effect's "return value".
+the Effect, and may be thought of as the Effect's return value.
 
 To decide what order the Effects should be fired in, set my draw_order
 attribute to one of the DeckIter classes. The default is FILODeckIter,
@@ -288,7 +288,7 @@ RandomDiscardDeckIter.
         for eff in fritter:
             erl = [self]
             while erl[-1] is not None:
-                erl.extend(eff.do(event, self))
+                erl.extend(eff.do(self, event))
             r.append((eff,) + tuple(erl))
         return r
 

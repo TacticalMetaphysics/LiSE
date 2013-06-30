@@ -29,10 +29,13 @@ def noop(*args, **kwargs):
     pass
 
 ITEM_RE = re.compile("(.*)\.(.*)")
-SPOT_RE = re.compile("create_spot\(([a-zA-Z0-9])\.([a-zA-Z0-9]),(0-9),(0-9)\)")
+MAKE_SPOT_RE = re.compile(
+    "make_spot\(([a-zA-Z0-9]+)\."
+    "([a-zA-Z0-9]+),([0-9]+),([0-9]+),?([a-zA-Z0-9]*)\)")
+MAKE_PORTAL_RE = re.compile(
+    "make_portal\(([a-zA-Z0-9]+)\.([a-zA-Z0-9]+)->"
+    "([a-zA-Z0-9]+)\.([a-zA-Z0-9]+)\)")
 THING_INTO_PORTAL_RE = re.compile("(.*)\.(.*)->Portal\((.*)->(.*)\)")
-THING_ALONG_PORTAL_RE = ITEM_RE
-THING_OUT_OF_PORTAL_RE = ITEM_RE
 
 
 class RumorMill:
@@ -137,12 +140,20 @@ arguments.
             'editor_copy': noop,
             'editor_paste': noop,
             'editor_delete': noop,
+            'mi_create_place':
+            self.mi_create_place,
             'create_place':
             self.create_place,
-            'make_generic_place':
-            self.make_generic_place,
+            'create_generic_place':
+            self.create_generic_place,
+            'mi_create_thing':
+            self.mi_create_thing,
             'create_thing':
-            self.create_thing}
+            self.create_thing,
+            'create_portal':
+            self.create_portal,
+            'mi_create_portal':
+            self.mi_create_portal}
         self.func.update(xfuncs)
 
     def __del__(self):
@@ -242,10 +253,19 @@ list.
         """Load the color by the given name."""
         return self.load_colors((colorname,))
 
-    def make_place(self, dimension, name):
+    def make_place(self, arg, effect=None, deck=None, event=None):
         """Return a new Place object by the given name, in the given
 dimension.
+
+Argument is like:
+
+dimension.place
         """
+        mat = re.match(MAKE_PLACE_RE, arg)
+        (dimension, name) = mat.groups()
+        return self.create_place(dimension, name)
+
+    def create_place(self, dimension, name):
         pl = item.Place(self, dimension, name)
         pl.unravel()
         pl.save()
@@ -269,15 +289,28 @@ in the portal between two places.
         return [self.itemdict[dim][name] for name in thingnames]
 
 
-    def make_spot(self, dimension, place, x, y, img="default_spot"):
+    def create_spot(self, arg, effect=None, deck=None, event=None):
         """Return a Spot at the given coordinates, representing the place by
 the given name in the given dimension.
 
-It will use the image named 'default_spot' by default.
+Argument is like:
+        dimension.place,x,y,img
+
+place: The name of the place represented by this spot.
+dimension: The dimension the place is in.
+x,y: Coordinates on the board (not necessarily the screen).
+img: The name of the image. May be omitted, in which case default_spot is used.
+
+If the place does not exist, it will be created.
         """
-        if str(dimension) not in self.placedict or str(place) not in self.placedict[dimension]:
-            self.make_place(str(dimension), str(place), save, unravel)
-        sp = Spot(self, str(dimension), str(place), img, x, y)
+        mat = re.match(MAKE_SPOT_RE, arg)
+        (dimension, place, x, y, img) = mat.groups()
+        return self.create_spot(dimension, place, x, y, img)
+
+    def make_spot(self, dimension, place, x, y, img=None):
+        if dimension not in self.placedict or place not in self.placedict[dimension]:
+            self.make_place("{0}.{1}".format(dimension, place))
+        sp = Spot(self, dimension, place, img, x, y)
         sp.unravel()
         sp.save()
         return sp
@@ -288,32 +321,67 @@ It will use the image named 'default_spot' by default.
                 spot.place.contents
                 if thing.name in self.pawndict[spot.dimension]]
 
-    def make_thing(self, dimension, name, location):
+    def create_thing(self, arg, effect=None, deck=None, event=None):
         """Return a new Thing in the given location of the given dimension, by
 the given name.
 
+Argument is like:
+        dimension.thing@location
+
+thing: The name of the thing you want to make.
+dimension: The name of the dimension it should go in.
+location: The name of a place in that dimension.
+
         """
+        mat = re.match(MAKE_PLACE_RE, arg)
+        (dimension, name, location) = mat.groups()
+        return self.create_thing(dimension, name, location)
+
+    def make_thing(self, dimension, name, location):
         th = Thing(dimension, name, location)
         th.unravel()
         th.save()
         return th
 
-    def make_pawn(self, dimension, thing, img):
+    def create_pawn(self, arg, effect=None, deck=None, event=None):
         """Return a new Pawn on the board for the named Dimension representing
 the named Thing with the named Img.
-        
+
+Argument is like:
+        dimension.thing,img
+thing: The thing that the pawn represents.
+dimension: The name of the dimension the thing is in.
+img: The image that the pawn should display.
+
+Pawns are placed automatically to reflect the location of the underlying thing object.
+
 Raises a KeyError if the underlying Thing hasn't been created.
-        """
+"""
+        mat = re.match(PAWN_RE, arg)
+        (dimension, thing, img) = mat.groups()
+        return self.make_pawn(dimension, thing, img)
+
+    def make_pawn(self, dimension, thing, img):
         pwn = Pawn(self, dimension, thing, img)
         pwn.unravel()
         pwn.save()
         return pwn
 
-    def make_portal(self, dimension, origin, destination):
+    def create_portal(self, arg, effect=None, deck=None, event=None):
         """Return a new Portal connecting the given origin and destination in
 the given dimension.
+
+Argument is like:
+        dimension.origin->destination
+origin, destination: names of two places to be connected.
+dimension: The name of the dimension that both places are in.
         """
-        port = Portal(self, dimension, origin, destination)
+        mat = re.match(MAKE_PORTAL_RE, arg)
+        (dimension, origin, destination) = mat.groups()
+        return self.make_portal(dimension, origin, destination)
+
+    def make_portal(self, dimension, origin, destination):
+        port = item.Portal(self, dimension, origin, destination)
         port.unravel()
         port.save()
         return port
@@ -457,7 +525,7 @@ a member."""
             if ev_end in self.endevdict:
                 self.endevdict[ev_end].discard(ev)
 
-    def thing_into_portal(self, event, deck, effect, arg):
+    def thing_into_portal(self, arg, effect=None, deck=None, event=None):
         """Put the item into the portal.
 
 Argument is a mere string, structured as so:
@@ -474,7 +542,7 @@ in the appropriate dictionary.
         portal = self.portalorigdestdict[dimname][orig][dest]
         thing.enter(portal)
 
-    def thing_along_portal(self, event, deck, effect, arg):
+    def thing_along_portal(self, arg, effect=None, deck=None, event=None):
         """Move the thing some amount along the portal it's in.
 
 Argument is a mere string, structured like:
@@ -485,7 +553,7 @@ The given item in the given dimension will be moved along the portal
 some amount, calculated by its speed_thru method.
 
         """
-        rex = THING_ALONG_PORTAL_RE
+        rex = ITEM_RE
         (dimname, thingname) = re.match(rex, arg).groups()
         thing = self.thingdict[dimname][thingname]
         journey = thing.journey
@@ -494,7 +562,7 @@ some amount, calculated by its speed_thru method.
         journey.move_thing(speed)
         return (effect, thing, portal, speed, None)
 
-    def thing_out_of_portal(self, event, deck, effect, arg):
+    def thing_out_of_portal(self, arg, effect=None, deck=None, event=None):
         """Take the thing out of the portal it's in, and put it in the
 portal's destination.
 
@@ -506,25 +574,31 @@ The given item in the given dimension will be moved to the portal's
 destination.
 
         """
-        rex = THING_OUT_OF_PORTAL_RE
+        rex = ITEM_RE
         (dimname, thingname) = re.match(rex, arg).groups()
         thing = self.thingdict[dimname][thingname]
         (newplace, newport) = thing.journey.step()
         return (effect, newplace, newport, None)
 
-    def make_generic_place(self, event, deck, effect, arg):
+    def create_generic_place(self, arg, effect=None, deck=None, event=None):
         """Take the name of a dimension and return a place in it with a boring name."""
+        return self.make_generic_place(arg)
+
+    def make_generic_place(self, dimension):
         placename = "Place_{0}".format(self.hi_place + 1)
-        place = item.Place(self, arg, placename)
+        place = item.Place(self, dimension, placename)
         place.unravel()
         place.save()
         return place
 
-    def create_place(self, menuitem, arg):
+    def mi_create_place(self, menuitem, arg):
         return menuitem.gw.create_place()
 
-    def create_thing(self, menuitem, arg):
+    def mi_create_thing(self, menuitem, arg):
         return menuitem.gw.create_thing()
+
+    def mi_create_portal(self, menuitem, arg):
+        return menuitem.gw.create_portal()
 
     def load_cards(self, names):
         load_cards(self, names)

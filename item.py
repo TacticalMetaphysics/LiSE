@@ -211,14 +211,12 @@ class Portal(Item):
         if stringlike(self.dest):
             self.dest = db.itemdict[self.dimension.name][self.dest]
 
-    def __hash__(self):
-        return self.hsh
-
-    def get_weight(self):
-        return self.weight
-
-    def get_avatar(self):
-        return self.avatar
+    def get_tabdict(self):
+        return {
+            "portal": {
+                "dimension": str(self.dimension),
+                "from_place": str(self.orig),
+                "to_place": str(self.dest)}}
 
     def admits(self, traveler):
         """Return True if I want to let the given thing enter me, False
