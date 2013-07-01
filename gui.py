@@ -1,7 +1,9 @@
 import pyglet
+import ctypes
 import math
 import logging
 from edge import Edge
+from math import atan
 
 logger = logging.getLogger(__name__)
 
@@ -11,34 +13,97 @@ fortyfive = math.pi / 4
 
 threesixty = math.pi * 2
 
+def truncated_line(leftx, boty, rightx, topy, r,
+                   from_start=False, rise=None, run=None, length=None, theta=None):
+    # presumes pointed up and right
+    if rise is None:
+        rise = topy - boty
+    if run is None:
+        run = rightx - leftx
+    if length is None:
+        length = math.sqrt(rise**2 + run**2) - r
+    try:
+        if theta is None:
+            theta = math.atan(rise/run)
+        if from_start:
+            leftx = rightx - math.cos(theta) * length
+            boty = topy - math.sin(theta) * length
+        else:
+            rightx = leftx + math.cos(theta) * length
+            topy = boty + math.sin(theta) * length
+    except ZeroDivisionError:
+        theta = None
+        if topy == boty:
+            if from_start:
+                leftx += r
+            else:
+                rightx -= r
+        else:
+            if from_start:
+                boty += r
+            else:
+                topy -= r
+    return (leftx, boty, rightx, topy, rise, run, length, theta)
 
-class DummyEdge:
-    visible = True
+def trimmed_line(leftx, boty, rightx, topy, trim_start, trim_end):
+    et = truncated_line(leftx, boty, rightx, topy, trim_end)
+    return truncated_line(et[0], et[1], et[2], et[3], trim_start, True, et[4], et[5], et[6], et[7])
 
-nedge = DummyEdge()
+def get_line_width():
+    see = ctypes.c_float()
+    pyglet.gl.glGetFloatv(pyglet.gl.GL_LINE_WIDTH, see)
+    return float(see.value)
 
+def set_line_width(w):
+    wcf = ctypes.c_float(w)
+    pyglet.gl.glLineWidth(wcf)
+
+
+class BoldLineGroup(pyglet.graphics.Group):
+    def __init__(self, parent=None, width=1.0):
+        super(BoldLineGroup, self).__init__(parent)
+        self.width = float(width)
+
+    def set_state(self):
+        self.oldwidth = get_line_width()
+        set_line_width(self.width)
+
+    def unset_state(self):
+        set_line_width(self.oldwidth)
+
+class BoldLineOrderedGroup(pyglet.graphics.OrderedGroup, BoldLineGroup):
+    def __init__(self, order, parent=None, width=1.0):
+        pyglet.graphics.OrderedGroup.__init__(self, order, parent)
+        self.width = float(width)
+
+class TransparencyGroup(pyglet.graphics.Group):
+    def set_state(self):
+        pyglet.gl.glEnable(pyglet.gl.GL_BLEND)
+
+    def unset_state(self):
+        pyglet.gl.glDisable(pyglet.gl.GL_BLEND)
+
+class TransparencyOrderedGroup(pyglet.graphics.OrderedGroup, TransparencyGroup):
+    pass
 
 class GameWindow:
     """Instantiates a Pyglet window and displays the given board in it."""
     arrowhead_size = 10
+    arrow_width = 1.4
+    edge_order = 1
 
     def __init__(self, gamestate, boardname):
         self.squareoff = self.arrowhead_size * math.sin(fortyfive)
-
         self.db = gamestate.db
         self.gamestate = gamestate
 
         self.boardgroup = pyglet.graphics.OrderedGroup(0)
-        self.edgegroup = pyglet.graphics.OrderedGroup(1)
+        self.edgegroup = BoldLineOrderedGroup(1)
         self.spotgroup = pyglet.graphics.OrderedGroup(2)
         self.pawngroup = pyglet.graphics.OrderedGroup(3)
-        self.menugroup = pyglet.graphics.OrderedGroup(4)
-        self.calendargroup = pyglet.graphics.OrderedGroup(4)
-        self.cellgroup = pyglet.graphics.OrderedGroup(5)
-        self.card_bg_group = pyglet.graphics.OrderedGroup(6)
-        self.card_text_bg_group = pyglet.graphics.OrderedGroup(7)
-        self.card_img_group = pyglet.graphics.OrderedGroup(8)
-        self.labelgroup = pyglet.graphics.OrderedGroup(10)
+        self.calgroup = TransparencyOrderedGroup(4)
+        self.celgroup = TransparencyOrderedGroup(5)
+        self.labelgroup = pyglet.graphics.OrderedGroup(6)
         self.topgroup = pyglet.graphics.OrderedGroup(65535)
 
         self.pressed = None
@@ -55,9 +120,6 @@ class GameWindow:
 
         self.board = self.db.boarddict[boardname]
         self.board.set_gw(self)
-        # replace this
-        for port in self.board.dimension.portals:
-            Edge(self.board.db, self.board.dimension, port).unravel()
         self.calcols = []
         for pawn in self.board.pawndict.itervalues():
             if hasattr(pawn, 'calcol'):
@@ -89,7 +151,6 @@ class GameWindow:
         def on_draw():
             """Draw the background image; all spots, pawns, and edges on the
 board; all visible menus; and the calendar, if it's visible."""
-            from math import atan
             # draw the edges, representing portals
             if self.portal_from is not None: 
                 (self.left_tail_edge_from_portal_from,
@@ -104,42 +165,54 @@ board; all visible menus; and the calendar, if it's visible."""
                     self.left_tail_edge_from_portal_from,
                     self.edge_from_portal_from,
                     self.right_tail_edge_from_portal_from)
-            for edge in self.board.edges:
+            else:
+                try:
+                    self.left_tail_edge_from_portal_from.delete()
+                except:
+                    pass
+                try:
+                    self.edge_from_portal_from.delete()
+                except:
+                    pass
+                try:
+                    self.right_tail_edge_from_portal_from.delete()
+                except:
+                    pass
+            for port in self.board.portals:
+                edge = port.edge
                 newstate = edge.get_state_tup()
                 if newstate in self.onscreen:
                     continue
                 self.onscreen.discard(edge.oldstate)
                 self.onscreen.add(newstate)
                 edge.oldstate = newstate
-                if edge.visible:
+                if edge.orig.visible or edge.dest.visible:
                     (edge.wedge_a,
                      edge.vertlist,
                      edge.wedge_b
                     ) = self.connect_arrow(
-                         edge.orig.window_x,
-                         edge.orig.window_y,
-                         edge.dest.window_x,
-                         edge.dest.window_y,
-                         edge.dest.r,
-                         edge.wedge_a,
-                         edge.vertlist,
-                         edge.wedge_b)
+                        edge.orig.window_x,
+                        edge.orig.window_y,
+                        edge.dest.window_x,
+                        edge.dest.window_y,
+                        edge.dest.r,
+                        edge.wedge_a,
+                        edge.vertlist,
+                        edge.wedge_b,
+                        edge.order)
                 else:
-                    if edge.wedge_a is not None:
-                        try:
-                            edge.wedge_a.delete()
-                        except (AttributeError, AssertionError):
-                            pass
-                    if edge.vertlist is not None:
-                        try:
-                            edge.vertlist.delete()
-                        except (AttributeError, AssertionError):
-                            pass
-                    if edge.wedge_b is not None:
-                        try:
-                            edge.wedge_b.delete()
-                        except (AttributeError, AssertionError):
-                            pass
+                    try:
+                        edge.wedge_a.delete()
+                    except:
+                        pass
+                    try:
+                        edge.wedge_b.delete()
+                    except:
+                        pass
+                    try:
+                        edge.vertlist.delete()
+                    except:
+                        pass
             # draw the spots, representing places
             for spot in self.board.spotdict.itervalues():
                 newstate = spot.get_state_tup()
@@ -160,11 +233,10 @@ board; all visible menus; and the calendar, if it's visible."""
                             batch=self.batch,
                             group=self.spotgroup)
                 else:
-                    if spot.sprite is not None:
-                        try:
-                            spot.sprite.delete()
-                        except (AttributeError, AssertionError):
-                            pass
+                    try:
+                        spot.sprite.delete()
+                    except (AttributeError, AssertionError):
+                        pass
             # draw the pawns, representing things
             for pawn in self.board.pawndict.itervalues():
                 newstate = pawn.get_state_tup()
@@ -238,7 +310,7 @@ board; all visible menus; and the calendar, if it's visible."""
                             menu.height))
                     menu.sprite = pyglet.sprite.Sprite(
                         image, menu.window_left, menu.window_bot,
-                        batch=self.batch, group=self.menugroup)
+                        batch=self.batch, group=self.calgroup)
 
             # draw the calendar
             newstate = self.calendar.get_state_tup()
@@ -263,7 +335,7 @@ board; all visible menus; and the calendar, if it's visible."""
                             calcol.window_left,
                             calcol.window_bot,
                             batch=self.batch,
-                            group=self.calendargroup)
+                            group=self.calgroup)
                     for cel in calcol.celldict.itervalues():
                         if cel.sprite is not None:
                             try:
@@ -298,7 +370,7 @@ board; all visible menus; and the calendar, if it's visible."""
                                 cel.window_left,
                                 cel.window_bot,
                                 batch=self.batch,
-                                group=self.cellgroup)
+                                group=self.celgroup)
                             y = cel.window_top - cel.label_height
                             if cel.label is None:
                                 cel.label = pyglet.text.Label(
@@ -376,7 +448,7 @@ board; all visible menus; and the calendar, if it's visible."""
                                 card.window_left,
                                 card.window_bot,
                                 batch=self.batch,
-                                group=self.card_bg_group)
+                                group=self.calgroup)
                         else:
                             if card.bgsprite.x != card.window_left:
                                 card.bgsprite.x = card.window_left
@@ -390,7 +462,7 @@ board; all visible menus; and the calendar, if it's visible."""
                                 ctxth.window_left,
                                 ctxth.window_bot,
                                 batch=self.batch,
-                                group=self.card_text_bg_group)
+                                group=self.celgroup)
                         else:
                             if ctxth.bgsprite.x != ctxth.window_left:
                                 ctxth.bgsprite.x = ctxth.window_left
@@ -440,7 +512,7 @@ board; all visible menus; and the calendar, if it's visible."""
                                     card.img,
                                     x, y,
                                     batch=self.batch,
-                                    group=self.card_img_group)
+                                    group=self.celgroup)
                             else:
                                 if card.imgsprite.x != x:
                                     card.imgsprite.x = x
@@ -703,20 +775,23 @@ move_with_mouse method, use it.
     def create_portal(self):
         self.portaling = True
 
-    def connect_arrow(self, ox, oy, dx, dy, center_shrink=0,
+    def connect_arrow(self, ox, oy, dx, dy,
+                      center_shrink=0,
                       old_vertlist_left=None,
                       old_vertlist_center=None,
-                      old_vertlist_right=None):
+                      old_vertlist_right=None,
+                      order=0):
         # xs and ys should be integers.
         #
         # results will be called l, c, r for left tail, center, right tail
         if old_vertlist_center is None:
-            c = self.batch.add(
-                2, pyglet.graphics.GL_LINES,
-                self.edgegroup, ('v2i', (ox, oy, dx, dy)))
+            obg = None
+            ofg = None
         else:
-            c = old_vertlist_center
-            c.vertices = [ox, oy, dx, dy]
+            obg = old_vertlist_center[0]
+            ofg = old_vertlist_center[1]
+        c = self.connect_line(
+            ox, oy, dx, dy, old_bg_vlist=obg, old_fg_vlist=ofg, order=order)
         if dy < oy:
             yco = -1
         else:
@@ -725,41 +800,27 @@ move_with_mouse method, use it.
             xco = -1
         else:
             xco = 1
-        leftx = float(ox * xco)
-        rightx = float(dx * xco)
-        boty = float(oy * yco)
-        topy = float(dy * yco)
+        (leftx, boty, rightx, topy, rise, run, length, slope_theta) = truncated_line(
+            float(ox * xco), float(oy * yco), float(dx * xco), float(dy * yco),
+            center_shrink)
         taillen = float(self.arrowhead_size)
-        rise = topy - boty
-        run = rightx - leftx
-        length = math.sqrt(rise**2 + run**2) - center_shrink
         try:
-            slope_theta = math.atan(rise/run)
+            if slope_theta is None:
+                slope_theta = math.atan(rise/run)
             opp_theta = math.atan(run/rise)
-            if center_shrink != 0:
-                rightx = leftx + math.cos(slope_theta) * length
-                topy = boty + math.sin(slope_theta) * length
-                rise = topy - boty
-                run = rightx - leftx
-            if rise > run:
-                top_theta = slope_theta - fortyfive
-                bot_theta = math.pi - opp_theta - fortyfive
-            else:
-                bot_theta = slope_theta - fortyfive
-                top_theta = math.pi - opp_theta - fortyfive
+            top_theta = slope_theta - fortyfive
+            bot_theta = math.pi - fortyfive - opp_theta
             xoff1 = math.cos(top_theta) * taillen
             yoff1 = math.sin(top_theta) * taillen
             xoff2 = math.cos(bot_theta) * taillen
             yoff2 = math.sin(bot_theta) * taillen
         except ZeroDivisionError:
-            if ox == dx:
-                topy = boty + length
+            if leftx == rightx:
                 yoff1 = self.squareoff
                 xoff1 = yoff1
                 xoff2 = -1 * xoff1
                 yoff2 = yoff1
             else:
-                rightx = leftx + length
                 xoff1 = self.squareoff
                 yoff1 = xoff1
                 xoff2 = xoff1
@@ -771,17 +832,64 @@ move_with_mouse method, use it.
         endx = int(rightx) * xco
         endy = int(topy) * yco
         if old_vertlist_left is None:
-            l = self.batch.add(
-                2, pyglet.graphics.GL_LINES,
-                self.edgegroup, ('v2i', (x1, y1, endx, endy)))
+            obg = None
+            ofg = None
         else:
-            l = old_vertlist_left
-            l.vertices = [x1, y1, endx, endy]
+            obg = old_vertlist_left[0]
+            ofg = old_vertlist_left[1]
+        l = self.connect_line(
+            x1, y1, endx, endy, old_bg_vlist=obg, old_fg_vlist=ofg, order=order)
         if old_vertlist_right is None:
-            r = self.batch.add(
-                2, pyglet.graphics.GL_LINES,
-                self.edgegroup, ('v2i', (x2, y2, endx, endy)))
+            obg = None
+            ofg = None
         else:
-            r = old_vertlist_right
-            r.vertices = [x2, y2, endx, endy]
+            obg = old_vertlist_right[0]
+            ofg = old_vertlist_right[1]
+        r = self.connect_line(
+            x2, y2, endx, endy, old_bg_vlist=obg, old_fg_vlist=ofg, order=order)
         return (l, c, r)
+
+    def connect_line(self, ox, oy, dx, dy,
+                     fg_red=255, fg_green=255, fg_blue=255, fg_alpha=255,
+                     bg_red=64, bg_green=64, bg_blue=64, bg_alpha=64,
+                     selected=False, old_bg_vlist=None,
+                     old_fg_vlist=None, order=1):
+        ox = float(ox)
+        oy = float(oy)
+        dx = float(dx)
+        dy = float(dy)
+        if selected:
+            wfg = self.arrow_width * 2
+        else:
+            wfg = self.arrow_width
+        wbg = wfg * 2
+        bggroup = BoldLineOrderedGroup(order, self.edgegroup, wbg)
+        fggroup = BoldLineOrderedGroup(order + 1, self.edgegroup, wfg)
+        if dx > ox:
+            xco = 1
+        else:
+            xco = -1
+        if dy > oy:
+            yco = 1
+        else:
+            yco = -1
+        points = (int(ox), int(oy), int(dx), int(dy))
+        pyglet.gl.glEnable(pyglet.gl.GL_LINE_SMOOTH)
+        if old_bg_vlist is None:
+            bot = self.batch.add(
+                2, pyglet.graphics.GL_LINES, bggroup,
+                ('v2i', points),
+                ('c4B', (bg_red, bg_green, bg_blue, bg_alpha) * 2))
+        else:
+            bot = old_bg_vlist
+            bot.vertices = list(points)
+        pyglet.gl.glDisable(pyglet.gl.GL_LINE_SMOOTH)
+        if old_fg_vlist is None:
+            top = self.batch.add(
+                2, pyglet.graphics.GL_LINES, fggroup,
+                ('v2i', points),
+                ('c4B', (fg_red, fg_green, fg_blue, fg_alpha) * 2))
+        else:
+            top = old_fg_vlist
+            top.vertices = list(points)
+        return (bot, top)

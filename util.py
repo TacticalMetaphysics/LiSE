@@ -1,4 +1,5 @@
 import pyglet
+import ctypes
 from math import sqrt
 
 phi = (1.0 + sqrt(5))/2.0

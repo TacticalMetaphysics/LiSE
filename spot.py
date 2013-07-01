@@ -115,10 +115,10 @@ given coordinates, and visible or interactive as indicated.
         elif attrn == 'window_right':
             return self.right + self.board.offset_x
         elif attrn == 'in_window':
-            return (self.window_right > 0 and
-                    self.window_left < self.gw.window.width and
-                    self.window_top > 0 and
-                    self.window_bot < self.gw.window.height)
+            return (self.window_top > 0 and
+                    self.window_right > 0) or (
+                        self.window_bot < self.window.height and
+                        self.window_right < self.window.width)
         elif attrn == 'visible':
             return self._visible and self.in_window
         elif attrn == 'interactive':

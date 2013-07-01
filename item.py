@@ -18,6 +18,7 @@ from event import (
     IrrelevantEvent,
     ImpracticalEvent,
     PortalTravelEvent)
+from edge import Edge
 from effect import Effect, EffectDeck
 import re
 import logging
@@ -185,9 +186,16 @@ class Portal(Item):
         podd[dimname][from_place_name][to_place_name] = self
         pdod[dimname][to_place_name][from_place_name] = self
 
+    def __str__(self):
+        return self.name
+
     def __getattr__(self, attrn):
         if attrn == "spot":
             return self.dest.spot
+        elif attrn == "edge":
+            if str(self) not in self.db.edgedict[str(self.dimension)]:
+                Edge(self.db, self.dimension, self).unravel()
+            return self.db.edgedict[str(self.dimension)][str(self)]
         else:
             raise AttributeError("Portal has no such attribute")
 

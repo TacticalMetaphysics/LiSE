@@ -1,7 +1,10 @@
 from util import stringlike
 
+order = 0
+
 class Edge:
     def __init__(self, db, dimension, portal):
+        global order
         self.db = db
         self.dimension = dimension
         self.portal = portal
@@ -9,6 +12,8 @@ class Edge:
         self.wedge_a = None
         self.wedge_b = None
         self.oldstate = None
+        self.order = order
+        order += 2
     def __str__(self):
         return str(self.portal)
 
@@ -17,8 +22,6 @@ class Edge:
             return self.portal.orig.spot
         elif attrn == 'dest':
             return self.portal.dest.spot
-        elif attrn == 'visible':
-            return self.orig.visible or self.dest.visible
         else:
             raise AttributeError(
                 "Edge instance has no attribute {0}".format(attrn))
@@ -34,8 +37,4 @@ class Edge:
 
 
     def get_state_tup(self):
-        return (
-            self.orig.window_x,
-            self.orig.window_y,
-            self.dest.window_x,
-            self.dest.window_y)
+        return self.orig.get_state_tup() + self.dest.get_state_tup()

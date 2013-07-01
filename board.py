@@ -111,8 +111,7 @@ time.
         elif attrn == "edges":
             return self.edgedict.itervalues()
         else:
-            raise AttributeError(
-                "Board instance has no attribute {0}".format(attrn))
+            return getattr(self.dimension, attrn)
 
     def __eq__(self, other):
         return (
