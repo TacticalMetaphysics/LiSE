@@ -3,7 +3,7 @@ import ctypes
 import math
 import logging
 from edge import Edge
-from math import atan
+from math import atan, sqrt
 
 logger = logging.getLogger(__name__)
 
@@ -13,41 +13,87 @@ fortyfive = math.pi / 4
 
 threesixty = math.pi * 2
 
-def truncated_line(leftx, boty, rightx, topy, r,
-                   from_start=False, rise=None, run=None, length=None, theta=None):
+line_len_hints = {}
+
+def line_len_rise_run(rise, run):
+    if rise == 0:
+        return run
+    elif run == 0:
+        return rise
+    else:
+        if rise not in line_len_hints:
+            line_len_hints[rise] = {}
+        if run not in line_len_hints[rise]:
+            line_len_hints[rise][run] = sqrt(rise**2 + run**2)
+        return line_len_hints[rise][run]
+
+def line_len(ox, oy, dx, dy):
+    rise = dy - oy
+    run = dx - ox
+    return line_len_rise_run(rise, run)
+
+
+slope_theta_hints = {}
+
+def slope_theta_rise_run(rise, run):
+    if rise not in slope_theta_hints:
+        slope_theta_hints[rise] = {}
+    if run not in slope_theta_hints[rise]:
+        try:
+            slope_theta_hints[rise][run] = atan(rise/run)
+        except ZeroDivisionError:
+            if rise >= 0:
+                return ninety
+            else:
+                return -1 * ninety
+    return slope_theta_hints[rise][run]
+
+def slope_theta(ox, oy, dx, dy):
+    rise = dy - oy
+    run = dx - ox
+    return slope_theta_rise_run(rise, run)
+
+
+opp_theta_hints = {}
+
+def opp_theta_rise_run(rise, run):
+    if run not in opp_theta_hints:
+        opp_theta_hints[run] = {}
+    if rise not in opp_theta_hints[run]:
+        try:
+            opp_theta_hints[run][rise] = atan(run/rise)
+        except ZeroDivisionError:
+            if run >= 0:
+                opp_theta_hints[run][rise] = ninety
+            else:
+                opp_theta_hints[run][rise] = -1 * ninety
+    return opp_theta_hints[run][rise]
+
+def opp_theta(ox, oy, dx, dy):
+    rise = dy - oy
+    run = dx - ox
+    return opp_theta_rise_run(rise, run)
+
+
+def truncated_line(leftx, boty, rightx, topy, r, from_start=False):
     # presumes pointed up and right
-    if rise is None:
-        rise = topy - boty
-    if run is None:
-        run = rightx - leftx
-    if length is None:
-        length = math.sqrt(rise**2 + run**2) - r
-    try:
-        if theta is None:
-            theta = math.atan(rise/run)
-        if from_start:
-            leftx = rightx - math.cos(theta) * length
-            boty = topy - math.sin(theta) * length
-        else:
-            rightx = leftx + math.cos(theta) * length
-            topy = boty + math.sin(theta) * length
-    except ZeroDivisionError:
-        theta = None
-        if topy == boty:
-            if from_start:
-                leftx += r
-            else:
-                rightx -= r
-        else:
-            if from_start:
-                boty += r
-            else:
-                topy -= r
-    return (leftx, boty, rightx, topy, rise, run, length, theta)
+    if r == 0:
+        return (leftx, boty, rightx, topy)
+    rise = topy - boty
+    run = rightx - leftx
+    length = line_len_rise_run(rise, run) - r
+    theta = slope_theta_rise_run(rise, run)
+    if from_start:
+        leftx = rightx - math.cos(theta) * length
+        boty = topy - math.sin(theta) * length
+    else:
+        rightx = leftx + math.cos(theta) * length
+        topy = boty + math.sin(theta) * length
+    return (leftx, boty, rightx, topy)
 
 def trimmed_line(leftx, boty, rightx, topy, trim_start, trim_end):
     et = truncated_line(leftx, boty, rightx, topy, trim_end)
-    return truncated_line(et[0], et[1], et[2], et[3], trim_start, True, et[4], et[5], et[6], et[7])
+    return truncated_line(et[0], et[1], et[2], et[3], trim_start, True)
 
 def get_line_width():
     see = ctypes.c_float()
@@ -800,14 +846,15 @@ move_with_mouse method, use it.
             xco = -1
         else:
             xco = 1
-        (leftx, boty, rightx, topy, rise, run, length, slope_theta) = truncated_line(
-            float(ox * xco), float(oy * yco), float(dx * xco), float(dy * yco),
-            center_shrink)
+        (leftx, boty, rightx, topy) = truncated_line(
+            float(ox * xco), float(oy * yco),
+            float(dx * xco), float(dy * yco), center_shrink)
         taillen = float(self.arrowhead_size)
+        rise = topy - boty
+        run = rightx - leftx
         try:
-            if slope_theta is None:
-                slope_theta = math.atan(rise/run)
-            opp_theta = math.atan(run/rise)
+            slope_theta = slope_theta_rise_run(rise, run)
+            opp_theta = opp_theta_rise_run(rise, run)
             top_theta = slope_theta - fortyfive
             bot_theta = math.pi - fortyfive - opp_theta
             xoff1 = math.cos(top_theta) * taillen
