@@ -95,6 +95,33 @@ def trimmed_line(leftx, boty, rightx, topy, trim_start, trim_end):
     et = truncated_line(leftx, boty, rightx, topy, trim_end)
     return truncated_line(et[0], et[1], et[2], et[3], trim_start, True)
 
+wedge_offset_hints = {}
+
+def wedge_offsets(rise, run, taillen):
+    # theta is the slope of a line bisecting the ninety degree wedge.
+    # theta == atan(rise/run)
+    # tan(theta) == rise/run
+    # opp_theta == atan(run/rise)
+    # tan(opp_theta) == run/rise
+    # 1/tan(theta) == run/rise == tan(opp_theta)
+    # atan(1/tan(theta)) == opp_theta
+    if rise not in wedge_offset_hints:
+        wedge_offset_hints[rise] = {}
+    if run not in wedge_offset_hints[rise]:
+        wedge_offset_hints[rise][run] = {}
+    if taillen not in wedge_offset_hints[rise][run]:
+        theta = slope_theta_rise_run(rise, run)
+        opp_theta = opp_theta_rise_run(rise, run)
+        top_theta = theta - fortyfive
+        bot_theta = pi - fortyfive - opp_theta
+        xoff1 = sin(top_theta) * taillen
+        yoff1 = cos(top_theta) * taillen
+        xoff2 = sin(bot_theta) * taillen
+        yoff2 = cos(bot_theta) * taillen
+        wedge_offset_hints[rise][run][taillen] = (
+            xoff1, yoff1, xoff2, yoff2)
+    return wedge_offset_hints[rise][run][taillen]
+
 def get_line_width():
     see = ctypes.c_float()
     pyglet.gl.glGetFloatv(pyglet.gl.GL_LINE_WIDTH, see)
