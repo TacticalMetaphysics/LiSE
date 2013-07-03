@@ -84,7 +84,7 @@ time.
     def __getattr__(self, attrn):
         if attrn == "dimension":
             return self.db.dimensiondict[self._dimension]
-        elif attrn == "wallpaper":
+        elif attrn in ("wallpaper", "img"):
             return self.db.imgdict[self._wallpaper]
         elif attrn == "offset_x":
             return -1 * self.view_left

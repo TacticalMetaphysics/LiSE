@@ -760,20 +760,26 @@ move_with_mouse method, use it.
                         hasattr(self.pressed, 'move_with_mouse')):
                     self.grabbed = self.pressed
                 else:
-                    if self.board.view_left - dx < 0 or (
-                            (self.board.view_left - dx)
-                            + self.window.width > self.board.width):
-                        effective_dx = 0
-                    else:
-                        effective_dx = dx
-                    if self.board.view_bot - dy < 0 or (
-                            (self.board.view_bot - dy)
-                            + self.window.height > self.board.height):
-                        effective_dy = 0
-                    else:
-                        effective_dy = dy
-                    self.board.view_left -= effective_dx
-                    self.board.view_bot -= effective_dy
+                    self.board.view_left -= dx
+                    if (
+                            self.board.view_left +
+                            self.window.width >
+                            self.board.img.width):
+                        self.board.view_left = (
+                            self.board.img.width -
+                            self.window.width)
+                    elif self.board.view_left < 0:
+                        self.board.view_left = 0
+                    self.board.view_bot -= dy
+                    if (
+                            self.board.view_bot +
+                            self.window.height >
+                            self.board.img.height):
+                        self.board.view_bot = (
+                            self.board.img.height -
+                            self.window.height)
+                    elif self.board.view_bot < 0:
+                        self.board.view_bot = 0
                     if self.pressed is not None:
                         self.pressed = None
                     self.grabbed = None
