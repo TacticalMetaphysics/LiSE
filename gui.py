@@ -13,39 +13,22 @@ fortyfive = math.pi / 4
 
 threesixty = math.pi * 2
 
-line_len_hints = {}
-
 def line_len_rise_run(rise, run):
-    if rise == 0:
-        return run
-    elif run == 0:
-        return rise
-    else:
-        if rise not in line_len_hints:
-            line_len_hints[rise] = {}
-        if run not in line_len_hints[rise]:
-            line_len_hints[rise][run] = sqrt(rise**2 + run**2)
-        return line_len_hints[rise][run]
+    return sqrt(rise**2 + run**2)
 
 def line_len(ox, oy, dx, dy):
     rise = dy - oy
     run = dx - ox
     return line_len_rise_run(rise, run)
 
-
-slope_theta_hints = {}
-
 def slope_theta_rise_run(rise, run):
-    if rise not in slope_theta_hints:
-        slope_theta_hints[rise] = {}
-    if run not in slope_theta_hints[rise]:
-        try:
-            slope_theta_hints[rise][run] = atan(rise/run)
-        except ZeroDivisionError:
-            if rise >= 0:
-                return ninety
-            else:
-                return -1 * ninety
+    try:
+        return atan(rise/run)
+    except ZeroDivisionError:
+        if rise >= 0:
+            return ninety
+        else:
+            return -1 * ninety
     return slope_theta_hints[rise][run]
 
 def slope_theta(ox, oy, dx, dy):
@@ -54,26 +37,19 @@ def slope_theta(ox, oy, dx, dy):
     return slope_theta_rise_run(rise, run)
 
 
-opp_theta_hints = {}
-
 def opp_theta_rise_run(rise, run):
-    if run not in opp_theta_hints:
-        opp_theta_hints[run] = {}
-    if rise not in opp_theta_hints[run]:
-        try:
-            opp_theta_hints[run][rise] = atan(run/rise)
-        except ZeroDivisionError:
-            if run >= 0:
-                opp_theta_hints[run][rise] = ninety
-            else:
-                opp_theta_hints[run][rise] = -1 * ninety
-    return opp_theta_hints[run][rise]
+    try:
+        return atan(run/rise)
+    except ZeroDivisionError:
+        if run >= 0:
+            return ninety
+        else:
+            return -1 * ninety
 
 def opp_theta(ox, oy, dx, dy):
     rise = dy - oy
     run = dx - ox
     return opp_theta_rise_run(rise, run)
-
 
 def truncated_line(leftx, boty, rightx, topy, r, from_start=False):
     # presumes pointed up and right
@@ -95,47 +71,26 @@ def trimmed_line(leftx, boty, rightx, topy, trim_start, trim_end):
     et = truncated_line(leftx, boty, rightx, topy, trim_end)
     return truncated_line(et[0], et[1], et[2], et[3], trim_start, True)
 
-wedge_offset_hints_core = {}
-
 def wedge_offsets_core(theta, opp_theta, taillen):
-    if theta not in wedge_offset_hints_core:
-        wedge_offset_hints_core[theta] = {}
-    if opp_theta not in wedge_offset_hints_core[theta]:
-        wedge_offset_hints_core[theta][opp_theta] = {}
-    if taillen not in wedge_offset_hints_core[theta][opp_theta]:
-        top_theta = theta - fortyfive
-        bot_theta = pi - fortyfive - opp_theta
-        xoff1 = cos(top_theta) * taillen
-        yoff1 = sin(top_theta) * taillen
-        xoff2 = cos(bot_theta) * taillen
-        yoff2 = sin(bot_theta) * taillen
-        wedge_offset_hints_core[theta][opp_theta][taillen] = (
-            xoff1, yoff1, xoff2, yoff2)
-    return wedge_offset_hints_core[theta][opp_theta][taillen]
-
-wedge_offset_hints_rise_run = {}
+    top_theta = theta - fortyfive
+    bot_theta = pi - fortyfive - opp_theta
+    xoff1 = cos(top_theta) * taillen
+    yoff1 = sin(top_theta) * taillen
+    xoff2 = cos(bot_theta) * taillen
+    yoff2 = sin(bot_theta) * taillen
+    return (
+        xoff1, yoff1, xoff2, yoff2)
 
 def wedge_offsets_rise_run(rise, run, taillen):
     # theta is the slope of a line bisecting the ninety degree wedge.
-    if rise not in wedge_offset_hints_rise_run:
-        wedge_offset_hints_rise_run[rise] = {}
-    if run not in wedge_offset_hints_rise_run[rise]:
-        wedge_offset_hints_rise_run[rise][run] = {}
-    if taillen not in wedge_offset_hints_rise_run[rise][run]:
-        theta = slope_theta_rise_run(rise, run)
-        opp_theta = opp_theta_rise_run(rise, run)
-        wedge_offset_hints_rise_run[rise][run][taillen] = wedge_offsets_core(theta, opp_theta, taillen)
-    return wedge_offset_hints_rise_run[rise][run][taillen]
+    theta = slope_theta_rise_run(rise, run)
+    opp_theta = opp_theta_rise_run(rise, run)
+    return wedge_offsets_core(theta, opp_theta, taillen)
 
-wedge_offset_hints_slope = {}
-
-def wedge_offset_hints_slope(slope, taillen):
-    if slope not in wedge_offset_hints_slope:
-        wedge_offset_hints_slope[slope] = {}
-    if taillen not in wedge_offset_hints_slope[slope]:
-        theta = atan(slope)
-        opp_theta = atan(1/slope)
-        wedge_offset_hints_slope[slope][taillen] = wedge_offsets_core(theta, opp_theta, taillen)
+def wedge_offsets_slope(slope, taillen):
+    theta = atan(slope)
+    opp_theta = atan(1/slope)
+    wedge_offsets_core(theta, opp_theta, taillen)
     return wedge_offset_hints_slope[slope][taillen]
 
 def get_line_width():
