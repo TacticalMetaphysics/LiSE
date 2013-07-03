@@ -3,7 +3,7 @@ import ctypes
 import math
 import logging
 from edge import Edge
-from math import atan, sqrt
+from math import atan, sqrt, pi, sin, cos
 
 logger = logging.getLogger(__name__)
 
@@ -114,10 +114,10 @@ def wedge_offsets(rise, run, taillen):
         opp_theta = opp_theta_rise_run(rise, run)
         top_theta = theta - fortyfive
         bot_theta = pi - fortyfive - opp_theta
-        xoff1 = sin(top_theta) * taillen
-        yoff1 = cos(top_theta) * taillen
-        xoff2 = sin(bot_theta) * taillen
-        yoff2 = cos(bot_theta) * taillen
+        xoff1 = cos(top_theta) * taillen
+        yoff1 = sin(top_theta) * taillen
+        xoff2 = cos(bot_theta) * taillen
+        yoff2 = sin(bot_theta) * taillen
         wedge_offset_hints[rise][run][taillen] = (
             xoff1, yoff1, xoff2, yoff2)
     return wedge_offset_hints[rise][run][taillen]
@@ -879,26 +879,19 @@ move_with_mouse method, use it.
         taillen = float(self.arrowhead_size)
         rise = topy - boty
         run = rightx - leftx
-        try:
-            slope_theta = slope_theta_rise_run(rise, run)
-            opp_theta = opp_theta_rise_run(rise, run)
-            top_theta = slope_theta - fortyfive
-            bot_theta = math.pi - fortyfive - opp_theta
-            xoff1 = math.cos(top_theta) * taillen
-            yoff1 = math.sin(top_theta) * taillen
-            xoff2 = math.cos(bot_theta) * taillen
-            yoff2 = math.sin(bot_theta) * taillen
-        except ZeroDivisionError:
-            if leftx == rightx:
-                yoff1 = self.squareoff
-                xoff1 = yoff1
-                xoff2 = -1 * xoff1
-                yoff2 = yoff1
-            else:
-                xoff1 = self.squareoff
-                yoff1 = xoff1
-                xoff2 = xoff1
-                yoff2 = -1 * yoff1
+        if rise == 0:
+            xoff1 = cos(fortyfive) * taillen
+            yoff1 = xoff1
+            xoff2 = xoff1
+            yoff2 = -1 * yoff1
+        elif run == 0:
+            xoff1 = sin(fortyfive) * taillen
+            yoff1 = xoff1
+            xoff2 = -1 * xoff1
+            yoff2 = yoff1
+        else:
+            (xoff1, yoff1, xoff2, yoff2) = wedge_offsets(
+                rise, run, taillen)
         x1 = int(rightx - xoff1) * xco
         x2 = int(rightx - xoff2) * xco
         y1 = int(topy - yoff1) * yco
