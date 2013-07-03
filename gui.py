@@ -1,13 +1,164 @@
 import pyglet
+import ctypes
+import math
+import logging
+from edge import Edge
+from math import tan, sin, cos, atan, sqrt, pi
+ninety = pi / 2
+
+fortyfive = pi / 4
+
+threesixty =  pi * 2
+
+line_len_hints = {}
+
+def line_len_rise_run(rise, run):
+    if rise == 0:
+        return run
+    elif run == 0:
+        return rise
+    else:
+        if rise not in line_len_hints:
+            line_len_hints[rise] = {}
+        if run not in line_len_hints[rise]:
+            line_len_hints[rise][run] = sqrt(rise**2 + run**2)
+        return line_len_hints[rise][run]
+
+def line_len(ox, oy, dx, dy):
+    rise = dy - oy
+    run = dx - ox
+    return line_len_rise_run(rise, run)
 
 
-def point_is_in(x, y, listener):
-    return x >= listener.getleft() and x <= listener.getright() \
-        and y >= listener.getbot() and y <= listener.gettop()
+slope_theta_hints = {}
+
+def slope_theta_rise_run(rise, run):
+    if rise not in slope_theta_hints:
+        slope_theta_hints[rise] = {}
+    if run not in slope_theta_hints[rise]:
+        try:
+            slope_theta_hints[rise][run] = atan(rise/run)
+        except ZeroDivisionError:
+            if rise >= 0:
+                return ninety
+            else:
+                return -1 * ninety
+    return slope_theta_hints[rise][run]
+
+def slope_theta(ox, oy, dx, dy):
+    rise = dy - oy
+    run = dx - ox
+    return slope_theta_rise_run(rise, run)
 
 
-def point_is_between(x, y, x1, y1, x2, y2):
-    return x >= x1 and x <= x2 and y >= y1 and y <= y2
+opp_theta_hints = {}
+
+def opp_theta_rise_run(rise, run):
+    if run not in opp_theta_hints:
+        opp_theta_hints[run] = {}
+    if rise not in opp_theta_hints[run]:
+        try:
+            opp_theta_hints[run][rise] = atan(run/rise)
+        except ZeroDivisionError:
+            if run >= 0:
+                opp_theta_hints[run][rise] = ninety
+            else:
+                opp_theta_hints[run][rise] = -1 * ninety
+    return opp_theta_hints[run][rise]
+
+def opp_theta(ox, oy, dx, dy):
+    rise = dy - oy
+    run = dx - ox
+    return opp_theta_rise_run(rise, run)
+
+
+def truncated_line(leftx, boty, rightx, topy, r, from_start=False):
+    # presumes pointed up and right
+    if r == 0:
+        return (leftx, boty, rightx, topy)
+    rise = topy - boty
+    run = rightx - leftx
+    length = line_len_rise_run(rise, run) - r
+    theta = slope_theta_rise_run(rise, run)
+    if from_start:
+        leftx = rightx - cos(theta) * length
+        boty = topy - sin(theta) * length
+    else:
+        rightx = leftx + cos(theta) * length
+        topy = boty + sin(theta) * length
+    return (leftx, boty, rightx, topy)
+
+def trimmed_line(leftx, boty, rightx, topy, trim_start, trim_end):
+    et = truncated_line(leftx, boty, rightx, topy, trim_end)
+    return truncated_line(et[0], et[1], et[2], et[3], trim_start, True)
+
+wedge_offset_hints = {}
+
+def wedge_offsets(rise, run, taillen):
+    # theta is the slope of a line bisecting the ninety degree wedge.
+    # theta == atan(rise/run)
+    # tan(theta) == rise/run
+    # opp_theta == atan(run/rise)
+    # tan(opp_theta) == run/rise
+    # 1/tan(theta) == run/rise == tan(opp_theta)
+    # atan(1/tan(theta)) == opp_theta
+    if rise not in wedge_offset_hints:
+        wedge_offset_hints[rise] = {}
+    if run not in wedge_offset_hints[rise]:
+        wedge_offset_hints[rise][run] = {}
+    if taillen not in wedge_offset_hints[rise][run]:
+        theta = slope_theta_rise_run(rise, run)
+        opp_theta = opp_theta_rise_run(rise, run)
+        if theta > fortyfive:
+            top_theta = threesixty + theta - fortyfive
+            bot_theta = threesixty + fortyfive - opp_theta
+        else:
+            top_theta = threesixty + fortyfive - theta
+            bot_theta = threesixty + opp_theta - fortyfive
+        xoff1 = sin(top_theta) * taillen
+        yoff1 = cos(top_theta) * taillen
+        xoff2 = sin(bot_theta) * taillen
+        yoff2 = cos(bot_theta) * taillen
+        wedge_offset_hints[rise][run][taillen] = (
+            xoff1, yoff1, xoff2, yoff2)
+    return wedge_offset_hints[rise][run][taillen]
+
+def get_line_width():
+    see = ctypes.c_float()
+    pyglet.gl.glGetFloatv(pyglet.gl.GL_LINE_WIDTH, see)
+    return float(see.value)
+
+def set_line_width(w):
+    wcf = ctypes.c_float(w)
+    pyglet.gl.glLineWidth(wcf)
+
+
+class BoldLineGroup(pyglet.graphics.Group):
+    def __init__(self, parent=None, width=1.0):
+        super(BoldLineGroup, self).__init__(parent)
+        self.width = float(width)
+
+    def set_state(self):
+        self.oldwidth = get_line_width()
+        set_line_width(self.width)
+
+    def unset_state(self):
+        set_line_width(self.oldwidth)
+
+class BoldLineOrderedGroup(pyglet.graphics.OrderedGroup, BoldLineGroup):
+    def __init__(self, order, parent=None, width=1.0):
+        pyglet.graphics.OrderedGroup.__init__(self, order, parent)
+        self.width = float(width)
+
+class TransparencyGroup(pyglet.graphics.Group):
+    def set_state(self):
+        pyglet.gl.glEnable(pyglet.gl.GL_BLEND)
+
+    def unset_state(self):
+        pyglet.gl.glDisable(pyglet.gl.GL_BLEND)
+
+class TransparencyOrderedGroup(pyglet.graphics.OrderedGroup, TransparencyGroup):
+    pass
 
 
 class GameWindow:
@@ -15,8 +166,9 @@ class GameWindow:
     arrowhead_len = 10
     # One window, batch, and WidgetFactory per board.
 
-    def __init__(self, db, gamestate, boardname, batch=None):
-        self.db = db
+    def __init__(self, gamestate, boardname):
+        self.squareoff = self.arrowhead_size * sin(fortyfive)
+        self.db = gamestate.db
         self.gamestate = gamestate
         self.board = gamestate.boarddict[boardname]
         if self.board is None:
@@ -191,14 +343,114 @@ class GameWindow:
         def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
             if self.grabbed is not None:
                 self.grabbed.move_with_mouse(x, y, dx, dy, buttons, modifiers)
-            elif self.pressed is not None and point_is_in(x, y, self.pressed):
-                if hasattr(self.pressed, 'move_with_mouse'):
-                    self.grabbed = self.pressed
-            else:
-                if self.pressed is not None:
-                    self.pressed.pressed = False
-                    self.pressed = None
-                self.grabbed = None
+
+        @window.event
+        def on_resize(w, h):
+            """Inform the on_draw function that the window's been resized."""
+            self.resized = True
+
+        @window.event
+        def on_mouse_scroll(x, y, scroll_x, scroll_y):
+            # for now, this only does anything if you're moused over
+            # the calendar
+            if (
+                    self.calendar.visible and
+                    x > self.calendar.window_left and
+                    x < self.calendar.window_right and
+                    y > self.calendar.window_bot and
+                    y < self.calendar.window_top):
+                sf = self.calendar.scroll_factor
+                self.calendar.scrolled_to -= scroll_y * sf
+                if self.calendar.scrolled_to < 0:
+                    self.calendar.scrolled_to = 0
+
+    def __getattr__(self, attrn):
+        if attrn == 'width':
+            return self.window.width
+        elif attrn == 'height':
+            return self.window.height
+        else:
+            raise AttributeError(
+                "GameWindow has no attribute named {0}".format(attrn))
+
+    def create_place(self):
+        self.window.set_mouse_cursor(self.create_place_cursor)
+        self.placing = True
+
+    def create_thing(self):
+        self.thinging = True
+
+    def create_portal(self):
+        self.portaling = True
+
+    def connect_arrow(self, ox, oy, dx, dy,
+                      center_shrink=0,
+                      old_vertlist_left=None,
+                      old_vertlist_center=None,
+                      old_vertlist_right=None,
+                      order=0):
+        # xs and ys should be integers.
+        #
+        # results will be called l, c, r for left tail, center, right tail
+        if old_vertlist_center is None:
+            obg = None
+            ofg = None
+        else:
+            obg = old_vertlist_center[0]
+            ofg = old_vertlist_center[1]
+        c = self.connect_line(
+            ox, oy, dx, dy, old_bg_vlist=obg, old_fg_vlist=ofg, order=order)
+        if dy < oy:
+            yco = -1
+        else:
+            yco = 1
+        if dx < ox:
+            xco = -1
+        else:
+            xco = 1
+        (leftx, boty, rightx, topy) = truncated_line(
+            float(ox * xco), float(oy * yco),
+            float(dx * xco), float(dy * yco), center_shrink)
+        taillen = float(self.arrowhead_size)
+        rise = topy - boty
+        run = rightx - leftx
+        if rise == 0:
+            xoff1 = self.squareoff * taillen
+            yoff1 = xoff1
+            xoff2 = xoff1
+            yoff2 = -1 * yoff1
+        elif run == 0:
+            xoff1 = self.squareoff * taillen
+            yoff1 = xoff1
+            xoff2 = -1 * xoff1
+            yoff2 = yoff1
+        else:
+            (xoff1, yoff1, xoff2, yoff2) = wedge_offsets(
+                rise, run, taillen)
+        x1 = int(rightx - xoff1) * xco
+        x2 = int(rightx - xoff2) * xco
+        y1 = int(topy - yoff1) * yco
+        y2 = int(topy - yoff2) * yco
+        endx = int(rightx) * xco
+        endy = int(topy) * yco
+        if old_vertlist_left is None:
+            obg = None
+            ofg = None
+        else:
+            obg = old_vertlist_left[0]
+            ofg = old_vertlist_left[1]
+        l = self.connect_line(
+            x1, y1, endx, endy, old_bg_vlist=obg, old_fg_vlist=ofg, order=order)
+        if old_vertlist_right is None:
+            obg = None
+            ofg = None
+        else:
+            obg = old_vertlist_right[0]
+            ofg = old_vertlist_right[1]
+        r = self.connect_line(
+            x2, y2, endx, endy, old_bg_vlist=obg, old_fg_vlist=ofg, order=order)
+        return (l, c, r)
+
 
     def on_key_press(self, key, mods):
         pass
