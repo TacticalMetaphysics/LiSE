@@ -128,28 +128,6 @@ dimension's hash.
         """
         return hash(self.dimension)
 
-    def getviewx(self):
-        """Return the x-coordinate the user has scrolled to."""
-        return self.view_x
-
-    def getviewy(self):
-        """Return the y-coordinate the user has scrolled to."""
-        return self.view_y
-
-    def getviewwidth(self):
-        """Return the minimum width of the part of the board the user can see
-at a given time.
-
-        """
-        return self.view_width
-
-    def getviewheight(self):
-        """Return the minimum height of the part of the board the user can see
-at a given time.
-
-        """
-        return self.view_height
-
     def __repr__(self):
         return "A board, %d pixels wide by %d tall, representing the "\
             "dimension %s, containing %d spots, %d pawns, and %d menus."\
