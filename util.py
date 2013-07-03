@@ -1,51 +1,143 @@
+import pyglet
+import ctypes
+from math import sqrt
+
+phi = (1.0 + sqrt(5))/2.0
+
+class PatternHolder:
+    """Takes a style and makes pyglet.image.SolidColorImagePatterns out of
+its four colors, accessible through the attributes bg_active,
+bg_inactive, fg_active, and fg_inactive."""
+    def __init__(self, sty):
+        self.bg_inactive = pyglet.image.SolidColorImagePattern(sty.bg_inactive.tup)
+        self.bg_active = pyglet.image.SolidColorImagePattern(sty.bg_active.tup)
+        self.fg_inactive = pyglet.image.SolidColorImagePattern(sty.fg_inactive.tup)
+        self.fg_active = pyglet.image.SolidColorImagePattern(sty.fg_active.tup)
+
+class DictValues2DIterator:
+    def __init__(self, d):
+        self.d = d
+        self.layer1 = self.d.itervalues()
+        self.layer2 = None
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        try:
+            return self.layer2.next()
+        except (AttributeError, TypeError, StopIteration):
+            try:
+                self.layer2 = self.layer1.next().itervalues()
+                return self.layer2.next()
+            except StopIteration:
+                raise StopIteration
+
+
+class DictWrapper2D:
+    def __init__(self, d):
+        self.d = d
+
+    def __getattr__(self, attrn):
+        return getattr(self.d, attrn)
+
+    def itervalues(self):
+        return DictValues2DIterator(self.d)
+
+
 class LocationException(Exception):
     pass
 
 
 class ContainmentException(Exception):
+    """Exception raised when a Thing tried to go into or out of another
+Thing, and it made no sense.
+
+    """
     pass
 
 
-class SenselessEventException(Exception):
+class PortalException(Exception):
+    """Exception raised when a Thing tried to move into or out of or along
+a Portal, and it made no sense."""
     pass
 
 
-class ImpossibleEventException(Exception):
-    pass
-
-
-class IrrelevantEventException(Exception):
-    pass
-
-
-class ImpracticalEventException(Exception):
-    pass
+schemata = set()
 
 
 class SaveableMetaclass(type):
+    """Sort of an object relational mapper.
+
+Classes with this metaclass need to be declared with an attribute
+called tables. This is a sequence of tuples. Each of the tuples is of
+length 5. Each describes a table that records what's in the class.
+
+The meaning of each tuple is thus:
+
+(name, column_declarations, primary_key, foreign_keys, checks)
+
+name is the name of the table as sqlite3 will use it.
+
+column_declarations is a dictionary. The keys are field names, aka
+column names. Each value is the type for its field, perhaps including
+a clause like DEFAULT 0.
+
+primary_key is an iterable over strings that are column names as
+declared in the previous argument. Together the columns so named form
+the primary key for this table.
+
+foreign_keys is a dictionary. Each foreign key is a key here, and its
+value is a pair. The first element of the pair is the foreign table
+that the foreign key refers to. The second element is the field or
+fields in that table that the foreign key points to.
+
+checks is an iterable over strings that will end up in a CHECK(...)
+clause in sqlite3.
+
+A class can have any number of such table-tuples. The tables will be
+declared in the order they appear in the tables attribute.
+
+To save, you need to define a method called get_tabdict. It should
+return a dictionary where the keys are table names. The values are
+either rowdicts or iterables over rowdicts. A rowdict is a dictionary
+containing the information in a single record of a table; the keys are
+the names of the fields.
+
+To load, you need to define a method called from_tabdict that takes
+that same kind of dictionary and returns an instance of your class.
+
+Once you've defined those, the save(db) and load(db) methods will save
+or load your class in the given database. If you need to create the
+database, look at the schemata attribute: execute that in a SQL cursor
+and your table will be ready.
+
+    """
     def __new__(metaclass, clas, parents, attrs):
-        if 'coldecls' not in attrs:
-            raise Exception("No coldecls in {0}".format(clas))
-        if 'primarykeys' not in attrs:
-            raise Exception("no primarykeys in {0}".format(clas))
-        coldecls = attrs['coldecls']
-        primarykeys = attrs['primarykeys']
-        tablenames = attrs['tablenames']
-
-        if 'foreignkeys' in attrs:
-            foreignkeys = attrs['foreignkeys']
+        if clas in parents:
+            return clas
+        tablenames = []
+        primarykeys = {}
+        foreignkeys = {}
+        coldecls = {}
+        checks = {}
+        if 'tables' in attrs:
+            tablist = attrs['tables']
+        elif hasattr(clas, 'tables'):
+            tablist = clas.tables
         else:
-            foreignkeys = {}
-
-        if 'checks' in attrs:
-            checks = attrs['checks']
-        else:
-            checks = {}
-        for d in foreignkeys, checks:
-            for tablename in tablenames:
-                if tablename not in d:
-                    d[tablename] = {}
-        schemata = []
+            for par in parents:
+                if hasattr(par, 'tables'):
+                    tablist = par.tables
+                    break
+            assert(tablist is not None)
+        for tabtup in tablist:
+            (name, decls, pkey, fkeys, cks) = tabtup
+            tablenames.append(name)
+            coldecls[name] = decls
+            primarykeys[name] = pkey
+            foreignkeys[name] = fkeys
+            checks[name] = cks
         inserts = {}
         deletes = {}
         detects = {}
@@ -81,10 +173,10 @@ class SaveableMetaclass(type):
             pkey = primarykeys[tablename]
             fkeys = foreignkeys[tablename]
             cks = ["CHECK(%s)" % ck for ck in checks[tablename]]
-            pkeydecs = [keyname + " " + typ.upper()
+            pkeydecs = [keyname + " " + typ
                         for (keyname, typ) in coldecl.iteritems()
                         if keyname in pkey]
-            valdecs = [valname + " " + typ.upper()
+            valdecs = [valname + " " + typ
                        for (valname, typ) in coldecl.iteritems()
                        if valname not in pkey]
             coldecs = sorted(pkeydecs) + sorted(valdecs)
@@ -111,8 +203,8 @@ class SaveableMetaclass(type):
                 table_decl_data.append(chkstr)
             table_decl = ", ".join(table_decl_data)
             create_stmt = "CREATE TABLE %s (%s);" % (tablename, table_decl)
-            insert_stmt_start = "INSERT INTO %s VALUES " % (
-                tablename,)
+            insert_stmt_start = ("INSERT INTO " + tablename +
+                                 " ({0}) VALUES {1};")
             inserts[tablename] = insert_stmt_start
             delete_stmt_start = "DELETE FROM %s WHERE (%s) IN " % (
                 tablename, pkeycolstr)
@@ -123,33 +215,46 @@ class SaveableMetaclass(type):
             missing_stmt_start = "SELECT %s FROM %s WHERE (%s) NOT IN " % (
                 colnamestr[tablename], tablename, pkeynamestr)
             missings[tablename] = missing_stmt_start
-            schemata.append(create_stmt)
+            schemata.add(create_stmt)
 
         def insert_rowdicts_table(db, rowdicts, tabname):
-            rowstr = rowstrs[tabname]
-            qrystr = inserts[tabname] + ", ".join([rowstr] * len(rowdicts))
+            sample = rowdicts[0]
+            cols_used = [col for col in colnames[tabname] if col in sample]
+            colsstr = ", ".join(cols_used)
+            row_qms = ", ".join(["?"] * len(sample))
+            rowstr = "({0})".format(row_qms)
+            rowsstr = ", ".join([rowstr] * len(rowdicts))
+            qrystr = inserts[tabname].format(colsstr, rowsstr)
             qrylst = []
             for rowdict in rowdicts:
-                extender = [rowdict[col] for col in colnames[tabname]]
-                qrylst.extend(extender)
+                for col in cols_used:
+                    qrylst.append(rowdict[col])
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
+            return []
 
         def delete_keydicts_table(db, keydicts, tabname):
-            keystr = keystrs[tabname]
-            qrystr = deletes[tabname] + ", ".join([keystr] * len(keydicts))
-            qrylst = []
+            keyns = keynames[tabname]
+            keys = []
+            wheres = []
             for keydict in keydicts:
-                qrylst.extend([keydict[col] for col in keynames[tabname]])
-            qrytup = tuple(qrylst)
-            db.c.execute(qrystr, qrytup)
+                checks = []
+                for keyn in keyns:
+                    checks.append(keyn + "=?")
+                    keys.append(keydict[keyn])
+                wheres.append("(" + " AND ".join(checks) + ")")
+            wherestr = " OR ".join(wheres)
+            qrystr = "DELETE FROM {0} WHERE {1}".format(tabname, wherestr)
+            db.c.execute(qrystr, tuple(keys))
 
         def detect_keydicts_table(db, keydicts, tabname):
             keystr = keystrs[tabname]
             qrystr = detects[tabname] + ", ".join([keystr] * len(keydicts))
             qrylst = []
             for keydict in keydicts:
-                qrylst.extend([keydict[col] for col in keynames[tabname]])
+                for col in keynames[tabname]:
+                    if col in keydict:
+                        qrylst.append(keydict[col])
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
             return db.c.fetchall()
@@ -159,43 +264,88 @@ class SaveableMetaclass(type):
             qrystr = missings[tabname] + ", ".join([keystr] * len(keydicts))
             qrylst = []
             for keydict in keydicts:
-                qrylst.extend([keydict[col] for col in keynames[tabname]])
+                for col in keynames[tabname]:
+                    if col in keydict:
+                        qrylst.append(keydict[col])
             qrytup = tuple(qrylst)
             db.c.execute(qrystr, qrytup)
             return db.c.fetchall()
 
         def insert_tabdict(db, tabdict):
             for item in tabdict.iteritems():
-                (tabn, rd) = item
-                if isinstance(rd, list):
-                    insert_rowdicts_table(db, rd, tabn)
+                (tabname, rd) = item
+                if isinstance(rd, dict):
+                    insert_rowdicts_table(db, [rd], tabname)
                 else:
-                    insert_rowdicts_table(db, [rd], tabn)
+                    insert_rowdicts_table(db, rd, tabname)
 
         def delete_tabdict(db, tabdict):
             for item in tabdict.iteritems():
-                (tabn, rd) = item
-                delete_keydicts_table(db, rd, tabn)
+                (tabname, rd) = item
+                if isinstance(rd, dict):
+                    delete_keydicts_table(db, [rd], tabname)
+                else:
+                    delete_keydicts_table(db, rd, tabname)
 
         def detect_tabdict(db, tabdict):
+            r = {}
             for item in tabdict.iteritems():
-                (tabn, rd) = item
-                return detect_keydicts_table(db, rd, tabn)
+                (tabname, rd) = item
+                if isinstance(rd, dict):
+                    r[tabname] = detect_keydicts_table(db, [rd], tabname)
+                else:
+                    r[tabname] = detect_keydicts_table(db, rd, tabname)
+            return r
 
         def missing_tabdict(db, tabdict):
+            r = {}
             for item in tabdict.iteritems():
-                (tabn, rd) = item
-                return missing_keydicts_table(db, rd, tabn)
+                (tabname, rd) = item
+                if isinstance(rd, dict):
+                    r[tabname] = missing_keydicts_table(db, [rd], tabname)
+                else:
+                    r[tabname] = missing_keydicts_table(db, rd, tabname)
+            return r
 
-        def unravel(self, db):
-            pass
+        def mkrow(self, tabn=None, rowdict=None):
+            if tabn is None:
+                tabn = self.maintab
+            if rowdict is None:
+                rowdict = self.get_rowdict(tabn)
+            r = []
+            for coln in self.colnames[tabn]:
+                r.append(rowdict[coln])
+            return tuple(r)
+
+        def mkrowdict(self, tabname):
+            # Invariant: For the named table, I have attributes named
+            # and typed the same way as the columns.
+            r = {}
+            for colname in self.colnames[tabname]:
+                if getattr(self, colname).__class__ in (int, float, bool):
+                    r[colname] = getattr(self, colname)
+                else:
+                    r[colname] = str(getattr(self, colname))
+            return r
+
+        def mktabdict(self):
+            r = {}
+            for tabname in tablenames:
+                r[tabname] = mkrowdict(self, tabname)
+            return r
+
+        def save(self, db=None):
+            if db is None:
+                db = self.db
+            td = self.get_tabdict()
+            delete_tabdict(db, td)
+            insert_tabdict(db, td)
 
         dbop = {'insert': insert_tabdict,
                 'delete': delete_tabdict,
                 'detect': detect_tabdict,
                 'missing': missing_tabdict}
-        atrdic = {'coldecls': coldecls,
-                  'colnames': colnames,
+        atrdic = {'colnames': colnames,
                   'colnamestr': colnamestr,
                   'colnstr': colnamestr[tablenames[0]],
                   'keynames': keynames,
@@ -203,16 +353,15 @@ class SaveableMetaclass(type):
                   'keyns': keynames[tablenames[0]],
                   'valns': valnames[tablenames[0]],
                   'colns': colnames[tablenames[0]],
-                  'primarykeys': primarykeys,
-                  'foreignkeys': foreignkeys,
-                  'checks': checks,
                   'schemata': schemata,
                   'keylen': keylen,
                   'rowlen': rowlen,
                   'keyqms': keyqms,
                   'rowqms': rowqms,
                   'dbop': dbop,
-                  'unravel': unravel,
+                  'get_row': mkrow,
+                  'get_tabdict': mktabdict,
+                  'save': save,
                   'maintab': tablenames[0]}
         atrdic.update(attrs)
 
@@ -441,4 +590,6 @@ def compile_tabdicts(objs):
 
 
 def stringlike(o):
+    """Return True if I can easily cast this into a string, False
+otherwise."""
     return isinstance(o, str) or isinstance(o, unicode)
