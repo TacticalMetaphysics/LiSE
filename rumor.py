@@ -72,39 +72,38 @@ arguments.
         self.conn = sqlite3.connect(dbfilen)
         self.cursor = self.conn.cursor()
         self.c = self.cursor
-        self.handdict = {}
-        self.handcarddict = {}
+        self.boarddict = {}
         self.boardhanddict = {}
-        self.carddict = {}
-        self.dimensiondict = {}
         self.caldict = {}
         self.calcoldict = OrderedDict()
-        self.edgedict = OrderedDict()
-        self.scheduledict = {}
-        self.eventdict = {}
-        self.startevdict = {}
+        self.carddict = {}
+        self.colordict = {}
+        self.contentsdict = {}
         self.contevdict = {}
+        self.dimensiondict = {}
+        self.edgedict = OrderedDict()
+        self.effectdict = {}
+        self.effectdeckdict = {}
         self.endevdict = {}
-        self.itemdict = {}
-        self.placedict = {}
-        self.hi_place = 0
-        self.thingdict = {}
-        self.spotdict = OrderedDict()
+        self.eventdict = {}
+        self.handdict = {}
+        self.handcarddict = {}
         self.imgdict = {}
-        self.boarddict = {}
+        self.itemdict = {}
+        self.journeydict = {}
+        self.locdict = {}
         self.menudict = {}
         self.menuitemdict = {}
         self.pawndict = {}
-        self.styledict = {}
-        self.colordict = {}
-        self.journeydict = {}
-        self.contentsdict = {}
-        self.locdict = {}
+        self.placedict = {}
         self.portalorigdestdict = {}
         self.portaldestorigdict = {}
-        self.effectdict = {}
-        self.effectdeckdict = {}
+        self.scheduledict = {}
+        self.spotdict = OrderedDict()
+        self.startevdict = {}
         self.stringdict = {}
+        self.styledict = {}
+        self.thingdict = {}
         self.func = {
             'toggle_menu':
             self.toggle_menu,
@@ -155,6 +154,7 @@ arguments.
             'mi_create_portal':
             self.mi_create_portal}
         self.func.update(xfuncs)
+        self.hi_place = 0
 
     def __del__(self):
         """Try to write changes to disk before dying.

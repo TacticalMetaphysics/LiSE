@@ -307,7 +307,6 @@ schedule, possibly several.
         self.tweaks = 0
         self.db.caldict[str(self.board)] = self
 
-
     def __iter__(self):
         return self.coldict.itervalues()
 
@@ -396,7 +395,6 @@ self.coldict being itself unraveled.
         self.coldict = db.calcoldict[str(self.board)]
         for column in self.coldict.itervalues():
             column.unravel()
-        
 
     def adjust(self):
         """Create missing calendar cells. Delete those whose events are no

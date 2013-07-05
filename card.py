@@ -1,5 +1,5 @@
 import pyglet
-from util import SaveableMetaclass, PatternHolder, stringlike, dictify_row, phi
+from util import SaveableMetaclass, PatternHolder, dictify_row, phi
 from style import read_styles
 
 """Rectangle shaped widget with picture on top and words on bottom."""
@@ -20,9 +20,7 @@ class Card:
             {
                 "image": ("img", "name"),
                 "style": ("style", "name")},
-            []
-            )
-    ]
+            [])]
 
     def __init__(self, db, name, display_name, image, text, style):
         self.db = db
@@ -92,16 +90,24 @@ class TextHolder:
         if attrn == "width":
             return self.cardwidget.width - 4 * self.cardwidget.style.spacing
         elif attrn == "height":
-            if isinstance(self.cardwidget.base.img, pyglet.image.AbstractImage):
-                return self.cardwidget.height / 2 - 4 * self.cardwidget.style.spacing
+            if isinstance(
+                    self.cardwidget.base.img,
+                    pyglet.image.AbstractImage):
+                return (
+                    self.cardwidget.height / 2 - 4
+                    * self.cardwidget.style.spacing)
             else:
-                return self.cardwidget.height - 4 * self.cardwidget.style.spacing
+                return (
+                    self.cardwidget.height - 4
+                    * self.cardwidget.style.spacing)
         elif attrn == "window_left":
             return self.cardwidget.x + 2 * self.cardwidget.style.spacing
         elif attrn == "window_right":
             return self.window_left + self.width
         elif attrn == "window_bot":
-            return self.cardwidget.window_bot + 2 * self.cardwidget.style.spacing
+            return (
+                self.cardwidget.window_bot + 2
+                * self.cardwidget.style.spacing)
         elif attrn == "window_top":
             return self.window_bot + self.height
         elif attrn == "text_left":
@@ -179,7 +185,8 @@ class CardWidget:
         elif hasattr(self.base, attrn):
             return getattr(self.base, attrn)
         else:
-            raise AttributeError("CardWidget has no attribute {0}".format(attrn))
+            raise AttributeError(
+                "CardWidget has no attribute {0}".format(attrn))
 
     def __hash__(self):
         return hash(self.get_state_tup())
@@ -255,7 +262,6 @@ class CardWidget:
                 print "Dropped {0} to the right of the hand".format(str(self))
                 self.hand.discard(self)
                 self.hand.append(self)
-            
         self.floating = False
         self.grabpoint = None
         self.hand.adjust()
@@ -322,10 +328,11 @@ class Hand:
                 "style": ("style", "name")},
             ("left>=0.0", "left<=1.0", "right>=0.0", "right<=1.0",
              "bot>=0.0", "bot<=1.0", "top>=0.0", "top<=1.0",
-             "right>left", "top>bot")
-        )
-    ]
-    def __init__(self, db, name, board, visible, interactive, style, left, right, bot, top):
+             "right>left", "top>bot"))]
+
+    def __init__(
+            self, db, name, board, visible, interactive,
+            style, left, right, bot, top):
         self.db = db
         self.name = name
         self._board = str(board)
@@ -421,8 +428,7 @@ class Hand:
             self._left,
             self._right,
             self._bot,
-            self._top,
-            hash(tuple(card_hashes)))
+            self._top)
 
     def unravel(self):
         pass
@@ -454,17 +460,14 @@ class Hand:
             return
         windobot = self.window_bot + self.style.spacing
         prev_right = self.window_left
-        print "Adjusting hand {0} at ({1},{2})".format(str(self), str(prev_right), str(windobot))
         print "Cards in hand:"
         print self.cards
         for card in iter(self):
             print "Adjusting card {0}".format(str(card))
             if card.widget is not None and card.widget.floating:
-                print "Skipping adjustment of {0} because it's floating.".format(str(card))
                 continue
             card.hand = self
             x = prev_right + self.style.spacing
-            print "Moving {0} to ({1},{2})".format(str(card), str(x), str(windobot))
             if card.widget is None:
                 card.mkwidget(x, windobot)
             else:
@@ -476,6 +479,7 @@ class Hand:
 cards_qryfmt = (
     """SELECT {0} FROM card WHERE name IN ({1})""".format(
         ", ".join(Card.colns), "{0}"))
+
 
 def read_cards(db, names):
     qryfmt = cards_qryfmt
@@ -504,6 +508,7 @@ hand_card_qryfmt = (
 
 hand_card_colns = ["hand", "idx", "card"] + Card.valns
 
+
 def read_cards_in_hands(db, handnames):
     qryfmt = hand_card_qryfmt
     qrystr = qryfmt.format(", ".join(["?"] * len(handnames)))
@@ -530,6 +535,7 @@ def read_cards_in_hands(db, handnames):
 hands_qryfmt = (
     """SELECT {0} FROM hand_board WHERE board IN ({1})""".format(
         ", ".join(Hand.colnames["hand_board"]), "{0}"))
+
 
 def read_hands_in_boards(db, boardnames):
     qryfmt = hands_qryfmt
