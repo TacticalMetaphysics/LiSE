@@ -39,14 +39,18 @@ With db, register in db's pawndict.
         self.grabpoint = None
         self.sprite = None
         self.oldstate = None
-        self.newstate = None
         self.tweaks = 0
+        self.drag_offset_x = 0
+        self.drag_offset_y = 0
         dimname = str(self.dimension)
         thingname = str(self.thing)
         if dimname not in db.pawndict:
             db.pawndict[dimname] = {}
         db.pawndict[dimname][thingname] = self
         self.db = db
+
+    def __str__(self):
+        return str(self.thing)
 
     def __getattr__(self, attrn):
         if attrn == 'board':
@@ -148,7 +152,7 @@ make a new, hidden calendar column to represent the schedule.
         if hasattr(self.thing, 'journey') and\
            self.thing.journey.steps_left() > 0:
             j = self.thing.journey
-            port = j[0]
+            port = j.portal_at(self.thing.journey_step)
             if stringlike(port.orig) or stringlike(port.dest):
                 # The portals haven't actually been loaded yet
                 raise Exception(
@@ -164,7 +168,8 @@ portal {1} properly.""".format(repr(self), repr(port)))
             return (int(x), int(y))
         else:
             ls = self.thing.location.spot
-            return (ls.window_x, ls.window_y)
+            return (ls.window_x + self.drag_offset_x,
+                    ls.window_y + self.drag_offset_y)
 
     def onclick(self):
         """For now, pawns toggle their associated calendar columns on being
@@ -184,6 +189,21 @@ clicked. This is probably not the ideal."""
             self.window_bot,
             self.tweaks)
 
+    def move_with_mouse(self, x, y, dx, dy, buttons, modifiers):
+        self.drag_offset_x += dx
+        self.drag_offset_y += dy
+
+    def dropped(self, x, y, button, modifiers):
+        self.drag_offset_x = 0
+        self.drag_offset_y = 0
+        spot = self.board.get_spot_at(x, y)
+        if (
+                spot is not None and
+                self.thing.journey.steps_left() == 0 and
+                str(self.thing.location) in
+                self.db.portaldestorigdict[str(self.dimension)][str(spot.place)]):
+            self.thing.journey.steps.append((str(self.thing.location), str(spot.place)))
+            self.thing.journey.schedule()
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])
 

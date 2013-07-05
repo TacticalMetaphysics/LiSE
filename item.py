@@ -68,7 +68,7 @@ much."""
 
     def __iter__(self):
         r = []
-        for pair in self.db.locdict[self.dimension].iteritems():
+        for pair in self.db.locdict[str(self.dimension)].iteritems():
             if pair[1] == self:
                 r.append(self.itemdict[pair[0]])
         return iter(r)
@@ -283,11 +283,7 @@ Register with the database's itemdict and thingdict too.
         self.journey_progress = journey_progress
         self.age = age
         self.schedule = schedule
-        self.hsh = hash(hash(self.dimension) + hash(self.name))
-        if stringlike(self.dimension):
-            dimname = self.dimension
-        else:
-            dimname = self.dimension.name
+        dimname = str(self.dimension)
         if dimname not in db.itemdict:
             db.itemdict[dimname] = {}
         if dimname not in db.thingdict:
@@ -306,14 +302,8 @@ Register with the database's itemdict and thingdict too.
                 "Thing instance has no such attribute: " +
                 attrn)
 
-    def __hash__(self):
-        return self.hsh
-
     def __str__(self):
         return self.name
-
-    def __iter__(self):
-        return (self.dimension, self.name)
 
     def __repr__(self):
         if self.location is None:
@@ -437,27 +427,36 @@ class Journey:
             if isinstance(st, tuple):
                 self.steps.append(st)
             else:
-                if stringlike(st.orig):
-                    origname = st.orig
-                else:
-                    origname = st.orig.name
-                if stringlike(st.dest):
-                    destname = st.dest
-                else:
-                    destname = st.dest.name
+                origname = str(st.orig)
+                destname = str(st.dest)
                 self.steps.append((origname, destname))
-        if stringlike(self.dimension):
-            dimname = self.dimension
-        else:
-            dimname = self.dimension.name
-        if stringlike(self.thing):
-            thingname = self.thing
-        else:
-            thingname = self.thing.name
+        self.scheduled = {}
+        dimname = str(self.dimension)
+        thingname = str(self.thing)
         if dimname not in db.journeydict:
             db.journeydict[dimname] = {}
         db.journeydict[dimname][thingname] = self
         self.db = db
+
+    def __getitem__(self, i):
+        return self.steps[i]
+
+    def __setitem__(self, idx, port):
+        """Put given portal into the step list at given index, padding steplist
+with None as needed."""
+        while idx >= len(self.steps):
+            self.steps.append(None)
+        self.steps[idx] = port
+
+    def __len__(self):
+        """Get the number of steps in the Journey.
+
+        Returns the number of Portals the traveller ever passed
+        through or ever will on this Journey.
+
+        """
+        return len(self.steps)
+
 
     def unravel(self):
         """Dereference all steps."""
@@ -469,15 +468,6 @@ class Journey:
                     db.portaldict[self.dimension.name][self.steps[i]])
             i += 1
 
-    def __len__(self):
-        """Get the number of steps in the Journey.
-
-        Returns the number of Portals the traveller ever passed
-        through or ever will on this Journey.
-
-        """
-        return len(self.steps)
-
     def steps_left(self):
         """Get the number of steps remaining until the end of the Journey.
 
@@ -486,22 +476,6 @@ class Journey:
 
         """
         return len(self.steps) - self.thing.journey_step
-
-    def __getitem__(self, i):
-        """Get the ith next Portal in the journey.
-
-        __getitem__(0) returns the portal the traveller is presently
-        travelling through. __getitem__(1) returns the one it wil travel
-        through after that, etc. __getitem__(-1) returns the step before
-        this one, __getitem__(-2) the one before that, etc.
-
-        """
-        (orign, destn) = self.steps[i+self.thing.journey_step]
-        if stringlike(self.thing.dimension):
-            dimn = self.thing.dimension
-        else:
-            dimn = self.thing.dimension.name
-        return self.db.portalorigdestdict[dimn][orign][destn]
 
     def speed_at_step(self, i):
         """Get the thing's speed at step i.
@@ -526,12 +500,12 @@ current portal, and then move it along."""
         elif self.thing.journey_step >= len(self):
             raise ImpossibleEvent("Tried to move something past the natural end of its journey")
         else:
+            port = self.portal_at(self.thing.journey_step)
             logger.debug(
                 "Thing %s is about to leave place %s for portal %s.",
                 self.thing,
                 self.thing.location,
-                self[0])
-            port = self.db.itemdict[str(self.thing.dimension)][str(self[0])]
+                str(port))
             self.thing.enter(port)
             self.thing.move_thru_portal(prop)
             return True
@@ -557,42 +531,40 @@ will be None.
             newplace)
         return (oldport, newplace)
 
-    def __setitem__(self, idx, port):
-        """Put given portal into the step list at given index, padding steplist
-with None as needed."""
-        while idx >= len(self.steps):
-            self.steps.append(None)
-        self.steps[idx] = port
+    def portal_at(self, i):
+        """Return the portal at the given step, rather than the pair of place names."""
+        dimn = str(self.dimension)
+        (orign, destn) = self[i]
+        return self.db.portalorigdestdict[dimn][orign][destn]
+
+    def schedule_step(self, i, start):
+        """Add an event representing the step at the given index to the
+thing's schedule, starting at the given tick."""
+        port = self.portal_at(i)
+        ev = PortalTravelEvent(self.db, self.thing, port, False)
+        ev.start = start
+        ev.length = int(1/self.thing.speed_thru(port))
+        self.scheduled[i] = ev
+        if self.thing.schedule is None:
+            self.thing.schedule = Schedule(self.db, self.dimension, self.thing)
+        self.thing.schedule.add(ev)
+        return ev
 
     def schedule(self, delay=0):
-        """Add events representing this journey to the very end of the thing's
-schedule, if it has one.
+        """Schedule all events in the journey, if they haven't been scheduled yet.
 
-Optional argument delay adds some ticks of inaction between the end of
-the schedule and the beginning of the journey. If there's no schedule,
-or an empty one, that's the amount of time from the start of the game
-that the thing will wait before starting the journey.
-
-Then return the schedule. Just for good measure.
+They'll always be scheduled after the present tick. Immediately after,
+by default, but you can change that by supplying delay.
 
         """
-        db = self.db
-        if not hasattr(self.thing, 'schedule') or self.thing.schedule is None:
-            self.thing.schedule = Schedule(
-                db, self.thing.dimension, self.thing)
-        try:
-            end = max(self.thing.schedule.events_ending.viewkeys())
-        except ValueError:
-            end = 1
-        start = end + delay
-        for port in self:
-            newev = PortalTravelEvent(db, self.thing, port, False)
-            evlen = int(1 / self.thing.speed_thru(port))
-            newev.start = start
-            newev.length = evlen
-            self.thing.schedule.add(newev)
-            start += evlen + delay + 1
-        self.thing.schedule.unravel()
+        present = self.db.get_age()
+        time_cursor = present + delay
+        i = 0
+        while i < len(self):
+            if i not in self.scheduled:
+                ev = self.schedule_step(i, time_cursor)
+                time_cursor += ev.length + 1
+            i += 1
         return self.thing.schedule
 
 
@@ -632,14 +604,8 @@ contevdict, and endevdict."""
         self.cached_commencements = {}
         self.cached_processions = {}
         self.cached_conclusions = {}
-        if stringlike(self.dimension):
-            dimname = self.dimension
-        else:
-            dimname = self.dimension.name
-        if stringlike(self.item):
-            itemname = self.item
-        else:
-            itemname = self.item.name
+        dimname = str(self.dimension)
+        itemname = str(self.item)
         if dimname not in db.scheduledict:
             db.scheduledict[dimname] = {}
         db.scheduledict[dimname][itemname] = self

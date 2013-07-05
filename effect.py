@@ -23,8 +23,8 @@ may be fired by calling the do() method.
     def __init__(self, db=None, name=None, func=None, arg=None):
         """Return an Effect of the given name, where the given function is
 called with the given argument. Register in db.effectdict."""
-        if not hasattr(self, 'func'):
-            self.func = func
+        if not hasattr(self, '_func'):
+            self._func = func
         if not hasattr(self, 'arg'):
             self.arg = arg
         if hasattr(self, 'name'):
@@ -40,10 +40,16 @@ called with the given argument. Register in db.effectdict."""
         db.effectdict[name] = self
         assert(None not in (self.db, self.name, self.func, self.arg))
 
+    def __getattr__(self, attrn):
+        if attrn == 'func':
+            return self.db.func[self._func]
+        else:
+            raise AttributeError("Effect instance has no such attribute")
+
     def get_rowdict(self):
         return {
             "name": self.name,
-            "func": self.func,
+            "func": self._func,
             "arg": self.arg}
 
     def get_tabdict(self):
@@ -53,8 +59,7 @@ called with the given argument. Register in db.effectdict."""
     def unravel(self):
         """If the function was supplied as a string, look up what it refers
 to."""
-        if hasattr(self, 'func') and stringlike(self.func):
-            self.func = self.db.func[self.func]
+        pass
 
     def do(self, deck=None, event=None):
         """Call the function with the argument."""

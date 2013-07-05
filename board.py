@@ -137,6 +137,14 @@ dimension's hash.
     def __str__(self):
         return self._dimension
 
+    def get_spot_at(self, x, y):
+        for spot in self.spots:
+            if (
+                    spot.window_left < x < spot.window_right and
+                    spot.window_bot < y < spot.window_top):
+                return spot
+        return None
+
     def unravel(self):
         """Grab the Python objects referred to by self.wallpaper and
 self.dimension, if they are strings; then unravel all pawns, spots,

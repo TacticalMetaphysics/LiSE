@@ -79,7 +79,7 @@ arguments.
         self.dimensiondict = {}
         self.caldict = {}
         self.calcoldict = OrderedDict()
-        self.edgedict = {}
+        self.edgedict = OrderedDict()
         self.scheduledict = {}
         self.eventdict = {}
         self.startevdict = {}
@@ -89,7 +89,7 @@ arguments.
         self.placedict = {}
         self.hi_place = 0
         self.thingdict = {}
-        self.spotdict = {}
+        self.spotdict = OrderedDict()
         self.imgdict = {}
         self.boarddict = {}
         self.menudict = {}
@@ -451,7 +451,9 @@ between sessions.
 This is game-world time. It doesn't always go forwards.
 
         """
-        if not hasattr(self, 'game'):
+        if hasattr(self, 'state'):
+            return self.state.age
+        elif not hasattr(self, 'game'):
             self.load_game()
         return self.game[1]
 

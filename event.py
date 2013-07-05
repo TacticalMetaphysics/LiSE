@@ -208,16 +208,10 @@ one place to another."""
 
     def __init__(self, db, thing, portal, ongoing):
         dimname = thing.dimension.name
-        if stringlike(portal.orig):
-            origname = portal.orig
-        else:
-            origname = portal.orig.name
-        if stringlike(portal.dest):
-            destname = portal.dest
-        else:
-            destname = portal.dest.name
+        origname = str(portal.orig)
+        destname = str(portal.dest)
         name = self.name_format.format(
-            dimname, thing.name, origname, portal.name, destname)
+            dimname, thing.name, origname, str(portal), destname)
         text = self.text_format.format(origname, destname)
         commence_effects = None
         proceed_effects = PortalProgressEffectDeck(db, thing)

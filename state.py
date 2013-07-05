@@ -1,4 +1,6 @@
+import logging
 # do I want to handle the timer here? that might be good
+logger = logging.getLogger(__name__)
 
 
 """Looper over all the various update functions."""
@@ -17,6 +19,7 @@ state of the interface.
         self.db = db
         self.age = db.get_age()
         self.since = 0
+        self.db.state = self
 
     def update(self, ts, st):
         """Update an appropriate number of ticks given that ts time has
@@ -45,9 +48,11 @@ floats."""
             else:
                 ends = tuple()
             for ev in starts:
+                logger.debug("Starting event %s at tick %d", repr(ev), self.age)
                 ev.commence()
             for ev in conts:
                 ev.proceed()
             for ev in ends:
+                logger.debug("Ending event %s at tick %d", repr(ev), self.age)
                 ev.conclude()
         self.age = newage
