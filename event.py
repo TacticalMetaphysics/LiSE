@@ -108,11 +108,20 @@ the three given effect decks. Register with db.eventdict.
             else:
                 return self._text
         elif attrn == "commence_effects":
-            return self.db.effectdeckdict[self._commence_effects]
+            if self._commence_effects == 'None':
+                return None
+            else:
+                return self.db.effectdeckdict[self._commence_effects]
         elif attrn == "proceed_effects":
-            return self.db.effectdeckdict[self._proceed_effects]
+            if self._proceed_effects == 'None':
+                return None
+            else:
+                return self.db.effectdeckdict[self._proceed_effects]
         elif attrn == "conclude_effects":
-            return self.db.effectdeckdict[self._conclude_effects]
+            if self._conclude_effects == 'None':
+                return None
+            else:
+                return self.db.effectdeckdict[self._conclude_effects]
         else:
             raise AttributeError("Event has no such attribute")
 

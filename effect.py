@@ -20,25 +20,22 @@ may be fired by calling the do() method.
          {},
          [])]
 
-    def __init__(self, db=None, name=None, func=None, arg=None):
+    def __init__(self, db, name=None, func=None, arg=None):
         """Return an Effect of the given name, where the given function is
 called with the given argument. Register in db.effectdict."""
+        self.db = db
         if not hasattr(self, '_func'):
             self._func = func
         if not hasattr(self, 'arg'):
             self.arg = arg
-        if hasattr(self, 'name'):
-            name = self.name
-        else:
-            if name is None:
-                name = "{0}({1})".format(func, arg)
-            self.name = name
-        if hasattr(self, 'db'):
-            db = self.db
-        else:
-            self.db = db
+        if name is None:
+            name = "{0}({1})".format(func, arg)
+        self.name = name
         db.effectdict[name] = self
         assert(None not in (self.db, self.name, self.func, self.arg))
+
+    def __str__(self):
+        return self.name
 
     def __getattr__(self, attrn):
         if attrn == 'func':
@@ -223,6 +220,9 @@ the given list.
         self.effects = effects
         db.effectdeckdict[self.name] = self
         self.db = db
+
+    def __str__(self):
+        return self.name
 
     def __getitem__(self, i):
         return self.effects[i]

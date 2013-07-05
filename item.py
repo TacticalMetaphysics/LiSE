@@ -44,14 +44,13 @@ much."""
 
     def __init__(self, db, dimension, name):
         self.db = db
-        self.dimension = dimension
+        self._dimension = dimension
         self.name = name
-        dimname = str(self.dimension)
-        if dimname not in self.db.locdict:
-            self.db.locdict[dimname] = {}
-        if dimname not in self.db.itemdict:
-            self.db.itemdict[dimname] = {}
-        self.db.itemdict[dimname][str(self)] = self
+        if self._dimension not in self.db.locdict:
+            self.db.locdict[self._dimension] = {}
+        if self._dimension not in self.db.itemdict:
+            self.db.itemdict[self._dimension] = {}
+        self.db.itemdict[self._dimension][str(self)] = self
 
     def __str__(self):
         return self.name
@@ -77,6 +76,8 @@ much."""
         if attrn == 'contents':
             return [it for it in self.db.itemdict[str(self.dimension)].itervalues()
                     if it.location == self]
+        elif attrn == 'dimension':
+            return self.db.dimensiondict[self._dimension]
         else:
             raise AttributeError("Item has no attribute by that name")
 
@@ -106,10 +107,9 @@ connected to other Places, forming a graph."""
         """Return a Place of the given name, in the given dimension. Register
 it with the placedict and itemdict in the db."""
         Item.__init__(self, db, dimension, name)
-        dimname = str(self.dimension)
-        if dimname not in db.placedict:
-            db.placedict[dimname] = {}
-        db.placedict[dimname][self.name] = self
+        if self._dimension not in db.placedict:
+            db.placedict[self._dimension] = {}
+        db.placedict[self._dimension][self.name] = self
 
     def __eq__(self, other):
         if not isinstance(other, Place):
@@ -126,15 +126,9 @@ it with the placedict and itemdict in the db."""
 
     def __getattr__(self, attrn):
         if attrn == 'spot':
-            if stringlike(self.dimension):
-                dimn = self.dimension
-            else:
-                dimn = self.dimension.name
-            return self.db.spotdict[dimn][self.name]
+            return self.db.spotdict[self._dimension][self.name]
         else:
-            raise AttributeError(
-                "Place instance has no such attribute: " +
-                attrn)
+            return Item.__getattr__(self, attrn)
 
     def unravel(self):
         """Get myself a real Dimension object if I don't have one."""
@@ -173,18 +167,17 @@ class Portal(Item):
         Item.__init__(self, db, dimension, name)
         podd = db.portalorigdestdict
         pdod = db.portaldestorigdict
-        dimname = str(self.dimension)
         from_place_name = str(self.orig)
         to_place_name = str(self.dest)
         for d in (db.itemdict, podd, pdod):
-            if dimname not in d:
-                d[dimname] = {}
-        if from_place_name not in podd[dimname]:
-            podd[dimname][from_place_name] = {}
-        if to_place_name not in pdod[dimname]:
-            pdod[dimname][to_place_name] = {}
-        podd[dimname][from_place_name][to_place_name] = self
-        pdod[dimname][to_place_name][from_place_name] = self
+            if self._dimension not in d:
+                d[self._dimension] = {}
+        if from_place_name not in podd[self._dimension]:
+            podd[self._dimension][from_place_name] = {}
+        if to_place_name not in pdod[self._dimension]:
+            pdod[self._dimension][to_place_name] = {}
+        podd[self._dimension][from_place_name][to_place_name] = self
+        pdod[self._dimension][to_place_name][from_place_name] = self
 
     def __str__(self):
         return self.name
@@ -193,9 +186,11 @@ class Portal(Item):
         if attrn == "spot":
             return self.dest.spot
         elif attrn == "edge":
-            if str(self) not in self.db.edgedict[str(self.dimension)]:
-                Edge(self.db, self.dimension, self).unravel()
-            return self.db.edgedict[str(self.dimension)][str(self)]
+            if str(self) not in self.db.edgedict[self._dimension]:
+                Edge(self.db, self._dimension, self).unravel()
+            return self.db.edgedict[self._dimension][str(self)]
+        elif attrn == "dimension":
+            return self.db.dimensiondict[self._dimension]
         else:
             raise AttributeError("Portal has no such attribute")
 
@@ -282,25 +277,31 @@ Register with the database's itemdict and thingdict too.
         self.journey_step = journey_step
         self.journey_progress = journey_progress
         self.age = age
-        self.schedule = schedule
-        dimname = str(self.dimension)
-        if dimname not in db.itemdict:
-            db.itemdict[dimname] = {}
-        if dimname not in db.thingdict:
-            db.thingdict[dimname] = {}
-        if dimname not in db.locdict:
-            db.locdict[dimname] = {}
-        db.thingdict[dimname][self.name] = self
-        db.locdict[dimname][self.name] = location
+        if self._dimension not in db.itemdict:
+            db.itemdict[self._dimension] = {}
+        if self._dimension not in db.thingdict:
+            db.thingdict[self._dimension] = {}
+        if self._dimension not in db.locdict:
+            db.locdict[self._dimension] = {}
+        if self._dimension not in db.scheduledict:
+            db.scheduledict[self._dimension] = {}
+        db.thingdict[self._dimension][self.name] = self
+        db.locdict[self._dimension][self.name] = location
+        if schedule is None:
+            if self.name not in self.db.scheduledict[self._dimension]:
+                self.db.scheduledict[self._dimension][self.name] = Schedule(db, dimension, name)
+        else:
+            self.db.scheduledict[self._dimension][self.name] = schedule
+            
 
     def __getattr__(self, attrn):
         if attrn == 'location':
             dimn = str(self.dimension)
             return self.db.locdict[dimn][self.name]
+        elif attrn == 'schedule':
+            return self.db.scheduledict[str(self.dimension)][self.name]
         else:
-            raise AttributeError(
-                "Thing instance has no such attribute: " +
-                attrn)
+            return Item.__getattr__(self, attrn)
 
     def __str__(self):
         return self.name
@@ -319,26 +320,18 @@ Also add self to location, if applicable.
 
         """
         db = self.db
-        if stringlike(self.dimension):
-            self.dimension = db.dimensiondict[self.dimension]
-        if stringlike(self.start_location):
-            locn = self.start_location
-            location = db.itemdict[self.dimension.name][locn]
-        else:
-            location = self.start_location
+        locn = str(self.start_location)
+        location = db.itemdict[self._dimension][locn]
         db.locdict[self.dimension.name][self.name] = location
         self.location.add(self)
-        if stringlike(self.schedule):
-            self.schedule = db.scheduledict[self.dimension.name][self.name]
-            self.schedule.unravel(db)
+        self.schedule.unravel()
         if (
                 self.dimension.name in db.journeydict and
                 self.name in db.journeydict[self.dimension.name]):
             self.journey = db.journeydict[self.dimension.name][self.name]
             self.journey.dimension = self.dimension
             self.journey.thing = self
-            if self.schedule is None:
-                self.schedule = self.journey.schedule()
+            self.journey.schedule()
 
     def assert_can_enter(self, it):
         """If I can't enter the given location, raise a LocationException.
@@ -420,8 +413,8 @@ class Journey:
          [])]
 
     def __init__(self, db, dimension, thing, steps):
-        self.dimension = dimension
-        self.thing = thing
+        self._dimension = dimension
+        self._thing = thing
         self.steps = []
         for st in steps:
             if isinstance(st, tuple):
@@ -431,12 +424,18 @@ class Journey:
                 destname = str(st.dest)
                 self.steps.append((origname, destname))
         self.scheduled = {}
-        dimname = str(self.dimension)
-        thingname = str(self.thing)
-        if dimname not in db.journeydict:
-            db.journeydict[dimname] = {}
-        db.journeydict[dimname][thingname] = self
+        if self._dimension not in db.journeydict:
+            db.journeydict[self._dimension] = {}
+        db.journeydict[self._dimension][self._thing] = self
         self.db = db
+
+    def __getattr__(self, attrn):
+        if attrn == 'dimension':
+            return self.db.dimensiondict[self._dimension]
+        elif attrn == 'thing':
+            return self.db.thingdict[self._thing]
+        else:
+            raise AttributeError('Journey has no such attribute')
 
     def __getitem__(self, i):
         return self.steps[i]
@@ -595,8 +594,8 @@ true of events in different schedules.
         """Return an empty event for the given item in the given
 dimension. With db, register in db's scheduledict, startevdict,
 contevdict, and endevdict."""
-        self.dimension = dimension
-        self.item = item
+        self._dimension = dimension
+        self._item = item
         self.events = {}
         self.events_starting = dict()
         self.events_ending = dict()
@@ -604,14 +603,20 @@ contevdict, and endevdict."""
         self.cached_commencements = {}
         self.cached_processions = {}
         self.cached_conclusions = {}
-        dimname = str(self.dimension)
-        itemname = str(self.item)
-        if dimname not in db.scheduledict:
-            db.scheduledict[dimname] = {}
-        db.scheduledict[dimname][itemname] = self
+        if self._dimension not in db.scheduledict:
+            db.scheduledict[self._dimension] = {}
+        db.scheduledict[self._dimension][self._item] = self
         self.db = db
 
-    def tabdict(self):
+    def __getattr__(self, attrn):
+        if attrn == 'dimension':
+            return self.db.dimensiondict[self._dimension]
+        elif attrn == 'item':
+            return self.db.itemdict[self._dimension][self._item]
+        else:
+            raise AttributeError("Schedule has no such attribute")
+
+    def get_tabdict(self):
         return {
             "scheduled_event": [
                 {
