@@ -277,10 +277,8 @@ dimension names."""
                 imgs.add(pawn.img)
     for calcols in read_calendar_cols_in_boards(db, boards).itervalues():
         for calcol in calcols.itervalues():
-            if stringlike(calcol.style):
-                styles.add(calcol.style)
-            if stringlike(calcol.cel_style):
-                styles.add(calcol.cel_style)
+            styles.add(calcol._style)
+            styles.add(calcol._cel_style)
     for hands in read_hands_in_boards(db, boards).itervalues():
         for handname in hands.iterkeys():
             for card in db.handcarddict[handname]:

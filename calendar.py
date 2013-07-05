@@ -150,13 +150,14 @@ cells.
 
     def __init__(self, db, dimension, item,
                  visible, interactive, style, cel_style):
-        self.dimension = dimension
-        self.item = item
+        self.db = db
+        self._dimension = str(dimension)
+        self._item = str(item)
         self._visible = visible
         self.tweaks = 0
         self._interactive = interactive
-        self.style = style
-        self.cel_style = cel_style
+        self._style = str(style)
+        self._cel_style = str(cel_style)
         self.oldstate = None
         self.old_width = None
         self.old_image = None
@@ -164,18 +165,11 @@ cells.
         self.celldict = {}
         self.cell_cache = {}
         self.oldwidth = None
-        if stringlike(self.dimension):
-            dimname = self.dimension
-        else:
-            dimname = self.dimension.name
-        if stringlike(self.item):
-            itname = self.item
-        else:
-            itname = self.item.name
+        dimname = str(self.dimension)
+        itname = str(self.item)
         if dimname not in db.calcoldict:
             db.calcoldict[dimname] = {}
         db.calcoldict[dimname][itname] = self
-        self.db = db
 
     def __iter__(self):
         return self.celldict.itervalues()
@@ -187,7 +181,17 @@ cells.
             other.item == self.item)
 
     def __getattr__(self, attrn):
-        if attrn == 'visible':
+        if attrn == 'dimension':
+            return self.db.dimensiondict[self._dimension]
+        elif attrn == 'item':
+            return self.db.itemdict[self._dimension][self._item]
+        elif attrn == 'board':
+            return self.db.boarddict[self._dimension]
+        elif attrn == 'style':
+            return self.db.styledict[self._style]
+        elif attrn == 'cel_style':
+            return self.db.styledict[self._cel_style]
+        elif attrn == 'visible':
             return self._visible and self.item.name in self.cal.coldict
         elif attrn == 'interactive':
             return self._interactive
@@ -238,18 +242,11 @@ cells.
 
     def unravel(self):
         db = self.db
-        if stringlike(self.dimension):
-            self.dimension = db.dimensiondict[self.dimension]
-        self.board = db.boarddict[self.dimension.name]
-        if stringlike(self.item):
-            self.item = db.itemdict[self.dimension.name][self.item]
         self.item.pawn.calcol = self
         if stringlike(self.style):
             self.style = db.styledict[self.style]
         self.style.unravel()
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
-        if stringlike(self.cel_style):
-            self.cel_style = db.styledict[self.cel_style]
         self.cel_style.unravel()
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         self.active_pattern = color_pattern(self.style.bg_active.tup)
