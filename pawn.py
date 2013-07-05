@@ -204,6 +204,7 @@ clicked. This is probably not the ideal."""
                 self.db.portaldestorigdict[str(self.dimension)][str(spot.place)]):
             self.thing.journey.steps.append((str(self.thing.location), str(spot.place)))
             self.thing.journey.schedule()
+            self.db.caldict[str(self.dimension)].adjust()
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])
 
