@@ -109,6 +109,10 @@ it with the placedict and itemdict in the db."""
         Item.__init__(self, db, dimension, name)
         if self._dimension not in db.placedict:
             db.placedict[self._dimension] = {}
+        if self._dimension not in db.contentsdict:
+            db.contentsdict[self._dimension] = {}
+        if self.name not in db.contentsdict[self._dimension]:
+            db.contentsdict[self._dimension][self.name] = set()
         db.placedict[self._dimension][self.name] = self
 
     def __eq__(self, other):
@@ -131,15 +135,7 @@ it with the placedict and itemdict in the db."""
             return Item.__getattr__(self, attrn)
 
     def unravel(self):
-        """Get myself a real Dimension object if I don't have one."""
-        db = self.db
-        if stringlike(self.dimension):
-            self.dimension = db.dimensiondict[self.dimension]
-        if not hasattr(self, 'contents'):
-            if self.dimension.name not in db.contentsdict:
-                db.contentsdict[self.dimension.name] = {}
-            if self.name not in db.contentsdict[self.dimension.name]:
-                db.contentsdict[self.dimension.name][self.name] = set()
+        pass
 
     def can_contain(self, other):
         """Does it make sense for that to be here?"""
@@ -652,13 +648,6 @@ contevdict, and endevdict."""
     def unravel(self):
         db = self.db
         """Dereference dimension and item."""
-        if stringlike(self.dimension):
-            self.dimension = db.dimensiondict[self.dimension]
-        if stringlike(self.item):
-            self.item = db.itemdict[self.dimension.name][self.item]
-        self.add_global = db.add_event
-        self.remove_global = db.remove_event
-        self.discard_global = db.discard_event
         for ev in self.events.itervalues():
             ev.unravel()
 

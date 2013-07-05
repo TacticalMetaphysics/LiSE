@@ -43,10 +43,11 @@ visible or doesn't; and starts interactive or doesn't.
 With db, register in db's menuitemdict.
 
         """
-        self.board = board
-        self.menu = menu
+        self.db = db
+        self._board = str(board)
+        self._menu = str(menu)
         self.idx = idx
-        self.text = text
+        self._text = text
         self._on_click = on_click
         self.closer = closer
         self._visible = visible
@@ -57,20 +58,26 @@ With db, register in db's menuitemdict.
         self.newstate = None
         self.pressed = False
         self.tweaks = 0
-        boardname = str(self.board)
-        menuname = str(self.menu)
-        if boardname not in db.menuitemdict:
-            db.menuitemdict[boardname] = {}
-        if menuname not in db.menuitemdict[boardname]:
-            db.menuitemdict[boardname][menuname] = []
-        ptr = db.menuitemdict[boardname][menuname]
+        if self._board not in db.menuitemdict:
+            db.menuitemdict[self._board] = {}
+        if self._menu not in db.menuitemdict[self._board]:
+            db.menuitemdict[self._board][self._menu] = []
+        ptr = db.menuitemdict[self._board][self._menu]
         while len(ptr) <= self.idx:
             ptr.append(None)
         ptr[self.idx] = self
-        self.db = db
 
     def __getattr__(self, attrn):
-        if attrn == 'gw':
+        if attrn == 'board':
+            return self.db.boarddict[self._board]
+        elif attrn == 'menu':
+            return self.db.menudict[self._board][self._menu]
+        elif attrn == 'text':
+            if self._text[0] == '@':
+                return self.db.get_text(self._text[1:])
+            else:
+                return self._text
+        elif attrn == 'gw':
             return self.board.gw
         elif attrn == 'hovered':
             return self.gw.hovered is self
@@ -137,17 +144,7 @@ the same."""
         return self.text
 
     def unravel(self):
-        """Dereference the board, the menu, the effect deck, and the text if
-it starts with an @ character."""
         db = self.db
-        if stringlike(self.board):
-            self.board = db.boarddict[self.board]
-        if stringlike(self.menu):
-            self.menu = db.menudict[self.board.dimension.name][self.menu]
-        while len(self.menu.items) < self.idx:
-            self.menu.items.append(None)
-        if self.text[0] == "@":
-            self.text = db.get_text(self.text[1:])
         onclickmatch = re.match(ON_CLICK_RE, self._on_click)
         if onclickmatch is None:
             raise Exception("Couldn't understand this function for this menu item.")
@@ -190,7 +187,7 @@ function on myself and whatever other argument was specified.
         """Return a tuple containing everything that's relevant to deciding
 just how to display this widget"""
         return (
-            hash(self.menu.get_state_tup()),
+            self._menu,
             self.idx,
             self.text,
             self.visible,
@@ -260,13 +257,17 @@ determines if you can see it at the moment.
 With db, register with db's menudict.
 
         """
-        self.board = board
+        self.db = db
+        self._board = str(board)
         self.name = name
+        if self._board not in self.db.menudict:
+            self.db.menudict[self._board] = {}
+        self.db.menudict[self._board][self.name] = self
         self.left_prop = left
         self.bot_prop = bottom
         self.top_prop = top
         self.right_prop = right
-        self.style = style
+        self._style = str(style)
         self.main_for_window = main_for_window
         self._visible = visible
         self.interactive = True
@@ -277,17 +278,15 @@ With db, register with db's menudict.
         self.pressed = False
         self.freshly_adjusted = False
         self.tweaks = 0
-        if stringlike(self.board):
-            boardname = self.board
-        else:
-            boardname = self.board.name
-        if boardname not in db.menudict:
-            db.menudict[boardname] = {}
-        db.menudict[boardname][self.name] = self
-        self.db = db
 
     def __getattr__(self, attrn):
-        if attrn == 'gw':
+        if attrn == 'board':
+            return self.db.boarddict[self._board]
+        elif attrn == 'items':
+            return self.db.menuitemdict[self._board][self.name]
+        elif attrn == 'style':
+            return self.db.styledict[self._style]
+        elif attrn == 'gw':
             if not hasattr(self.board, 'gw'):
                 return None
             else:
@@ -346,8 +345,6 @@ With db, register with db's menudict.
         """Dereference style and board; fetch items from db's menuitemdict;
 and unravel style and all items."""
         db = self.db
-        if stringlike(self.style):
-            self.style = db.styledict[self.style]
         self.style.unravel()
         self.rowheight = self.style.fontsize + self.style.spacing
         bgi = self.style.bg_inactive.tup
@@ -355,8 +352,6 @@ and unravel style and all items."""
         self.inactive_pattern = pyglet.image.SolidColorImagePattern(bgi)
         self.active_pattern = pyglet.image.SolidColorImagePattern(bga)
         boardname = str(self.board)
-        self.board = db.boarddict[boardname]
-        self.items = db.menuitemdict[boardname][self.name]
         for item in self.items:
             item.unravel()
 

@@ -266,15 +266,13 @@ dimension names."""
     load_dimensions(db, boards)
     for menus in read_menus_in_boards(db, boards).itervalues():
         for menu in menus.itervalues():
-            if stringlike(menu.style):
-                styles.add(menu.style)
+            styles.add(menu._style)
     for spots in read_spots_in_boards(db, boards).itervalues():
         for spot in spots.itervalues():
             imgs.add(spot._img)
     for pawns in read_pawns_in_boards(db, boards).itervalues():
         for pawn in pawns.itervalues():
-            if stringlike(pawn.img):
-                imgs.add(pawn.img)
+            imgs.add(pawn._img)
     for calcols in read_calendar_cols_in_boards(db, boards).itervalues():
         for calcol in calcols.itervalues():
             styles.add(calcol._style)
@@ -283,8 +281,7 @@ dimension names."""
         for handname in hands.iterkeys():
             for card in db.handcarddict[handname]:
                 card = db.carddict[str(card)]
-                if stringlike(card.img):
-                    imgs.add(card.img)
+                imgs.add(card._img)
     load_imgs(db, list(imgs))
     read_styles(db, list(styles))
     for board in r.itervalues():

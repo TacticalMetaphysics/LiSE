@@ -36,6 +36,7 @@ you that.
 green, blue, and alpha. Register in db.colordict.
 
         """
+        self.db = db
         self.name = name
         self.red = red
         self.green = green
@@ -43,7 +44,7 @@ green, blue, and alpha. Register in db.colordict.
         self.alpha = alpha
         self.tup = (self.red, self.green, self.blue, self.alpha)
         self.pattern = pyglet.image.SolidColorImagePattern(self.tup)
-        db.colordict[self.name] = self
+        self.db.colordict[self.name] = self
 
     def __str__(self):
         return self.name
@@ -101,24 +102,30 @@ With db, register in its styledict.
         self.fontface = fontface
         self.fontsize = fontsize
         self.spacing = spacing
-        self.bg_inactive = bg_inactive
-        self.bg_active = bg_active
-        self.fg_inactive = fg_inactive
-        self.fg_active = fg_active
+        self._bg_inactive = str(bg_inactive)
+        self._bg_active = str(bg_active)
+        self._fg_inactive = str(fg_inactive)
+        self._fg_active = str(fg_active)
         db.styledict[self.name] = self
         self.db = db
 
     def __str__(self):
         return self.name
 
+    def __getattr__(self, attrn):
+        if attrn == 'bg_inactive':
+            return self.db.colordict[self._bg_inactive]
+        elif attrn == 'bg_active':
+            return self.db.colordict[self._bg_active]
+        elif attrn == 'fg_inactive':
+            return self.db.colordict[self._fg_inactive]
+        elif attrn == 'fg_active':
+            return self.db.colordict[self._fg_active]
+        else:
+            raise AttributeError("Style instance has no such attribute")
+
     def unravel(self):
-        """Dereference all the colors"""
-        db = self.db
-        for colorcol in self.color_cols:
-            colorname = getattr(self, colorcol)
-            if stringlike(colorname):
-                color = db.colordict[colorname]
-                setattr(self, colorcol, color)
+        pass
 
     def __eq__(self, other):
         """Check we're both Style instances and we have the same name"""

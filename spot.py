@@ -35,8 +35,9 @@ class Spot:
 representing the given place with the given image. It will be at the
 given coordinates, and visible or interactive as indicated.
         """
-        self.dimension = dimension
-        self.place = place
+        self.db = db
+        self._dimension = dimension
+        self._place = place
         if img in (None, ''):
             self._img = 'default_spot'
         else:
@@ -55,11 +56,14 @@ given coordinates, and visible or interactive as indicated.
         if dimname not in db.spotdict:
             db.spotdict[dimname] = {}
         db.spotdict[dimname][placename] = self
-        self.db = db
 
     def __getattr__(self, attrn):
-        if attrn == 'board':
-            return self.db.boarddict[str(self.dimension)]
+        if attrn == 'dimension':
+            return self.db.dimensiondict[self._dimension]
+        elif attrn == 'place':
+            return self.db.placedict[self._dimension][self._place]
+        elif attrn == 'board':
+            return self.db.boarddict[self._dimension]
         elif attrn == 'img':
             try:
                 return self.db.imgdict[self._img]
@@ -140,13 +144,6 @@ given coordinates, and visible or interactive as indicated.
             self.name == other.name)
 
     def unravel(self):
-        """Dereference dimension, place, and image. Compute some constants for
-graphics calculations."""
-        db = self.db
-        if stringlike(self.dimension):
-            self.dimension = db.dimensiondict[self.dimension]
-        if stringlike(self.place):
-            self.place = db.itemdict[self.dimension.name][self.place]
         self.place.spot = self
 
     def gettup(self):

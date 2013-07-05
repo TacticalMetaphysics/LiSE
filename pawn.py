@@ -31,9 +31,9 @@ interactive or not.
 With db, register in db's pawndict.
 
         """
-        self.dimension = dimension
-        self.thing = thing
-        self.img = img
+        self._dimension = str(dimension)
+        self._thing = str(thing)
+        self._img = str(img)
         self._visible = visible
         self._interactive = interactive
         self.grabpoint = None
@@ -42,11 +42,9 @@ With db, register in db's pawndict.
         self.tweaks = 0
         self.drag_offset_x = 0
         self.drag_offset_y = 0
-        dimname = str(self.dimension)
-        thingname = str(self.thing)
-        if dimname not in db.pawndict:
-            db.pawndict[dimname] = {}
-        db.pawndict[dimname][thingname] = self
+        if self._dimension not in db.pawndict:
+            db.pawndict[self._dimension] = {}
+        db.pawndict[self._dimension][self._thing] = self
         self.db = db
 
     def __str__(self):
@@ -54,7 +52,13 @@ With db, register in db's pawndict.
 
     def __getattr__(self, attrn):
         if attrn == 'board':
-            return self.db.boarddict[str(self.dimension)]
+            return self.db.boarddict[self._dimension]
+        elif attrn == 'dimension':
+            return self.db.dimensiondict[self._dimension]
+        elif attrn == 'thing':
+            return self.db.thingdict[self._dimension][self._thing]
+        elif attrn == 'img':
+            return self.db.imgdict[self._img]
         elif attrn == 'gw':
             return self.board.gw
         elif attrn == 'hovered':
@@ -124,11 +128,6 @@ make a new, hidden calendar column to represent the schedule.
         """
         # Invariant: things have already been unraveled
         db = self.db
-        if stringlike(self.dimension):
-            self.dimension = db.dimensiondict[self.dimension]
-        self.board = db.boarddict[self.dimension.name]
-        if stringlike(self.thing):
-            self.thing = db.itemdict[self.board.dimension.name][self.thing]
         self.thing.pawn = self
         if hasattr(self, 'calcol') and self.calcol is not None:
             self.calcol.unravel()
@@ -137,8 +136,6 @@ make a new, hidden calendar column to represent the schedule.
                 self.calcol = CalendarCol(
                     db, self.board.dimension.name,
                     self.thing.name, True, True, "BigLight", "SmallDark")
-        if stringlike(self.img):
-            self.img = db.imgdict[self.img]
 
     def getcoords(self):
         """Return my x and y in a pair."""
