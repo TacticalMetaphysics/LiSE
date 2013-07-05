@@ -70,6 +70,16 @@ item's name, and the name of the attribute.
         db.characterdict[self.name] = self
         self.db = db
 
+    def __getattr__(self, attrn):
+        if attrn == "itemset":
+            return self.db.characteritemdict[self.name]
+        elif attrn == "skillset":
+            return self.db.skilldict[self.name]
+        elif attrn == "attributiondict":
+            return self.db.attributiondict[self.name]
+        else:
+            raise AttributeError("Character instance has no such attribute")
+
     def get_tabdict(self):
         items = [
             {"character": self.name,
@@ -92,8 +102,4 @@ item's name, and the name of the attribute.
             "attribution": attributions}
 
     def unravel(self):
-        # Assumes that everything it relies on has been pre-unraveled
-        db = self.db
-        self.itemset = db.characteritemdict[self.name]
-        self.skillset = db.skilldict[self.name]
-        self.attributiondict = db.attributiondict[self.name]
+        pass

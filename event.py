@@ -93,13 +93,28 @@ the three given effect decks. Register with db.eventdict.
 
         """
         self.name = name
-        self.text = text
+        self._text = text
         self.ongoing = ongoing
-        self.commence_effects = commence_effects
-        self.proceed_effects = proceed_effects
-        self.conclude_effects = conclude_effects
+        self._commence_effects = str(commence_effects)
+        self._proceed_effects = str(proceed_effects)
+        self._conclude_effects = str(conclude_effects)
         db.add_event(self)
         self.db = db
+
+    def __getattr__(self, attrn):
+        if attrn == "text":
+            if self._text[0] == "@":
+                return self.db.get_text[self._text[1:]]
+            else:
+                return self._text
+        elif attrn == "commence_effects":
+            return self.db.effectdeckdict[self._commence_effects]
+        elif attrn == "proceed_effects":
+            return self.db.effectdeckdict[self._proceed_effects]
+        elif attrn == "conclude_effects":
+            return self.db.effectdeckdict[self._conclude_effects]
+        else:
+            raise AttributeError("Event has no such attribute")
 
     def __repr__(self):
         if hasattr(self, 'start') and hasattr(self, 'length'):
@@ -124,8 +139,6 @@ If the event text begins with @, it's a pointer; look up the real
 value in the db.
 
         """
-        if self.text[0] == "@":
-            self.text = self.db.get_text(self.text[1:])
         for deck in (self.commence_effects, self.proceed_effects,
                      self.conclude_effects):
             if deck is not None:
@@ -190,14 +203,14 @@ it."""
         # strings in some other table and this refers to that
         return self.name
 
-    def tabdict(self):
+    def get_tabdict(self):
         return {
             "event": {
                 "name": self.name,
                 "ongoing": self.ongoing,
-                "commence_effects": self.commence_effects.name,
-                "proceed_effects": self.proceed_effects.name,
-                "conclude_effects": self.conclude_effects.name}}
+                "commence_effects": self._commence_effects,
+                "proceed_effects": self._proceed_effects,
+                "conclude_effects": self._conclude_effects}}
 
 
 class PortalTravelEvent(Event):

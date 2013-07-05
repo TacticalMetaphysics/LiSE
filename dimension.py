@@ -32,6 +32,20 @@ keyed with their names.
     def __getattr__(self, attrn):
         if attrn == 'portals':
             return DictValues2DIterator(self.portalorigdestdict)
+        elif attrn == 'itemdict':
+            return self.db.itemdict[self.name]
+        elif attrn == 'thingdict':
+            return self.db.thingdict[self.name]
+        elif attrn == 'placedict':
+            return self.db.placedict[self.name]
+        elif attrn == 'scheduledict':
+            return self.db.scheduledict[self.name]
+        elif attrn == 'journeydict':
+            return self.db.journeydict[self.name]
+        elif attrn == 'portalorigdestdict':
+            return self.db.portalorigdestdict[self.name]
+        elif attrn == 'portaldestorigdict':
+            return self.db.portaldestorigdict[self.name]
         else:
             raise AttributeError(
                 "Dimension instance has no attribute {0}.".format(attrn))
@@ -49,34 +63,20 @@ constrains it to be unique."""
 database. Then iterate over the values therein and unravel
 everything."""
         db = self.db
-        if not hasattr(self, 'itemdict'):
-            if self.name not in db.itemdict:
-                db.itemdict[self.name] = {}
-            self.itemdict = db.itemdict[self.name]
-        if not hasattr(self, 'thingdict'):
-            if self.name not in db.thingdict:
-                db.thingdict[self.name] = {}
-            self.thingdict = db.thingdict[self.name]
-        if not hasattr(self, 'placedict'):
-            if self.name not in db.placedict:
-                db.placedict[self.name] = {}
-            self.placedict = db.placedict[self.name]
-        if not hasattr(self, 'scheduledict'):
-            if self.name not in db.scheduledict:
-                db.scheduledict[self.name] = {}
-            self.scheduledict = db.scheduledict[self.name]
-        if not hasattr(self, 'journeydict'):
-            if self.name not in db.journeydict:
-                db.journeydict[self.name] = {}
-            self.journeydict = db.journeydict[self.name]
-        if not hasattr(self, 'portalorigdestdict'):
-            if self.name not in db.portalorigdestdict:
-                db.portalorigdestdict[self.name] = {}
-            self.portalorigdestdict = db.portalorigdestdict[self.name]
-        if not hasattr(self, 'portaldestorigdict'):
-            if self.name not in db.portaldestorigdict:
-                db.portaldestorigdict[self.name] = {}
-            self.portaldestorigdict = db.portaldestorigdict[self.name]
+        if self.name not in db.itemdict:
+            db.itemdict[self.name] = {}
+        if self.name not in db.thingdict:
+            db.thingdict[self.name] = {}
+        if self.name not in db.placedict:
+            db.placedict[self.name] = {}
+        if self.name not in db.scheduledict:
+            db.scheduledict[self.name] = {}
+        if self.name not in db.journeydict:
+            db.journeydict[self.name] = {}
+        if self.name not in db.portalorigdestdict:
+            db.portalorigdestdict[self.name] = {}
+        if self.name not in db.portaldestorigdict:
+            db.portaldestorigdict[self.name] = {}
         # this order is deliberate
         for place in self.placedict.itervalues():
             place.unravel()

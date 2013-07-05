@@ -114,8 +114,3 @@ OpenSimulator.
 * python 2.7
 * python-igraph
 * python-pyglet
-
-# License information
-The default background image was drawn by Jonathan Roberts. It is available at http://www.fantasticmaps.com/free-stuff/ under a Creative Commons CC-BY-NC-SA license.
-
-The software isn't really released yet, so consider it proprietary...for now. I do intend to open source it when I think it's usable.

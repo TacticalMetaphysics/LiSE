@@ -6,8 +6,8 @@ class Edge:
     def __init__(self, db, dimension, portal):
         global order
         self.db = db
-        self.dimension = dimension
-        self.portal = portal
+        self._dimension = str(dimension)
+        self._portal = str(portal)
         self.vertlist = None
         self.wedge_a = None
         self.wedge_b = None
@@ -18,7 +18,11 @@ class Edge:
         return str(self.portal)
 
     def __getattr__(self, attrn):
-        if attrn == 'orig':
+        if attrn == "dimension":
+            return self.db.dimensiondict[self._dimension]
+        elif attrn == "portal":
+            return self.db.itemdict[self._dimension][self._portal]
+        elif attrn == 'orig':
             return self.portal.orig.spot
         elif attrn == 'dest':
             return self.portal.dest.spot
@@ -27,10 +31,6 @@ class Edge:
                 "Edge instance has no attribute {0}".format(attrn))
 
     def unravel(self):
-        if stringlike(self.dimension):
-            self.dimension = self.db.dimensiondict[self.dimension]
-        if stringlike(self.portal):
-            self.portal = self.db[str(self.dimension)][self.portal]
         dimname = str(self.dimension)
         portname = str(self.portal)
         self.db.edgedict[dimname][portname] = self

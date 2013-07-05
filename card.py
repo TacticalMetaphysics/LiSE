@@ -28,15 +28,32 @@ class Card:
         self.db = db
         self.name = name
         self._display_name = display_name
-        self.img = image
+        self._img = image
         self._text = text
-        self.style = style
+        self._style = style
         self.widget = None
         self.db.carddict[self.name] = self
 
     def __getattr__(self, attrn):
         if attrn == 'base':
             return self
+        elif attrn == 'img':
+            if self._img == '':
+                return None
+            else:
+                return self.db.imgdict[self._img]
+        elif attrn == 'text':
+            if self._text[0] == '@':
+                return self.db.get_text(self._text[1:])
+            else:
+                return self._text
+        elif attrn == 'display_name':
+            if self._display_name[0] == '@':
+                return self.db.get_text(self._display_name[1:])
+            else:
+                return self._display_name
+        elif attrn == 'style':
+            return self.db.styledict[self._style]
         elif hasattr(self.widget, attrn):
             return getattr(self.widget, attrn)
         else:
@@ -46,34 +63,15 @@ class Card:
         return self.name
 
     def unravel(self):
-        if stringlike(self.img):
-            if self.img == '':
-                self.img = None
-            else:
-                self.img = self.db.imgdict[self.img]
-        if self._text[0] == "@":
-            self.text = self.db.get_text(self._text[1:])
-        else:
-            self.text = self._text
-        if self._display_name[0] == "@":
-            self.display_name = self.db.get_text(self._display_name[1:])
-        else:
-            self.display_name = self._display_name
-        if stringlike(self.style):
-            self.style = self.db.get_style(self.style)
         self.style.unravel()
 
     def get_tabdict(self):
-        if self.img is None:
-            imgn = None
-        else:
-            imgn = str(self.img)
         stylen = str(self.style)
         return {
             "card": {
                 "name": self.name,
                 "display_name": self._display_name,
-                "img": imgn,
+                "img": self._img,
                 "text": self._text,
                 "style": stylen}
         }
@@ -120,8 +118,7 @@ class TextHolder:
 
 class CardWidget:
     def __init__(self, base, x, y):
-        self.base = base
-        self.base.unravel()
+        self._base = str(base)
         self.x = x
         self.y = y
         self.db = self.base.db
@@ -142,6 +139,8 @@ class CardWidget:
     def __getattr__(self, attrn):
         if attrn == 'gw':
             return self.hand.gw
+        elif attrn == 'base':
+            return self.db.get_card(self._base)
         elif attrn == 'hovered':
             return self.gw.hovered is self
         elif attrn == 'pressed':
@@ -186,14 +185,9 @@ class CardWidget:
         return hash(self.get_state_tup())
 
     def unravel(self):
-        if self.base is None:
-            self.base = self.db.get_card(self.name)
         self.base.unravel()
         if self.pats is None:
             self.pats = PatternHolder(self.base.style)
-        self.base.unravel()
-        if stringlike(self.img):
-            self.img = self.db.imgdict[self.img]
 
     def save(self):
         self.base.save()
@@ -334,10 +328,10 @@ class Hand:
     def __init__(self, db, name, board, visible, interactive, style, left, right, bot, top):
         self.db = db
         self.name = name
-        self.board = board
+        self._board = str(board)
         self._visible = visible
         self._interactive = interactive
-        self.style = style
+        self._style = str(style)
         self._left = left
         self._right = right
         self._bot = bot
@@ -355,7 +349,11 @@ class Hand:
         return HandIterator(self)
 
     def __getattr__(self, attrn):
-        if attrn == "gw":
+        if attrn == "board":
+            return self.db.boarddict[self._board]
+        elif attrn == "style":
+            return self.db.styledict[self._style]
+        elif attrn == "gw":
             return self.board.gw
         elif attrn == "hovered":
             return self.gw.hovered is self
@@ -427,10 +425,7 @@ class Hand:
             hash(tuple(card_hashes)))
 
     def unravel(self):
-        if stringlike(self.board):
-            self.board = self.db.boarddict[self.board]
-        if stringlike(self.style):
-            self.style = self.db.styledict[self.style]
+        pass
 
     def append(self, card):
         card.hand = self
