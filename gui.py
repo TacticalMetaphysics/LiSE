@@ -13,6 +13,10 @@ fortyfive = math.pi / 4
 
 threesixty = math.pi * 2
 
+def average(*args):
+    n = len(args)
+    return sum(args)/n
+
 def line_len_rise_run(rise, run):
     return sqrt(rise**2 + run**2)
 
@@ -66,6 +70,9 @@ def truncated_line(leftx, boty, rightx, topy, r, from_start=False):
         rightx = leftx + math.cos(theta) * length
         topy = boty + math.sin(theta) * length
     return (leftx, boty, rightx, topy)
+
+def extended_line(leftx, boty, rightx, topy, r):
+    return truncated_line(leftx, boty, rightx, topy, -1 * r)
 
 def trimmed_line(leftx, boty, rightx, topy, trim_start, trim_end):
     et = truncated_line(leftx, boty, rightx, topy, trim_end)
@@ -156,6 +163,12 @@ class GameWindow:
         self.prev_view_bot = 0
         self.last_mouse_x = 0
         self.last_mouse_y = 0
+        self.dxdy_hist_ct = 0
+        self.dxdy_hist_max = 10
+        self.dx_hist_sum = 0
+        self.dy_hist_sum = 0
+        self.dx_hist = []
+        self.dy_hist = []
 
         window = pyglet.window.Window()
 
@@ -190,38 +203,58 @@ class GameWindow:
         self.edge_from_portal_from = None
         self.left_tail_edge_from_portal_from = None
         self.right_tail_edge_from_portal_from = None
+        self.portal_triple = (
+            self.left_tail_edge_from_portal_from,
+            self.edge_from_portal_from,
+            self.right_tail_edge_from_portal_from)
 
         @window.event
         def on_draw():
             """Draw the background image; all spots, pawns, and edges on the
 board; all visible menus; and the calendar, if it's visible."""
             # draw the edges, representing portals
-            if self.portal_from is not None: 
-                (self.left_tail_edge_from_portal_from,
-                 self.edge_from_portal_from,
-                 self.right_tail_edge_from_portal_from
-                ) = self.connect_arrow(
-                    self.portal_from.window_x,
-                    self.portal_from.window_y,
-                    self.last_mouse_x,
-                    self.last_mouse_y,
-                    0,
-                    self.left_tail_edge_from_portal_from,
-                    self.edge_from_portal_from,
-                    self.right_tail_edge_from_portal_from)
-            else:
-                try:
-                    self.left_tail_edge_from_portal_from.delete()
-                except:
-                    pass
-                try:
-                    self.edge_from_portal_from.delete()
-                except:
-                    pass
-                try:
-                    self.right_tail_edge_from_portal_from.delete()
-                except:
-                    pass
+            if self.portaling:
+                if self.portal_from is not None: 
+                    self.portal_triple = self.connect_arrow(
+                        self.portal_from.window_x,
+                        self.portal_from.window_y,
+                        self.last_mouse_x,
+                        self.last_mouse_y,
+                        self.portal_triple)
+                else:
+                    dx = sum(self.dx_hist)
+                    dy = sum(self.dy_hist)
+                    length = self.arrowhead_size * 2
+                    x = self.last_mouse_x
+                    y = self.last_mouse_y
+                    if dx == 0:
+                        if dy > 0:
+                            coords = (x, y - length, x, y)
+                        else:
+                            coords = (x, y + length, x, y)
+                    elif dy == 0:
+                        if dx > 0:
+                            coords = (x - length, y, x, y)
+                        else:
+                            coords = (x + length, y, x, y)
+                    else:
+                        xco = 1
+                        yco = 1
+                        if dx < 0:
+                            xco = -1
+                        if dy < 0:
+                            yco = -1
+                        x *= xco
+                        dx *= xco
+                        y *= yco
+                        dy *= yco
+                        theta = atan(float(dy)/float(dx))
+                        xleft = int(x - cos(theta) * length)
+                        ybot = int(y - sin(theta) * length)
+                        coords = (xleft * xco, ybot * yco, x * xco, y * yco)
+                        (x1, y1, x2, y2) = coords
+                        self.portal_triple = self.connect_arrow(
+                            x1, y1, x2, y2, self.portal_triple)
             for port in self.board.portals:
                 edge = port.edge
                 newstate = edge.get_state_tup()
@@ -239,10 +272,10 @@ board; all visible menus; and the calendar, if it's visible."""
                         edge.orig.window_y,
                         edge.dest.window_x,
                         edge.dest.window_y,
-                        edge.dest.r,
-                        edge.wedge_a,
+                        (edge.wedge_a,
                         edge.vertlist,
-                        edge.wedge_b,
+                        edge.wedge_b),
+                        edge.dest.r,
                         edge.order)
                 else:
                     try:
@@ -604,6 +637,11 @@ board; all visible menus; and the calendar, if it's visible."""
 it."""
             self.last_mouse_x = x
             self.last_mouse_y = y
+            self.dx_hist.append(dx)
+            self.dy_hist.append(dy)
+            if len(self.dx_hist) > self.dxdy_hist_max:
+                del self.dx_hist[0]
+                del self.dy_hist[0]
             if self.hovered is None:
                 for hand in self.board.hands:
                     if (
@@ -693,18 +731,6 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                     else:
                         self.portaling = False
                         self.portal_from = None
-                        try:
-                            self.edge_from_portal_from.delete()
-                        except AttributeError:
-                            pass
-                        try:
-                            self.left_tail_edge_from_portal_from.delete()
-                        except AttributeError:
-                            pass
-                        try:
-                            self.right_tail_edge_from_portal_from.delete()
-                        except AttributeError:
-                            pass
                 else:
                     if (
                             hasattr(self.pressed, 'place') and
@@ -719,18 +745,13 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                         edge.unravel()
                     self.portaling = False
                     self.portal_from = None
-                    try:
-                        self.edge_from_portal_from.delete()
-                    except AttributeError:
-                        pass
-                    try:
-                        self.left_tail_edge_from_portal_from.delete()
-                    except AttributeError:
-                        pass
-                    try:
-                        self.right_tail_edge_from_portal_from.delete()
-                    except AttributeError:
-                        pass
+                    for line in self.portal_triple:
+                        if line is not None:
+                            for edge in line:
+                                try:
+                                    edge.delete()
+                                except:
+                                    pass
             elif self.grabbed is None:
                 pass
             else:
@@ -827,14 +848,13 @@ move_with_mouse method, use it.
         self.portaling = True
 
     def connect_arrow(self, ox, oy, dx, dy,
+                      old_triple=(None, None, None),
                       center_shrink=0,
-                      old_vertlist_left=None,
-                      old_vertlist_center=None,
-                      old_vertlist_right=None,
                       order=0):
         # xs and ys should be integers.
         #
         # results will be called l, c, r for left tail, center, right tail
+        (old_vertlist_left, old_vertlist_center, old_vertlist_right) = old_triple
         if old_vertlist_center is None:
             obg = None
             ofg = None
