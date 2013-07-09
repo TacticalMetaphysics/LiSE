@@ -444,9 +444,12 @@ board; all visible menus; and the calendar, if it's visible."""
                 left = self.calendar.window_left
                 right = self.calendar.window_right
                 rowheight = self.calendar.row_height
-                rows = self.calendar.scrolled_to
+                rows = self.calendar.rows_on_screen
+                starting = self.calendar.scrolled_to
                 age = self.gamestate.age
-                y = top - rowheight * (age - rows)
+                age_from_starting = age - starting
+                age_offset = age_from_starting * self.calendar.row_height
+                y = top - age_offset
                 color = (255, 0, 0)
                 if (
                         self.calendar.visible and
@@ -802,9 +805,7 @@ move_with_mouse method, use it.
                     y > self.calendar.window_bot and
                     y < self.calendar.window_top):
                 sf = self.calendar.scroll_factor
-                self.calendar.scrolled_to -= scroll_y * sf
-                if self.calendar.scrolled_to < 0:
-                    self.calendar.scrolled_to = 0
+                self.calendar.scrolled_to += scroll_y * sf
 
     def __getattr__(self, attrn):
         if attrn == 'width':

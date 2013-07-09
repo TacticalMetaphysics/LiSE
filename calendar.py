@@ -63,6 +63,8 @@ represents to calculate its dimensions and coordinates.
     def __getattr__(self, attrn):
         if attrn == 'interactive':
             return self._interactive
+        elif attrn == 'window':
+            return self.col.cal.board.gw.window
         elif attrn == 'start':
             if self.event is not None:
                 return self.event.start
@@ -75,8 +77,9 @@ represents to calculate its dimensions and coordinates.
                 return None
         elif attrn == 'window_top':
             return (
-                self.start +
-                self.col.cal.scrolled_to) * self.col.cal.row_height
+                self.col.cal.window_top -
+                (self.start - self.col.cal.scrolled_to) *
+                self.col.cal.row_height)
         elif attrn == 'window_bot':
             return self.window_top - (self.col.cal.row_height * len(self))
         elif attrn == 'window_left':
@@ -287,7 +290,7 @@ class Calendar:
 schedule, possibly several.
 
 """
-    scroll_factor = 1
+    scroll_factor = 4
 
     def __init__(
             self, board, left, right, top, bot, visible, interactive,
