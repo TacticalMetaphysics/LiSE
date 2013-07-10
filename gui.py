@@ -2,8 +2,8 @@ import pyglet
 import ctypes
 import math
 import logging
-from edge import Edge
 from math import atan, pi, sin, cos, hypot
+from edge import Edge
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +182,7 @@ class GameWindow:
         self.hovered = None
         self.grabbed = None
         self.selected = set()
+        self.edge_order = 1
         self.keep_selected = False
         self.prev_view_bot = 0
         self.last_mouse_x = 0
@@ -279,11 +280,7 @@ board; all visible menus; and the calendar, if it's visible."""
                         (x1, y1, x2, y2) = coords
                         self.portal_triple = self.connect_arrow(
                             x1, y1, x2, y2, 0, self.portal_triple)
-            for port in self.board.portals:
-                try:
-                    edge = port.edge
-                except KeyError:
-                    edge = Edge(self, port)
+            for edge in self.board.edges:
                 newstate = edge.get_state_tup()
                 if newstate in self.onscreen:
                     continue
@@ -689,6 +686,14 @@ it."""
                                 self.hovered = item
                                 item.tweaks += 1
                                 return
+
+        @window.event
+        def on_mouse_press(x, y, button, modifiers):
+            """If there's something already highlit, and the mouse is
+still over it when pressed, it's been half-way clicked; remember this."""
+            if self.placing or self.thinging:
+                return
+            elif self.hovered is None:
                 for pawn in self.board.pawns:
                     if (
                             pawn.visible and
@@ -697,8 +702,8 @@ it."""
                             x < pawn.window_right and
                             y > pawn.window_bot and
                             y < pawn.window_top):
-                        self.hovered = pawn
-                        self.hovered.tweaks += 1
+                        self.pressed = pawn
+                        self.pressed.tweaks += 1
                         return
                 for spot in self.board.spots:
                     if (
@@ -708,29 +713,13 @@ it."""
                             x < spot.window_right and
                             y > spot.window_bot and
                             y < spot.window_top):
-                        self.hovered = spot
-                        self.hovered.tweaks += 1
+                        self.pressed = spot
+                        self.pressed.tweaks += 1
                         return
                 for edge in self.board.edges:
                     if edge.touching(x, y):
-                        self.hovered = edge
-                        self.hovered.tweaks += 1
-                        return
-            else:
-                if (
-                        x < self.hovered.window_left or
-                        x > self.hovered.window_right or
-                        y < self.hovered.window_bot or
-                        y > self.hovered.window_top):
-                    self.hovered.tweaks += 1
-                    self.hovered = None
-
-        @window.event
-        def on_mouse_press(x, y, button, modifiers):
-            """If there's something already highlit, and the mouse is
-still over it when pressed, it's been half-way clicked; remember this."""
-            if self.placing or self.thinging or self.hovered is None:
-                return
+                        if self.pressed is None or edge.order > self.pressed.order:
+                            self.pressed = edge
             else:
                 self.pressed = self.hovered
 
@@ -767,7 +756,7 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                                         edge.delete()
                                     except:
                                         pass
-                        self.portal_triple = (None, None, None)
+                        self.portal_triple = ((None, None), (None, None), (None, None))
 
                 else:
                     if (
@@ -784,19 +773,18 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                     self.portal_from = None
                     self.pressed = None
                     for line in self.portal_triple:
-                        if line is not None:
-                            for edge in line:
-                                try:
-                                    edge.delete()
-                                except:
-                                    pass
+                        for edge in line:
+                            try:
+                                edge.delete()
+                            except:
+                                pass
                     self.portal_triple = ((None,None),(None,None),(None,None))
             elif self.grabbed is None:
                 pass
             else:
                 if hasattr(self.grabbed, 'dropped'):
                     self.grabbed.dropped(x, y, button, modifiers)
-                self.grabbed = None
+            self.grabbed = None
             if not self.keep_selected:
                 self.selected = set()
             if self.pressed is not None:
@@ -808,7 +796,11 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                     if hasattr(self.pressed, 'onclick'):
                         self.pressed.onclick()
                     if hasattr(self.pressed, 'selectable'):
+                        self.edge_order += 1
+                        self.pressed.order = self.edge_order
                         self.selected.add(self.pressed)
+                        if hasattr(self.pressed, 'reciprocate'):
+                            self.selected.add(self.pressed.reciprocate())
                 self.pressed = None
 
         @window.event
@@ -920,7 +912,7 @@ move_with_mouse method, use it.
             xco = 1
         (leftx, boty, rightx, topy) = truncated_line(
             float(ox * xco), float(oy * yco),
-            float(dx * xco), float(dy * yco), center_shrink)
+            float(dx * xco), float(dy * yco), center_shrink+1)
         taillen = float(self.arrowhead_size)
         rise = topy - boty
         run = rightx - leftx
@@ -943,63 +935,39 @@ move_with_mouse method, use it.
         y2 = int(topy - yoff2) * yco
         endx = int(rightx) * xco
         endy = int(topy) * yco
-        if old_triple[0] is None:
-            olbg = None
-            olfg = None
-        else:
-            olbg = old_triple[0][0]
-            olfg = old_triple[0][1]
-        if old_triple[2] is None:
-            orbg = None
-            orfg = None
-        else:
-            orbg = old_triple[2][0]
-            orfg = old_triple[2][1]
-        if old_triple[1] is None:
-            ocbg = None
-            ocfg = None
-        else:
-            ocbg = old_triple[1][0]
-            ocfg = old_triple[1][1]
         if highlight:
             bgcolor = (255, 255, 0, 0)
+            fgcolor = (0, 0, 0, 0)
         else:
             bgcolor = (64, 64, 64, 64)
-        fgcolor = (255,255,255,0)
+            fgcolor = (255,255,255,0)
         lpoints = (x1, y1, endx, endy)
         cpoints = (ox, oy, endx, endy)
         rpoints = (x2, y2, endx, endy)
-        lbg = self.connect_line(
-            bggroup, lpoints,
-            bgcolor, olbg)
-        cbg = self.connect_line(
-            bggroup, cpoints,
-            bgcolor, ocbg)
-        rbg = self.connect_line(
-            bggroup, rpoints,
-            bgcolor, orbg)
-        lfg = self.connect_line(
-            fggroup, lpoints,
-            fgcolor, olfg)
-        cfg = self.connect_line(
-            fggroup, cpoints,
-            fgcolor, ocfg)
-        rfg = self.connect_line(
-            fggroup, rpoints,
-            fgcolor, orfg)
+        lbg = self.draw_line(
+            lpoints, bgcolor, bggroup, old_triple[0][0])
+        cbg = self.draw_line(
+            cpoints, bgcolor, bggroup, old_triple[1][0])
+        rbg = self.draw_line(
+            rpoints, bgcolor, bggroup, old_triple[2][0])
+        lfg = self.draw_line(
+            lpoints, fgcolor, fggroup, old_triple[0][1])
+        rfg = self.draw_line(
+            rpoints, fgcolor, fggroup, old_triple[2][1])
+        cfg = self.draw_line(
+            cpoints, fgcolor, fggroup, old_triple[1][1])
         return ((lbg,lfg), (cbg,cfg), (rbg,rfg))
 
-    def connect_line(
-            self, grp, points, color,
-            old_vlist=None):
+    def draw_line(self, points, color, group, verts=None):
         colors = color * 2
-        if old_vlist is None:
-            vlist = self.batch.add(
-                2, pyglet.graphics.GL_LINES, grp,
-                ('v2i', points),
-                ('c4B', colors))
+        if verts is None:
+            verts = self.batch.add(
+                2,
+                pyglet.gl.GL_LINES,
+                group,
+                ('v2i', tuple(points)),
+                ('c4B', tuple(colors)))
         else:
-            vlist = old_vlist
-            vlist.vertices = list(points)
-            vlist.colors = list(colors)
-        return vlist
+            verts.vertices = list(points)
+            verts.colors = list(colors)
+        return verts

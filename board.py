@@ -8,6 +8,7 @@ from calendar import Calendar, read_calendar_cols_in_boards
 from pawn import read_pawns_in_boards
 from dimension import read_dimensions, load_dimensions
 from card import read_hands_in_boards
+from edge import Edge
 
 
 """Class for user's view on gameworld, and support functions."""
@@ -182,6 +183,9 @@ and menus herein.
             menu.adjust()
         for hand in self.handdict.itervalues():
             hand.adjust()
+        for port in self.portals:
+            if str(port) not in self.db.edgedict:
+                port.edge = Edge(self.gw, port)
 
     def get_tabdict(self):
         return {

@@ -189,6 +189,9 @@ class Portal(Item):
             return self.db.edgedict[self._dimension][str(self)]
         elif attrn == "dimension":
             return self.db.dimensiondict[self._dimension]
+        elif attrn == "reciprocal":
+            return self.db.portaldestorigdict[
+                self._dimension][self._orig][self._dest]
         else:
             raise AttributeError("Portal has no such attribute")
 

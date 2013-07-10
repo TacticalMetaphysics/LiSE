@@ -1,20 +1,20 @@
 from util import stringlike
 from math import hypot
 
-order = 1
 
 class Edge:
+    margin = 20
+    w = 10
     def __init__(self, gw, portal):
-        global order
         self.gw = gw
         self._portal = str(portal)
         self.vertices = ((None,None),(None,None),(None,None))
         self.oldstate = None
-        self.order = order
+        self.order = gw.edge_order
+        gw.edge_order += 1
         self.selectable = True
         self.overlap_hints = {}
         self.y_at_hints = {}
-        order += 1
         self.tweaks = 0
         dimname = self.gw.board._dimension
         self.db.edgedict[dimname][self._portal] = self
@@ -35,12 +35,20 @@ class Edge:
                 self.gw.board._dimension][self._portal]
         elif attrn == 'orig':
             return self.portal.orig.spot
+        elif attrn == 'ox':
+            return self.orig.x
+        elif attrn == 'oy':
+            return self.orig.y
         elif attrn == 'dest':
             return self.portal.dest.spot
+        elif attrn == 'dx':
+            return self.dest.x
+        elif attrn == 'dy':
+            return self.dest.y
         elif attrn == 'rise':
-            return float(self.dest.y - self.orig.y)
+            return self.dest.y - self.orig.y
         elif attrn == 'run':
-            return float(self.dest.x - self.orig.x)
+            return self.dest.x - self.orig.x
         elif attrn in ('m', 'slope'):
             ox = self.orig.x
             oy = self.orig.y
@@ -52,36 +60,39 @@ class Edge:
                 return None
             else:
                 return self.rise / self.run
-        elif attrn == 'w':
-            return self.gw.arrow_girth
         elif attrn == 'window_left':
-            if self.orig.x < self.dest.x:
-                return self.orig.window_x
+            if self.orig.window_x < self.dest.window_x:
+                return self.orig.window_x - self.margin
             else:
-                return self.dest.window_x
+                return self.dest.window_x - self.margin
         elif attrn == 'window_right':
-            if self.orig.x < self.dest.x:
-                return self.dest.window_x
+            if self.orig.window_x < self.dest.window_x:
+                return self.dest.window_x + self.margin
             else:
-                return self.orig.window_x
+                return self.orig.window_x + self.margin
         elif attrn == 'window_bot':
-            if self.orig.y < self.dest.y:
-                return self.orig.window_y
+            if self.orig.window_y < self.dest.window_y:
+                return self.orig.window_y - self.margin
             else:
-                return self.dest.window_y
+                return self.dest.window_y - self.margin
         elif attrn == 'window_top':
-            if self.orig.y < self.dest.y:
-                return self.dest.window_y
+            if self.orig.window_y < self.dest.window_y:
+                return self.dest.window_y + self.margin
             else:
-                return self.orig.window_y
+                return self.orig.window_y + self.margin
         elif attrn == 'b':
+            # Returns a pair representing a fraction
+            # y = mx + b
+            # y - b = mx
+            # -b = mx - y
+            # b = -mx + y
+            # b = y - mx
             if self.m is None:
                 return None
-            # If I had a y intercept of 0, how high would I be at my
-            # origin's x?
-            b0 = self.m * self.orig.window_x
-            # But I'm actually here, so have the difference
-            return self.orig.window_y - b0
+            denominator = self.run
+            x_numerator = self.rise * self.ox
+            y_numerator = denominator * self.oy
+            return ((y_numerator - x_numerator), denominator)
         elif attrn == 'highlit':
             return self in self.gw.selected
         else:
@@ -90,10 +101,26 @@ class Edge:
 
     def y_at(self, x):
         if self.m is None:
+            print "Well, it's vertical, I guess you did"
             return None
-        if x not in self.y_at_hints:
-            self.y_at_hints[x] = self.m * x + self.b
-        return self.y_at_hints[x]
+        else:
+            b = self.b
+            mx = (self.rise * x, self.run)
+            y = (mx[0] + b[0], self.run)
+            print "You best be near ({0},{1})".format(x, y[0]/y[1])
+            return y
+
+    def x_at(self, y):
+        # y = mx + b
+        # y - b = mx
+        # (y - b)/m = x
+        if self.m is None:
+            return self.ox
+        else:
+            b = self.b
+            numerator = y - b[1]
+            denominator = b[0]
+            return (numerator, denominator)
 
     def touching(self, x, y):
         """Do I overlap the point (x, y)?
@@ -110,26 +137,34 @@ clicked.
                 y < self.window_bot or
                 y > self.window_top):
             return False
-        if x not in self.overlap_hints:
-            self.overlap_hints[x] = {}
-        if y not in self.overlap_hints[x]:
-            perfect_y = self.y_at(x)
-            if perfect_y is None:
-                self.overlap_hints[x][y] = True
-            else:
-                self.overlap_hints[x][y] = abs(y - perfect_y) < self.w
-        return self.overlap_hints[x][y]
+        print "Maybe you clicked an edge at (%d, %d)" % (x, y)
+        # this gets unreliable when the line is really steep. cheat a little.
+        if self.m > 300:
+            perfect_x = self.x_at(y)
+            frac_x = (x * perfect_x[1] - perfect_x[0], perfect_x[1])
+            print "You're {0} away".format(frac_x[0]/frac_x[1])
+            return abs(frac_x[0]) < abs(self.w * frac_x[1])
+        perfect_y = self.y_at(x)
+        if perfect_y is None:
+            return True
+        else:
+            frac_y = (y * perfect_y[1] - perfect_y[0], perfect_y[1])
+            print "You're {0} away".format(frac_y[0]/frac_y[1])
+            return abs(frac_y[0]) < abs(self.w * frac_y[1])
+                
 
     def get_state_tup(self):
-        r = ((self.tweaks,) +
+        return ((self.tweaks, self.highlit) +
              self.orig.get_state_tup() +
              self.dest.get_state_tup())
-        if r != self.oldstate:
-            self.trash_cache()
-        return r
 
-    def trash_cache(self):
-        if self.overlap_hints != {}:
-            self.overlap_hints = {}
-        if self.y_at_hints != {}:
-            self.y_at_hints = {}
+    def reciprocate(self):
+        # Return the edge of the portal that connects the same two
+        # places in the opposite direction, supposing it exists
+        try:
+            port = self.portal.reciprocal
+            return port.edge
+        except KeyError:
+            return None
+        except AttributeError:
+            port.edge = Edge(self.gw, port)
