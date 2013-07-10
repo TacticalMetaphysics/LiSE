@@ -156,8 +156,8 @@ class Portal(Item):
          [])]
 
     def __init__(self, db, dimension, from_place, to_place):
-        self.orig = from_place
-        self.dest = to_place
+        self._orig = from_place
+        self._dest = to_place
         name = "Portal({0}->{1})".format(
             str(from_place), str(to_place))
         Item.__init__(self, db, dimension, name)
@@ -181,9 +181,11 @@ class Portal(Item):
     def __getattr__(self, attrn):
         if attrn == "spot":
             return self.dest.spot
+        elif attrn == "orig":
+            return self.db.placedict[self._dimension][self._orig]
+        elif attrn == "dest":
+            return self.db.placedict[self._dimension][self._dest]
         elif attrn == "edge":
-            if str(self) not in self.db.edgedict[self._dimension]:
-                Edge(self.db, self._dimension, self).unravel()
             return self.db.edgedict[self._dimension][str(self)]
         elif attrn == "dimension":
             return self.db.dimensiondict[self._dimension]

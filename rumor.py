@@ -587,10 +587,11 @@ destination.
         return self.make_generic_place(arg)
 
     def make_generic_place(self, dimension):
-        placename = "Place_{0}".format(self.hi_place + 1)
+        placename = "Place_{0}".format(self.hi_place)
         place = item.Place(self, dimension, placename)
         place.unravel()
         place.save()
+        self.hi_place += 1
         return place
 
     def mi_create_place(self, menuitem, arg):
