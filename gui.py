@@ -238,14 +238,13 @@ board; all visible menus; and the calendar, if it's visible."""
             # draw the edges, representing portals
             if self.portaling:
                 if self.portaled > 1:
-                    print "i shall portal"
-                if self.portal_from is not None:
-                    self.portal_triple = self.connect_arrow(
-                        self.portal_from.window_x,
-                        self.portal_from.window_y,
-                        self.last_mouse_x,
-                        self.last_mouse_y,
-                        self.portal_triple)
+                    if self.portal_from is not None:
+                        self.portal_triple = self.connect_arrow(
+                            self.portal_from.window_x,
+                            self.portal_from.window_y,
+                            self.last_mouse_x,
+                            self.last_mouse_y,
+                            self.portal_triple)
                 else:
                     dx = self.dx
                     dy = self.dy
@@ -288,12 +287,22 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen.add(newstate)
                 edge.oldstate = newstate
                 if edge.orig.visible or edge.dest.visible:
+                    order = edge.order
+                    if edge in self.selected:
+                        order += 9000
+                        for pair in edge.vertices:
+                            for unit in pair:
+                                try:
+                                    unit.delete()
+                                except:
+                                    pass
+                        edge.vertices = ((None, None), (None, None), (None, None))
                     edge.vertices = self.connect_arrow(
                         edge.orig.window_x,
                         edge.orig.window_y,
                         edge.dest.window_x,
                         edge.dest.window_y,
-                        edge.order,
+                        order,
                         edge.vertices,
                         edge.dest.r,
                         edge.highlit)
@@ -796,8 +805,6 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                     if hasattr(self.pressed, 'onclick'):
                         self.pressed.onclick()
                     if hasattr(self.pressed, 'selectable'):
-                        self.edge_order += 1
-                        self.pressed.order = self.edge_order
                         self.selected.add(self.pressed)
                         if hasattr(self.pressed, 'reciprocate'):
                             self.selected.add(self.pressed.reciprocate())

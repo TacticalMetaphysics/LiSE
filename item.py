@@ -196,24 +196,10 @@ class Portal(Item):
             raise AttributeError("Portal has no such attribute")
 
     def __repr__(self):
-        if stringlike(self.orig):
-            origname = self.orig
-        else:
-            origname = self.orig.name
-        if stringlike(self.dest):
-            destname = self.dest
-        else:
-            destname = self.dest.name
-        return 'Portal({0}->{1})'.format(origname, destname)
+        return 'Portal({0}->{1})'.format(str(self.orig), str(self.dest))
 
     def unravel(self):
-        db = self.db
-        if stringlike(self.dimension):
-            self.dimension = db.dimensiondict[self.dimension]
-        if stringlike(self.orig):
-            self.orig = db.itemdict[self.dimension.name][self.orig]
-        if stringlike(self.dest):
-            self.dest = db.itemdict[self.dimension.name][self.dest]
+        pass
 
     def get_tabdict(self):
         return {
@@ -439,14 +425,20 @@ class Journey:
             raise AttributeError('Journey has no such attribute')
 
     def __getitem__(self, i):
-        return self.steps[i]
+        (orign, destn) = self.steps[i]
+        return self.db.portalorigdestdict[self._dimension][orign][destn]
 
     def __setitem__(self, idx, port):
         """Put given portal into the step list at given index, padding steplist
 with None as needed."""
         while idx >= len(self.steps):
             self.steps.append(None)
-        self.steps[idx] = port
+        if hasattr(port, 'orig') and hasattr(port, 'dest'):
+            orign = str(port.orig)
+            destn = str(port.dest)
+        else:
+            (orign, destn) = port
+        self.steps[idx] = (orign, destn)
 
     def __len__(self):
         """Get the number of steps in the Journey.
@@ -459,14 +451,7 @@ with None as needed."""
 
 
     def unravel(self):
-        """Dereference all steps."""
-        db = self.db
-        i = 0
-        while i < len(self.steps):
-            if stringlike(self.steps[i]):
-                self.steps[i] = (
-                    db.portaldict[self.dimension.name][self.steps[i]])
-            i += 1
+        pass
 
     def steps_left(self):
         """Get the number of steps remaining until the end of the Journey.
@@ -533,9 +518,7 @@ will be None.
 
     def portal_at(self, i):
         """Return the portal at the given step, rather than the pair of place names."""
-        dimn = str(self.dimension)
-        (orign, destn) = self[i]
-        return self.db.portalorigdestdict[dimn][orign][destn]
+        return self[i]
 
     def schedule_step(self, i, start):
         """Add an event representing the step at the given index to the

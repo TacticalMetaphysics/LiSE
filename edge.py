@@ -101,13 +101,11 @@ class Edge:
 
     def y_at(self, x):
         if self.m is None:
-            print "Well, it's vertical, I guess you did"
             return None
         else:
             b = self.b
             mx = (self.rise * x, self.run)
             y = (mx[0] + b[0], self.run)
-            print "You best be near ({0},{1})".format(x, y[0]/y[1])
             return y
 
     def x_at(self, y):
@@ -137,21 +135,16 @@ clicked.
                 y < self.window_bot or
                 y > self.window_top):
             return False
-        print "Maybe you clicked an edge at (%d, %d)" % (x, y)
-        # this gets unreliable when the line is really steep. cheat a little.
         if self.m > 300:
             perfect_x = self.x_at(y)
             frac_x = (x * perfect_x[1] - perfect_x[0], perfect_x[1])
-            print "You're {0} away".format(frac_x[0]/frac_x[1])
             return abs(frac_x[0]) < abs(self.w * frac_x[1])
         perfect_y = self.y_at(x)
         if perfect_y is None:
             return True
         else:
             frac_y = (y * perfect_y[1] - perfect_y[0], perfect_y[1])
-            print "You're {0} away".format(frac_y[0]/frac_y[1])
             return abs(frac_y[0]) < abs(self.w * frac_y[1])
-                
 
     def get_state_tup(self):
         return ((self.tweaks, self.highlit) +
