@@ -28,11 +28,13 @@ class Edge:
     def __getattr__(self, attrn):
         if attrn == "dimension":
             return self.gw.board.dimension
+        elif attrn == "_dimension":
+            return self.gw.board._dimension
         elif attrn == "db":
             return self.gw.db
         elif attrn == "portal":
             return self.db.itemdict[
-                self.gw.board._dimension][self._portal]
+                self._dimension][self._portal]
         elif attrn == 'orig':
             return self.portal.orig.spot
         elif attrn == 'ox':
@@ -161,3 +163,17 @@ clicked.
             return None
         except AttributeError:
             port.edge = Edge(self.gw, port)
+
+    def delete(self):
+        if hasattr(self, 'deleted'):
+            return
+        for pair in self.vertices:
+            for vertle in pair:
+                try:
+                    vertle.delete()
+                except AttributeError:
+                    pass
+        self.portal.delete()
+        self.portal.forget()
+        del self.db.edgedict[self._dimension][self._portal]
+        self.deleted = True

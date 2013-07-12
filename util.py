@@ -341,6 +341,10 @@ and your table will be ready.
             delete_tabdict(db, td)
             insert_tabdict(db, td)
 
+        def delete(self):
+            delete_tabdict(self.db, self.get_tabdict())
+            
+
         dbop = {'insert': insert_tabdict,
                 'delete': delete_tabdict,
                 'detect': detect_tabdict,
@@ -359,10 +363,10 @@ and your table will be ready.
                   'keyqms': keyqms,
                   'rowqms': rowqms,
                   'dbop': dbop,
-                  'get_row': mkrow,
                   'get_tabdict': mktabdict,
                   'save': save,
-                  'maintab': tablenames[0]}
+                  'maintab': tablenames[0],
+                  'delete': delete}
         atrdic.update(attrs)
 
         return type.__new__(metaclass, clas, parents, atrdic)

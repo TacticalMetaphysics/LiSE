@@ -807,7 +807,9 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                     if hasattr(self.pressed, 'selectable'):
                         self.selected.add(self.pressed)
                         if hasattr(self.pressed, 'reciprocate'):
-                            self.selected.add(self.pressed.reciprocate())
+                            reciprocal = self.pressed.reciprocate()
+                            if reciprocal is not None:
+                                self.selected.add(reciprocal)
                 self.pressed = None
 
         @window.event
@@ -853,6 +855,11 @@ move_with_mouse method, use it.
                 self.grabbed.move_with_mouse(x, y, dx, dy, buttons, modifiers)
 
         @window.event
+        def on_key_press(symbol, modifiers):
+            if symbol == pyglet.window.key.DELETE:
+                self.delete_selection()
+
+        @window.event
         def on_resize(w, h):
             """Inform the on_draw function that the window's been resized."""
             self.resized = True
@@ -896,11 +903,17 @@ move_with_mouse method, use it.
         self.portaled += 1
         self.portaling = True
 
-    def connect_arrow(self, ox, oy, dx, dy,
-                      order,
-                      old_triple=((None,None),(None,None),(None,None)),
-                      center_shrink=0,
-                      highlight=False):
+    def delete_selection(self):
+        for dead in iter(self.selected):
+            dead.delete()
+        self.selected = set()
+
+    def connect_arrow(
+            self, ox, oy, dx, dy,
+            order,
+            old_triple=((None,None),(None,None),(None,None)),
+            center_shrink=0,
+            highlight=False):
         supergroup = pyglet.graphics.OrderedGroup(order, self.edgegroup)
         bggroup = SmoothBoldLineOrderedGroup(
                 0, supergroup, self.arrow_girth)

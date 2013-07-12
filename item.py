@@ -163,17 +163,15 @@ class Portal(Item):
         Item.__init__(self, db, dimension, name)
         podd = db.portalorigdestdict
         pdod = db.portaldestorigdict
-        from_place_name = str(self.orig)
-        to_place_name = str(self.dest)
         for d in (db.itemdict, podd, pdod):
             if self._dimension not in d:
                 d[self._dimension] = {}
-        if from_place_name not in podd[self._dimension]:
-            podd[self._dimension][from_place_name] = {}
-        if to_place_name not in pdod[self._dimension]:
-            pdod[self._dimension][to_place_name] = {}
-        podd[self._dimension][from_place_name][to_place_name] = self
-        pdod[self._dimension][to_place_name][from_place_name] = self
+        if self._orig not in podd[self._dimension]:
+            podd[self._dimension][self._orig] = {}
+        if self._dest not in pdod[self._dimension]:
+            pdod[self._dimension][self._dest] = {}
+        podd[self._dimension][self._orig][self._dest] = self
+        pdod[self._dimension][self._dest][self._orig] = self
 
     def __str__(self):
         return self.name
@@ -223,6 +221,11 @@ otherwise."""
         """Handler for when a thing moves through me by some amount of my
 length. Does nothing by default."""
         pass
+
+    def forget(self):
+        del self.db.portalorigdestdict[self._dimension][self._orig][self._dest]
+        del self.db.portaldestorigdict[self._dimension][self._dest][self._orig]
+        del self.db.itemdict[self._dimension][self.name]
 
 
 class Thing(Item):
@@ -426,7 +429,10 @@ class Journey:
 
     def __getitem__(self, i):
         (orign, destn) = self.steps[i]
-        return self.db.portalorigdestdict[self._dimension][orign][destn]
+        try:
+            return self.db.portalorigdestdict[self._dimension][orign][destn]
+        except KeyError:
+            return None
 
     def __setitem__(self, idx, port):
         """Put given portal into the step list at given index, padding steplist
