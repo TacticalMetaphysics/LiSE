@@ -43,6 +43,7 @@ With db, register in db's pawndict.
         self.tweaks = 0
         self.drag_offset_x = 0
         self.drag_offset_y = 0
+        self.selectable = True
         self.box_edges = (None, None, None, None)
         if self._dimension not in self.db.pawndict:
             self.db.pawndict[self._dimension] = {}

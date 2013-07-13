@@ -360,33 +360,40 @@ board; all visible menus; and the calendar, if it's visible."""
                             l, b,
                             batch=self.batch,
                             group=self.pawngroup)
-                    if pawn.highlit:
+                    if pawn in self.selected:
+                        for edge in pawn.box_edges:
+                            try:
+                                edge.delete()
+                            except (AttributeError, AssertionError):
+                                pass
+                        pawn.box_edges = (None, None, None, None)
                         yelo = (255, 255, 0, 0)
-                        pawn.box_edges[0] = self.draw_line(
-                            (l, b, l, t),
-                            yelo,
-                            self.higroup,
-                            pawn.box_edges[0])
-                        pawn.box_edges[1] = self.draw_line(
-                            (l, t, r, t),
-                            yelo,
-                            self.higroup,
-                            pawn.box_edges[1])
-                        pawn.box_edges[2] = self.draw_line(
-                            (r, t, r, b),
-                            yelo,
-                            self.higroup,
-                            pawn.box_edges[2])
-                        pawn.box_edges[3] = self.draw_line(
-                            (r, b, l, b),
-                            yelo,
-                            self.higroup,
-                            pawn.box_edges[3])
+                        pawn.box_edges = (
+                            self.draw_line(
+                                (l, b, l, t),
+                                yelo,
+                                self.higroup,
+                                pawn.box_edges[0]),
+                            self.draw_line(
+                                (l, t, r, t),
+                                yelo,
+                                self.higroup,
+                                pawn.box_edges[1]),
+                            self.draw_line(
+                                (r, t, r, b),
+                                yelo,
+                                self.higroup,
+                                pawn.box_edges[2]),
+                            self.draw_line(
+                                (r, b, l, b),
+                                yelo,
+                                self.higroup,
+                                pawn.box_edges[3]))
                     else:
                         for edge in pawn.box_edges:
                             try:
                                 edge.delete()
-                            except AttributeError:
+                            except (AttributeError, AssertionError):
                                 pass
                 else:
                     try:
@@ -396,7 +403,7 @@ board; all visible menus; and the calendar, if it's visible."""
                     for edge in pawn.box_edges:
                         try:
                             edge.delete()
-                        except AttributeError:
+                        except (AttributeError, AssertionError):
                             pass
 
             # draw the menus, really just their backgrounds for the moment
@@ -836,18 +843,25 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                 if hasattr(self.grabbed, 'dropped'):
                     self.grabbed.dropped(x, y, button, modifiers)
             self.grabbed = None
-            if not self.keep_selected:
-                self.selected = set()
-            if self.pressed is not None:
+            if self.pressed is None:
+                if not self.keep_selected:
+                    logger.debug("Unselecting %d widgets.", len(self.selected))
+                    for sel in iter(self.selected):
+                        sel.tweaks += 1
+                    self.selected = set()
+            else:
                 if (
                         x > self.pressed.window_left and
                         x < self.pressed.window_right and
                         y > self.pressed.window_bot and
                         y < self.pressed.window_top):
+                    logger.debug("%s clicked", str(self.pressed))
                     if hasattr(self.pressed, 'onclick'):
                         self.pressed.onclick()
                     if hasattr(self.pressed, 'selectable'):
+                        logger.debug("Selecting it.")
                         self.selected.add(self.pressed)
+                        self.pressed.tweaks += 1
                         if hasattr(self.pressed, 'reciprocate'):
                             reciprocal = self.pressed.reciprocate()
                             if reciprocal is not None:
