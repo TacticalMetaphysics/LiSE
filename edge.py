@@ -165,8 +165,6 @@ clicked.
             port.edge = Edge(self.gw, port)
 
     def delete(self):
-        if hasattr(self, 'deleted'):
-            return
         for pair in self.vertices:
             for vertle in pair:
                 try:
@@ -174,6 +172,4 @@ clicked.
                 except AttributeError:
                     pass
         self.portal.delete()
-        self.portal.forget()
         del self.db.edgedict[self._dimension][self._portal]
-        self.deleted = True

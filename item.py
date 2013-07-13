@@ -91,6 +91,10 @@ much."""
     def assert_can_contain(self, other):
         pass
 
+    def delete(self):
+        del self.db.itemdict[self._dimension][self.name]
+        self.erase()
+
 
 class Place(Item):
     """The 'top level' of the world model. Places contain Things and are
@@ -140,6 +144,10 @@ it with the placedict and itemdict in the db."""
     def can_contain(self, other):
         """Does it make sense for that to be here?"""
         return True
+
+    def delete(self):
+        del self.db.placedict[self._dimension][self.name]
+        Item.delete(self)
 
 
 class Portal(Item):
@@ -222,10 +230,11 @@ otherwise."""
 length. Does nothing by default."""
         pass
 
-    def forget(self):
+    def delete(self):
         del self.db.portalorigdestdict[self._dimension][self._orig][self._dest]
         del self.db.portaldestorigdict[self._dimension][self._dest][self._orig]
         del self.db.itemdict[self._dimension][self.name]
+        self.erase()
 
 
 class Thing(Item):
@@ -360,6 +369,10 @@ which is not a portal.""".format(repr(self), repr(self.location)))
 
     def speed_thru(self, port):
         return 1.0/60.0
+
+    def delete(self):
+        del self.db.thingdict[self._dimension][self.name]
+        Item.delete(self)
 
 
 thing_qvals = ["thing." + valn for valn in Thing.valns]
@@ -556,6 +569,10 @@ by default, but you can change that by supplying delay.
             i += 1
         return self.thing.schedule
 
+    def delete(self):
+        del self.db.journeydict[self._dimension][self._thing]
+        self.erase()
+
 
 journey_qvals = ["journey_step." + valn for valn in Journey.valns]
 
@@ -747,6 +764,10 @@ timeframe."""
         return (self.commencements_between(start, end),
                 self.processions_between(start, end),
                 self.conclusions_between(start, end))
+
+    def delete(self):
+        del self.db.scheduledict[self._dimension][self.name]
+        self.erase()
 
 SCHEDULE_DIMENSION_QRYFMT = """SELECT {0} FROM scheduled_event WHERE dimension 
 IN ({1})""".format(", ".join(Schedule.colns), "{0}")

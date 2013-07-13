@@ -31,6 +31,7 @@ interactive or not.
 With db, register in db's pawndict.
 
         """
+        self.db = db
         self._dimension = str(dimension)
         self._thing = str(thing)
         self._img = str(img)
@@ -42,10 +43,11 @@ With db, register in db's pawndict.
         self.tweaks = 0
         self.drag_offset_x = 0
         self.drag_offset_y = 0
-        if self._dimension not in db.pawndict:
-            db.pawndict[self._dimension] = {}
-        db.pawndict[self._dimension][self._thing] = self
-        self.db = db
+        self.box_edges = (None, None, None, None)
+        if self._dimension not in self.db.pawndict:
+            self.db.pawndict[self._dimension] = {}
+        self.db.pawndict[self._dimension][self._thing] = self
+
 
     def __str__(self):
         return str(self.thing)
@@ -61,12 +63,16 @@ With db, register in db's pawndict.
             return self.db.imgdict[self._img]
         elif attrn == 'gw':
             return self.board.gw
+        elif attrn == 'highlit':
+            return self in self.gw.selected
         elif attrn == 'hovered':
             return self.gw.hovered is self
         elif attrn == 'pressed':
             return self.gw.pressed is self
         elif attrn == 'grabbed':
             return self.gw.grabbed is self
+        elif attrn == 'selected':
+            return self in self.gw.selected
         elif attrn == 'window':
             return self.gw.window
         elif attrn == 'interactive':
@@ -131,11 +137,10 @@ make a new, hidden calendar column to represent the schedule.
         self.thing.pawn = self
         if hasattr(self, 'calcol') and self.calcol is not None:
             self.calcol.unravel()
-        else:
-            if hasattr(self.thing, 'schedule'):
-                self.calcol = CalendarCol(
-                    db, self.board.dimension.name,
-                    self.thing.name, True, True, "BigLight", "SmallDark")
+        elif hasattr(self.thing, 'schedule'):
+            self.calcol = CalendarCol(
+                db, self.board.dimension.name,
+                self.thing.name, True, True, "BigLight", "SmallDark")
 
     def getcoords(self):
         """Return my x and y in a pair."""

@@ -170,9 +170,10 @@ class GameWindow:
         self.edgegroup = pyglet.graphics.OrderedGroup(1, self.biggroup)
         self.spotgroup = pyglet.graphics.OrderedGroup(2, self.biggroup)
         self.pawngroup = pyglet.graphics.OrderedGroup(3, self.biggroup)
-        self.calgroup = TransparencyOrderedGroup(4, self.biggroup)
-        self.celgroup = TransparencyOrderedGroup(5, self.biggroup)
-        self.labelgroup = pyglet.graphics.OrderedGroup(6, self.biggroup)
+        self.higroup = pyglet.graphics.OrderedGroup(4, self.biggroup)
+        self.calgroup = TransparencyOrderedGroup(5, self.biggroup)
+        self.celgroup = TransparencyOrderedGroup(6, self.biggroup)
+        self.labelgroup = pyglet.graphics.OrderedGroup(7, self.biggroup)
         self.topgroup = pyglet.graphics.OrderedGroup(65535, self.biggroup)
         self.linegroups = {}
         self.bggd = {}
@@ -346,21 +347,56 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen.add(newstate)
                 pawn.oldstate = newstate
                 if pawn.visible:
+                    l = pawn.window_left
+                    r = pawn.window_right
+                    b = pawn.window_bot
+                    t = pawn.window_top
                     try:
                         pawn.sprite.x = pawn.window_left
                         pawn.sprite.y = pawn.window_bot
                     except AttributeError:
                         pawn.sprite = pyglet.sprite.Sprite(
                             pawn.img.tex,
-                            pawn.window_left,
-                            pawn.window_bot,
+                            l, b,
                             batch=self.batch,
                             group=self.pawngroup)
+                    if pawn.highlit:
+                        yelo = (255, 255, 0, 0)
+                        pawn.box_edges[0] = self.draw_line(
+                            (l, b, l, t),
+                            yelo,
+                            self.higroup,
+                            pawn.box_edges[0])
+                        pawn.box_edges[1] = self.draw_line(
+                            (l, t, r, t),
+                            yelo,
+                            self.higroup,
+                            pawn.box_edges[1])
+                        pawn.box_edges[2] = self.draw_line(
+                            (r, t, r, b),
+                            yelo,
+                            self.higroup,
+                            pawn.box_edges[2])
+                        pawn.box_edges[3] = self.draw_line(
+                            (r, b, l, b),
+                            yelo,
+                            self.higroup,
+                            pawn.box_edges[3])
+                    else:
+                        for edge in pawn.box_edges:
+                            try:
+                                edge.delete()
+                            except AttributeError:
+                                pass
                 else:
-                    if pawn.sprite is not None:
+                    try:
+                        pawn.sprite.delete()
+                    except (AttributeError, AssertionError):
+                        pass
+                    for edge in pawn.box_edges:
                         try:
-                            pawn.sprite.delete()
-                        except (AttributeError, AssertionError):
+                            edge.delete()
+                        except AttributeError:
                             pass
 
             # draw the menus, really just their backgrounds for the moment
@@ -419,11 +455,6 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen.discard(self.calendar.oldstate)
                 self.calendar.oldstate = newstate
                 for calcol in self.calcols:
-                    if calcol.sprite is not None:
-                        try:
-                            calcol.sprite.delete()
-                        except (AttributeError, AssertionError):
-                            pass
                     if calcol.visible:
                         if calcol.width != calcol.old_width:
                             calcol.old_image = (
@@ -437,12 +468,12 @@ board; all visible menus; and the calendar, if it's visible."""
                             calcol.window_bot,
                             batch=self.batch,
                             group=self.calgroup)
+                    else:
+                        try:
+                            calcol.sprite.delete()
+                        except AttributeError:
+                            pass
                     for cel in calcol.celldict.itervalues():
-                        if cel.sprite is not None:
-                            try:
-                                cel.sprite.delete()
-                            except (AttributeError, AssertionError):
-                                pass
                         if cel.visible:
                             if self.hovered == cel:
                                 color = cel.style.fg_active.tup
@@ -490,6 +521,17 @@ board; all visible menus; and the calendar, if it's visible."""
                             else:
                                 cel.label.x = cel.window_left
                                 cel.label.y = y
+                        else:
+                            try:
+                                cel.label.delete()
+                            except AttributeError:
+                                pass
+                            try:
+                                cel.sprite.delete()
+                            except AttributeError:
+                                pass
+                            cel.label = None
+                            cel.sprite = None
             if self.last_age != self.gamestate.age:
                 # draw the time line on top of the calendar
                 if (

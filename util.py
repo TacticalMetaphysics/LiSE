@@ -341,7 +341,7 @@ and your table will be ready.
             delete_tabdict(db, td)
             insert_tabdict(db, td)
 
-        def delete(self):
+        def erase(self):
             delete_tabdict(self.db, self.get_tabdict())
             
 
@@ -366,7 +366,7 @@ and your table will be ready.
                   'get_tabdict': mktabdict,
                   'save': save,
                   'maintab': tablenames[0],
-                  'delete': delete}
+                  'erase': erase}
         atrdic.update(attrs)
 
         return type.__new__(metaclass, clas, parents, atrdic)
