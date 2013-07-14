@@ -141,6 +141,10 @@ the three given effect decks. Register with db.eventdict.
             "proceed_effects": self.proceed_effects.name,
             "conclude_effects": self.conclude_effects.name}
 
+    def delete(self):
+        self.db.remove_event(self)
+        self.erase()
+
     def unravel(self):
         """Dereference the effect decks.
 

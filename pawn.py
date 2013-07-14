@@ -13,7 +13,7 @@ class Pawn:
 
     tables = [
         ("pawn",
-         {"dimension": "text not null default 'Physical'",
+         {"board": "text not null default 'Physical'",
           "thing": "text not null",
           "img": "text not null default 'troll_m'",
           "visible": "boolean not null default 1",
@@ -23,7 +23,7 @@ class Pawn:
           "dimension, thing": ("thing", "dimension, name")},
          [])]
 
-    def __init__(self, db, dimension, thing, img, visible, interactive):
+    def __init__(self, db, board, thing, img, visible, interactive):
         """Return a pawn on the board for the given dimension, representing
 the given thing with the given image. It may be visible or not,
 interactive or not.
@@ -32,7 +32,7 @@ With db, register in db's pawndict.
 
         """
         self.db = db
-        self._dimension = str(dimension)
+        self._dimension = str(board)
         self._thing = str(thing)
         self._img = str(img)
         self._visible = visible
@@ -208,6 +208,19 @@ clicked. This is probably not the ideal."""
             self.thing.journey.steps.append((str(self.thing.location), str(spot.place)))
             self.thing.journey.schedule()
             self.db.caldict[str(self.dimension)].adjust()
+
+    def get_tabdict(self):
+        return {
+            "pawn": {
+                "board": self._dimension,
+                "thing": self._thing,
+                "img": self._img,
+                "visible": self._visible,
+                "interactive": self._interactive}}
+
+    def delete(self):
+        del self.db.pawndict[self._dimension][self._thing]
+        self.erase()
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])
 

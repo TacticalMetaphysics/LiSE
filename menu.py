@@ -196,6 +196,21 @@ just how to display this widget"""
             self.pressed,
             self.tweaks)
 
+    def get_tabdict(self):
+        return {
+            "menu_item": {
+                "board": self._board,
+                "menu": self._menu,
+                "idx": self.idx,
+                "on_click": self._on_click,
+                "closer": self.closer,
+                "visible": self._visible,
+                "interactive": self.interactive}}
+
+    def delete(self):
+        del self.db.menuitemdict[self._board][self._menu][self.idx]
+        self.erase()
+
 
 def pull_items_in_menus(db, menunames):
     qryfmt = "SELECT {0} FROM menu_item WHERE menu IN ({1})"
@@ -235,12 +250,6 @@ class Menu:
          {},
          [])]
     interactive = True
-
-    def get_tabdict(self):
-        return {
-            "menu": self.get_rowdict(),
-            "menu_item": [it.get_rowdict() for it in self.items]
-        }
 
     def __init__(self, db, board, name, left, bottom, top, right, style,
                  main_for_window, visible):
@@ -341,6 +350,24 @@ With db, register with db's menudict.
                 "Menu instance has no such attribute: " +
                 attrn)
 
+    def __eq__(self, other):
+        """Return true if the names and boards match"""
+        return (
+            self.name == other.name and
+            self.board == other.board)
+
+    def __getitem__(self, i):
+        """Return an item herein"""
+        return self.items[i]
+
+    def __setitem__(self, i, to):
+        """Set a menuitem"""
+        self.items[i] = to
+
+    def __delitem__(self, i):
+        """Delete a menuitem"""
+        return self.items.__delitem__(i)
+
     def unravel(self):
         """Dereference style and board; fetch items from db's menuitemdict;
 and unravel style and all items."""
@@ -364,24 +391,6 @@ and unravel style and all items."""
             item.window_top = self.window_top - item.top_from_top
             item.window_bot = item.window_top - self.rowheight
             i += 1
-
-    def __eq__(self, other):
-        """Return true if the names and boards match"""
-        return (
-            self.name == other.name and
-            self.board == other.board)
-
-    def __getitem__(self, i):
-        """Return an item herein"""
-        return self.items[i]
-
-    def __setitem__(self, i, to):
-        """Set a menuitem"""
-        self.items[i] = to
-
-    def __delitem__(self, i):
-        """Delete a menuitem"""
-        return self.items.__delitem__(i)
 
     def toggle_visibility(self):
         """Make myself visible if hidden, invisible if shown."""
@@ -413,6 +422,27 @@ me"""
             self.grabpoint,
             self.pressed,
             self.tweaks)
+
+    def get_tabdict(self):
+        return {
+            "menu": {
+                "board": self._board,
+                "name": self.name,
+                "left": self.left_prop,
+                "bottom": self.bot_prop,
+                "top": self.top_prop,
+                "right": self.right_prop,
+                "style": self._style,
+                "main_for_window": self.main_for_window,
+                "visible": self._visible},
+            "menu_item": [
+                it.get_tabdict()["menu_item"] for it in self.items]
+        }
+
+    def delete(self):
+        del self.db.menudict[self._board][self.name]
+        del self.db.menuitemdict[self._board][self.name]
+        self.erase()
 
 
 item_menu_qryfmt = (

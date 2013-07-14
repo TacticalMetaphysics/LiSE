@@ -307,33 +307,6 @@ and your table will be ready.
                     r[tabname] = missing_keydicts_table(db, rd, tabname)
             return r
 
-        def mkrow(self, tabn=None, rowdict=None):
-            if tabn is None:
-                tabn = self.maintab
-            if rowdict is None:
-                rowdict = self.get_rowdict(tabn)
-            r = []
-            for coln in self.colnames[tabn]:
-                r.append(rowdict[coln])
-            return tuple(r)
-
-        def mkrowdict(self, tabname):
-            # Invariant: For the named table, I have attributes named
-            # and typed the same way as the columns.
-            r = {}
-            for colname in self.colnames[tabname]:
-                if getattr(self, colname).__class__ in (int, float, bool):
-                    r[colname] = getattr(self, colname)
-                else:
-                    r[colname] = str(getattr(self, colname))
-            return r
-
-        def mktabdict(self):
-            r = {}
-            for tabname in tablenames:
-                r[tabname] = mkrowdict(self, tabname)
-            return r
-
         def save(self, db=None):
             if db is None:
                 db = self.db
@@ -363,7 +336,6 @@ and your table will be ready.
                   'keyqms': keyqms,
                   'rowqms': rowqms,
                   'dbop': dbop,
-                  'get_tabdict': mktabdict,
                   'save': save,
                   'maintab': tablenames[0],
                   'erase': erase}

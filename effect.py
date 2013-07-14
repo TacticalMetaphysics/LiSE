@@ -43,15 +43,12 @@ called with the given argument. Register in db.effectdict."""
         else:
             raise AttributeError("Effect instance has no such attribute")
 
-    def get_rowdict(self):
-        return {
-            "name": self.name,
-            "func": self._func,
-            "arg": self.arg}
-
     def get_tabdict(self):
         return {
-            "effect": self.get_rowdict()}
+            "effect": {
+                "name": self.name,
+                "func": self._func,
+                "arg": self.arg}}
 
     def unravel(self):
         """If the function was supplied as a string, look up what it refers
@@ -65,6 +62,10 @@ to."""
             return (self, None)
         else:
             return r
+
+    def delete(self):
+        del self.db.dimensiondict[self.name]
+        self.erase()
 
 
 class CreatePlaceEffect(Effect):

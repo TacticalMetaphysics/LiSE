@@ -67,6 +67,19 @@ green, blue, and alpha. Register in db.colordict.
         """Looks just like the tuple."""
         return "(" + ", ".join(self.tup) + ")"
 
+    def get_tabdict(self):
+        return {
+            "color": {
+                "name": self.name,
+                "red": self.red,
+                "green": self.green,
+                "blue": self.blue,
+                "alpha": self.alpha}}
+
+    def delete(self):
+        del self.db.colordict[self.name]
+        self.erase()
+
 
 class Style:
     """A collection of cogent information for rendering text and things
@@ -124,9 +137,6 @@ With db, register in its styledict.
         else:
             raise AttributeError("Style instance has no such attribute")
 
-    def unravel(self):
-        pass
-
     def __eq__(self, other):
         """Check we're both Style instances and we have the same name"""
         return (
@@ -139,6 +149,26 @@ spacing"""
         return hash((self.name, self.fontface, self.fontsize, self.spacing,
                      self.bg_inactive, self.bg_active, self.fg_inactive,
                      self.fg_active))
+
+    def unravel(self):
+        pass
+
+    def get_tabdict(self):
+        return {
+            "style": {
+                "name": self.name,
+                "fontface": self.fontface,
+                "fontsize": self.fontsize,
+                "spacing": self.spacing,
+                "bg_inactive": self.bg_inactive,
+                "bg_active": self.bg_active,
+                "fg_inactive": self.fg_inactive,
+                "fg_active": self.fg_active}}
+
+    def delete(self):
+        del self.db.styledict[self.name]
+        self.erase()
+
 
 read_colors_fmt = (
     "SELECT {0} FROM color WHERE name IN ({1})".format(Color.colnstr, "{0}"))

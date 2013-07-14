@@ -49,7 +49,7 @@ for schema in iter(schemata):
             str(oe) + " while trying to execute: \n" + schema)
 
 oldhome = os.getcwd()
-os.chdir('init')
+os.chdir('sql')
 for initfile in sorted(os.listdir('.')):
     if initfile[-3:] == "sql":  # weed out automatic backups and so forth
         print "reading SQL from file " + initfile

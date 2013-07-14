@@ -91,10 +91,13 @@ everything."""
             thing.unravel()
 
     def get_edges(self):
-        """Return pairs of hashes, where each hash represents a portal
+        """Return pairs of names, where each name represents a portal
 herein."""
-        return [(hash(item[0]), hash(item[1])) for item in
-                self.portalorigdestdict.iteritems()]
+        r = []
+        for (orign, origdict) in self.portalorigdestdict.iteritems():
+            for destn in origdict.iterkeys():
+                r.append((orign, destn))
+        return r
 
     def get_edge_atts(self):
         """This will be useful when I want to add weights to the edges."""

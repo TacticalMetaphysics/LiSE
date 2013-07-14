@@ -91,6 +91,12 @@ much."""
     def assert_can_contain(self, other):
         pass
 
+    def get_tabdict(self):
+        return {
+            "item": {
+                "dimension": self._dimension,
+                "name": self.name}}
+
     def delete(self):
         del self.db.itemdict[self._dimension][self.name]
         self.erase()
@@ -145,9 +151,19 @@ it with the placedict and itemdict in the db."""
         """Does it make sense for that to be here?"""
         return True
 
+    def get_tabdict(self):
+        return {
+            "place": {
+                "dimension": self._dimension,
+                "name": self.name},
+            "item": {
+                "dimension": self._dimension,
+                "name": self.name}}
+
     def delete(self):
         del self.db.placedict[self._dimension][self.name]
-        Item.delete(self)
+        del self.db.itemdict[self._dimension][self.name]
+        self.erase()
 
 
 class Portal(Item):
@@ -201,7 +217,7 @@ class Portal(Item):
         else:
             raise AttributeError("Portal has no such attribute")
 
-    def __repr__(self):
+    def __str__(self):
         return 'Portal({0}->{1})'.format(str(self.orig), str(self.dest))
 
     def unravel(self):
@@ -210,9 +226,18 @@ class Portal(Item):
     def get_tabdict(self):
         return {
             "portal": {
-                "dimension": str(self.dimension),
-                "from_place": str(self.orig),
-                "to_place": str(self.dest)}}
+                "dimension": self._dimension,
+                "from_place": self._orig,
+                "to_place": self._dest},
+            "item": {
+                "dimension": self._dimension,
+                "name": str(self)}}
+
+    def delete(self):
+        del self.db.portalorigdestdict[self._dimension][self._orig][self._dest]
+        del self.db.portaldestorigdict[self._dimension][self._dest][self._orig]
+        del self.db.itemdict[self._dimension][self.name]
+        self.erase()
 
     def admits(self, traveler):
         """Return True if I want to let the given thing enter me, False
@@ -229,12 +254,6 @@ otherwise."""
         """Handler for when a thing moves through me by some amount of my
 length. Does nothing by default."""
         pass
-
-    def delete(self):
-        del self.db.portalorigdestdict[self._dimension][self._orig][self._dest]
-        del self.db.portaldestorigdict[self._dimension][self._dest][self._orig]
-        del self.db.itemdict[self._dimension][self.name]
-        self.erase()
 
 
 class Thing(Item):
@@ -354,6 +373,21 @@ immediately. Else raise exception as appropriate."""
         it.assert_can_contain(self)
         it.add(self)
 
+    def get_tabdict(self):
+        return {
+            "thing": {
+                "dimension": self._dimension,
+                "name": self.name},
+            "item": {
+                "dimension": self._dimension,
+                "name": self.name}}
+
+    def delete(self):
+        del self.db.locdict[self._dimension][self.name]
+        del self.db.thingdict[self._dimension][self.name]
+        del self.db.itemdict[self._dimension][self.name]
+        self.erase()
+
     def pass_through(self, there, elsewhere):
         """Try to enter there, and immediately go elsewhere. Raise
 ShortstopException if it doesn't work."""
@@ -369,10 +403,6 @@ which is not a portal.""".format(repr(self), repr(self.location)))
 
     def speed_thru(self, port):
         return 1.0/60.0
-
-    def delete(self):
-        del self.db.thingdict[self._dimension][self.name]
-        Item.delete(self)
 
 
 thing_qvals = ["thing." + valn for valn in Thing.valns]
@@ -472,6 +502,24 @@ with None as needed."""
     def unravel(self):
         pass
 
+    def get_tabdict(self):
+        i = 0
+        iod = []
+        for step in self.steps:
+            iod.append({
+                "dimension": self._dimension,
+                "thing": self._thing,
+                "idx": i,
+                "from_place": step[0],
+                "to_place": step[1]})
+            i += 1
+        return {
+            "journey_step": iod}
+
+    def delete(self):
+        del self.db.journeydict[self._dimension][self._thing]
+        self.erase()
+
     def steps_left(self):
         """Get the number of steps remaining until the end of the Journey.
 
@@ -569,10 +617,6 @@ by default, but you can change that by supplying delay.
             i += 1
         return self.thing.schedule
 
-    def delete(self):
-        del self.db.journeydict[self._dimension][self._thing]
-        self.erase()
-
 
 journey_qvals = ["journey_step." + valn for valn in Journey.valns]
 
@@ -623,17 +667,6 @@ contevdict, and endevdict."""
         else:
             raise AttributeError("Schedule has no such attribute")
 
-    def get_tabdict(self):
-        return {
-            "scheduled_event": [
-                {
-                    "dimension": self.dimension.name,
-                    "item": self.item.name,
-                    "start": ev.start,
-                    "event": ev.name,
-                    "length": ev.length}
-                for ev in self.events_starting.itervalues()]}
-
     def __iter__(self):
         """Return iterator over my events in order of their start times."""
         return self.events.itervalues()
@@ -655,6 +688,21 @@ contevdict, and endevdict."""
         return (
             ev in self.events_starting[ev.start] and
             ev in self.events_ending[ev_end])
+
+    def get_tabdict(self):
+        return {
+            "scheduled_event": [
+                {
+                    "dimension": self.dimension.name,
+                    "item": self.item.name,
+                    "start": ev.start,
+                    "event": ev.name,
+                    "length": ev.length}
+                for ev in self.events_starting.itervalues()]}
+
+    def delete(self):
+        del self.db.scheduledict[self._dimension][self.name]
+        self.erase()
 
     def unravel(self):
         db = self.db
@@ -764,10 +812,6 @@ timeframe."""
         return (self.commencements_between(start, end),
                 self.processions_between(start, end),
                 self.conclusions_between(start, end))
-
-    def delete(self):
-        del self.db.scheduledict[self._dimension][self.name]
-        self.erase()
 
 SCHEDULE_DIMENSION_QRYFMT = """SELECT {0} FROM scheduled_event WHERE dimension 
 IN ({1})""".format(", ".join(Schedule.colns), "{0}")

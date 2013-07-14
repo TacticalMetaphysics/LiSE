@@ -168,11 +168,9 @@ cells.
         self.celldict = {}
         self.cell_cache = {}
         self.oldwidth = None
-        dimname = str(self.dimension)
-        itname = str(self.item)
-        if dimname not in db.calcoldict:
-            db.calcoldict[dimname] = {}
-        db.calcoldict[dimname][itname] = self
+        if self._dimension not in db.calcoldict:
+            db.calcoldict[self._dimension] = {}
+        db.calcoldict[self._dimension][self._item] = self
 
     def __iter__(self):
         return self.celldict.itervalues()
@@ -284,6 +282,10 @@ between any two states that should appear different on-screen."""
             self.interactive,
             self.tweaks)
 
+    def delete(self):
+        del self.db.calcoldict[self._dimension][self._item]
+        self.erase()
+
 
 class Calendar:
     """A collection of calendar columns representing at least one
@@ -291,12 +293,12 @@ schedule, possibly several.
 
 """
     scroll_factor = 4
-
+ 
     def __init__(
             self, board, left, right, top, bot, visible, interactive,
             rows_on_screen, scrolled_to):
         self.db = board.db
-        self.board = board
+        self._dimension = board
         self.left_prop = left
         self.right_prop = right
         self.top_prop = top
@@ -317,7 +319,9 @@ schedule, possibly several.
         return len(self.coldict)
 
     def __getattr__(self, attrn):
-        if attrn == 'gw':
+        if attrn == 'board':
+            return self.db.boarddict[self._dimension]
+        elif attrn == 'gw':
             if not hasattr(self.board, 'gw'):
                 return None
             else:
@@ -502,6 +506,12 @@ columns."""
         """Become visible."""
         if not self.visible:
             self.toggle_visibility()
+
+    def delete(self):
+        for item in self.coldict.iteritems():
+            item[1].delete()
+            del self.coldict[item[0]]
+        del self.db.caldict[self._dimension]
 
 
 rcib_format = (

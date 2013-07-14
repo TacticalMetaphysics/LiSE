@@ -63,6 +63,10 @@ provided."""
                 "path": self.path,
                 "rltile": self.rltile}}
 
+    def delete(self):
+        del self.db.imgdict[self.name]
+        self.erase()
+
     def unravel(self):
         """Load the underlying texture using pyglet.
 

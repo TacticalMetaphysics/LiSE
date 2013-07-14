@@ -101,5 +101,9 @@ item's name, and the name of the attribute.
             "character_skill_link": skills,
             "attribution": attributions}
 
+    def delete(self):
+        del self.db.characterdict[self.name]
+        self.erase()
+
     def unravel(self):
         pass

@@ -74,6 +74,12 @@ class Card:
                 "style": stylen}
         }
 
+    def delete(self):
+        # May leave a gap in whatever hands it's in. The hands should
+        # be able to handle this.
+        del self.db.carddict[self._dimension][self.name]
+        self.erase()
+
     def mkwidget(self, x, y):
         self.widget = CardWidget(self, x, y)
         self.widget.unravel()
@@ -346,7 +352,7 @@ class Hand:
         self.db.handdict[self.name] = self
         if str(self.board) not in self.db.boardhanddict:
             self.db.boardhanddict[str(self.board)] = {}
-        self.db.boardhanddict[str(self.board)][str(self)] = self
+        self.db.boardhanddict[self._board][self.name] = self
         self.oldstate = None
 
     def __hash__(self):
@@ -474,6 +480,32 @@ class Hand:
                 card.widget.x = x
                 card.widget.y = windobot
             prev_right = x + card.widget.width
+
+    def get_tabdict(self):
+        return {
+            "hand_card": [ 
+                {
+                    "hand": self.name,
+                    "idx": idx,
+                    "card": str(card)} 
+                for (idx, card) in
+                self.db.handcarddict[self.name].iteritems()],
+            "hand_board": {
+                "hand": self.name,
+                "board": self._board,
+                "visible": self._visible,
+                "interactive": self._interactive,
+                "style": self._style,
+                "left": self._left,
+                "right": self._right,
+                "bot": self._bot,
+                "top": self._top}}
+
+    def delete(self):
+        del self.db.handcarddict[self.name]
+        del self.db.boardhanddict[self._board][self.name]
+        del self.db.handdict[self.name]
+        self.erase()
 
 
 cards_qryfmt = (

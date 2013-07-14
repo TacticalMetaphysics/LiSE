@@ -80,7 +80,7 @@ time.
             "rows_on_screen": calendar_rows_on_screen,
             "scrolled_to": calendar_scrolled_to}
         self.calendar = Calendar(**caldict)
-        self.db.boarddict[str(self)] = self
+        self.db.boarddict[self._dimension] = self
 
     def __getattr__(self, attrn):
         if attrn == "dimension":
@@ -184,14 +184,14 @@ and menus herein.
         for hand in self.handdict.itervalues():
             hand.adjust()
         for port in self.portals:
-            if str(port) not in self.db.edgedict:
+            if str(port) not in self.db.edgedict[port._dimension]:
                 port.edge = Edge(self.gw, port)
 
     def get_tabdict(self):
         return {
             "board": {
-                "dimension": self.dimension.name,
-                "wallpaper": self.wallpaper.name,
+                "dimension": self._dimension,
+                "wallpaper": self._wallpaper,
                 "width": self.width,
                 "height": self.height,
                 "view_left": self.view_left,
@@ -204,6 +204,10 @@ and menus herein.
                 "calendar_bot": self.calendar.bot_prop,
                 "calendar_rows_on_screen": self.calendar.rows_on_screen,
                 "calendar_scrolled_to": self.calendar.scrolled_to}}
+
+    def delete(self):
+        del self.db.boarddict[self._dimension]
+        self.erase()
 
 read_some_boards_format = (
     "SELECT {0} FROM board WHERE dimension IN ({1})".format(
