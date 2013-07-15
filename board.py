@@ -63,7 +63,8 @@ time.
 
         """
         self.db = db
-        self._dimension = dimension
+        self._dimension = str(dimension)
+        self.db.boarddict[self._dimension] = self
         self.width = width
         self.height = height
         self._wallpaper = wallpaper
@@ -80,7 +81,7 @@ time.
             "rows_on_screen": calendar_rows_on_screen,
             "scrolled_to": calendar_scrolled_to}
         self.calendar = Calendar(**caldict)
-        self.db.boarddict[self._dimension] = self
+
 
     def __getattr__(self, attrn):
         if attrn == "dimension":
@@ -128,12 +129,6 @@ dimension's hash.
 
         """
         return hash(self.dimension)
-
-    def __repr__(self):
-        return "A board, %d pixels wide by %d tall, representing the "\
-            "dimension %s, containing %d spots, %d pawns, and %d menus."\
-            % (self.width, self.height, self.dimension, len(self.spotdict),
-               len(self.pawndict), len(self.menudict))
 
     def __str__(self):
         return self._dimension
@@ -205,6 +200,11 @@ and menus herein.
                 "calendar_rows_on_screen": self.calendar.rows_on_screen,
                 "calendar_scrolled_to": self.calendar.scrolled_to}}
 
+    def get_keydict(self):
+        return {
+            "board": {
+                "dimension": self._dimension}}
+
     def delete(self):
         del self.db.boarddict[self._dimension]
         self.erase()
@@ -260,6 +260,7 @@ def load_boards(db, boards):
     """From the given database, load the boards representing the
 dimensions by the given names, returning a dictionary keyed with the
 dimension names."""
+    load_dimensions(db, boards)
     qryfmt = read_some_boards_format
     qrystr = qryfmt.format(", ".join(["?"] * len(boards)))
     db.c.execute(qrystr, boards)
@@ -271,7 +272,6 @@ dimension names."""
         rowdict["db"] = db
         r[rowdict["dimension"]] = Board(**rowdict)
         imgs.add(rowdict["wallpaper"])
-    load_dimensions(db, boards)
     for menus in read_menus_in_boards(db, boards).itervalues():
         for menu in menus.itervalues():
             styles.add(menu._style)

@@ -200,11 +200,8 @@ class GameWindow:
 
         self.board = self.db.boarddict[boardname]
         self.board.set_gw(self)
-        self.calcols = []
-        for pawn in self.board.pawndict.itervalues():
-            if hasattr(pawn, 'calcol'):
-                self.calcols.append(pawn.calcol)
         self.calendar = self.board.calendar
+        self.calendar.adjust()
         self.drawn_board = None
         self.drawn_edges = None
         self.timeline = None
@@ -361,12 +358,6 @@ board; all visible menus; and the calendar, if it's visible."""
                             batch=self.batch,
                             group=self.pawngroup)
                     if pawn in self.selected:
-                        for edge in pawn.box_edges:
-                            try:
-                                edge.delete()
-                            except (AttributeError, AssertionError):
-                                pass
-                        pawn.box_edges = (None, None, None, None)
                         yelo = (255, 255, 0, 0)
                         pawn.box_edges = (
                             self.draw_line(
@@ -395,6 +386,7 @@ board; all visible menus; and the calendar, if it's visible."""
                                 edge.delete()
                             except (AttributeError, AssertionError):
                                 pass
+                        pawn.box_edges = (None, None, None, None)
                 else:
                     try:
                         pawn.sprite.delete()
@@ -461,13 +453,12 @@ board; all visible menus; and the calendar, if it's visible."""
                 self.onscreen.add(newstate)
                 self.onscreen.discard(self.calendar.oldstate)
                 self.calendar.oldstate = newstate
-                for calcol in self.calcols:
-                    if calcol.visible:
-                        if calcol.width != calcol.old_width:
-                            calcol.old_image = (
-                                calcol.inactive_pattern.create_image(
-                                    calcol.width, calcol.height))
-                            calcol.old_width = calcol.width
+                for calcol in self.calendar.cols:
+                    if calcol.width != calcol.old_width:
+                        calcol.old_image = (
+                            calcol.inactive_pattern.create_image(
+                                calcol.width, calcol.height))
+                        calcol.old_width = calcol.width
                         image = calcol.old_image
                         calcol.sprite = pyglet.sprite.Sprite(
                             image,
@@ -475,11 +466,6 @@ board; all visible menus; and the calendar, if it's visible."""
                             calcol.window_bot,
                             batch=self.batch,
                             group=self.calgroup)
-                    else:
-                        try:
-                            calcol.sprite.delete()
-                        except AttributeError:
-                            pass
                     for cel in calcol.celldict.itervalues():
                         if cel.visible:
                             if self.hovered == cel:
@@ -843,30 +829,30 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                 if hasattr(self.grabbed, 'dropped'):
                     self.grabbed.dropped(x, y, button, modifiers)
             self.grabbed = None
-            if self.pressed is None:
+            if self.pressed not in self.selected:
                 if not self.keep_selected:
                     logger.debug("Unselecting %d widgets.", len(self.selected))
                     for sel in iter(self.selected):
                         sel.tweaks += 1
                     self.selected = set()
-            else:
-                if (
-                        x > self.pressed.window_left and
-                        x < self.pressed.window_right and
-                        y > self.pressed.window_bot and
-                        y < self.pressed.window_top):
-                    logger.debug("%s clicked", str(self.pressed))
-                    if hasattr(self.pressed, 'onclick'):
-                        self.pressed.onclick()
-                    if hasattr(self.pressed, 'selectable'):
-                        logger.debug("Selecting it.")
-                        self.selected.add(self.pressed)
-                        self.pressed.tweaks += 1
-                        if hasattr(self.pressed, 'reciprocate'):
-                            reciprocal = self.pressed.reciprocate()
-                            if reciprocal is not None:
-                                self.selected.add(reciprocal)
-                self.pressed = None
+            if (
+                    self.pressed is not None and
+                    x > self.pressed.window_left and
+                    x < self.pressed.window_right and
+                    y > self.pressed.window_bot and
+                    y < self.pressed.window_top):
+                logger.debug("%s clicked", str(self.pressed))
+                if hasattr(self.pressed, 'onclick'):
+                    self.pressed.onclick()
+                if hasattr(self.pressed, 'selectable'):
+                    logger.debug("Selecting it.")
+                    self.selected.add(self.pressed)
+                    self.pressed.tweaks += 1
+                    if hasattr(self.pressed, 'reciprocate'):
+                        reciprocal = self.pressed.reciprocate()
+                        if reciprocal is not None:
+                            self.selected.add(reciprocal)
+            self.pressed = None
 
         @window.event
         def on_mouse_drag(x, y, dx, dy, buttons, modifiers):

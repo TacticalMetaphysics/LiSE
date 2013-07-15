@@ -18,9 +18,9 @@ class Pawn:
           "img": "text not null default 'troll_m'",
           "visible": "boolean not null default 1",
           "interactive": "boolean not null default 1"},
-         ("dimension", "thing"),
+         ("board", "thing"),
          {"img": ("img", "name"),
-          "dimension, thing": ("thing", "dimension, name")},
+          "board, thing": ("thing", "dimension, name")},
          [])]
 
     def __init__(self, db, board, thing, img, visible, interactive):
@@ -60,6 +60,13 @@ With db, register in db's pawndict.
             return self.db.dimensiondict[self._dimension]
         elif attrn == 'thing':
             return self.db.thingdict[self._dimension][self._thing]
+        elif attrn == 'calcol':
+            if (
+                    self._dimension in self.db.calcoldict and
+                    self._thing in self.db.calcoldict[self._dimension]):
+                return self.db.calcoldict[self._dimension][self._thing]
+            else:
+                return None
         elif attrn == 'img':
             return self.db.imgdict[self._img]
         elif attrn == 'gw':
@@ -179,6 +186,7 @@ portal {1} properly.""".format(repr(self), repr(port)))
 clicked. This is probably not the ideal."""
         if hasattr(self, 'calcol'):
             self.calcol.toggle_visibility()
+            self.calcol.cal.adjust()
 
     def get_state_tup(self):
         """Return a tuple containing everything you might need to draw me."""
@@ -204,10 +212,10 @@ clicked. This is probably not the ideal."""
                 spot is not None and
                 self.thing.journey.steps_left() == 0 and
                 str(self.thing.location) in
-                self.db.portaldestorigdict[str(self.dimension)][str(spot.place)]):
-            self.thing.journey.steps.append((str(self.thing.location), str(spot.place)))
+                self.db.portaldestorigdict[self._dimension][spot._place]):
+            self.thing.journey.steps.append(self.thing._location, spot._place)
             self.thing.journey.schedule()
-            self.db.caldict[str(self.dimension)].adjust()
+            self.db.caldict[self._dimension].adjust()
 
     def get_tabdict(self):
         return {
@@ -220,12 +228,23 @@ clicked. This is probably not the ideal."""
 
     def delete(self):
         del self.db.pawndict[self._dimension][self._thing]
+        try:
+            self.sprite.delete()
+        except (AttributeError, AssertionError):
+            pass
+        for edge in self.box_edges:
+            try:
+                edge.delete()
+            except (AttributeError, AssertionError):
+                pass
         self.erase()
+        self.calcol.delete()
+        self.thing.delete()
 
 pawncolstr = ", ".join(Pawn.colnames["pawn"])
 
 pawn_dimension_qryfmt = (
-    "SELECT {0} FROM pawn WHERE dimension IN ({1})".format(pawncolstr, "{0}"))
+    "SELECT {0} FROM pawn WHERE board IN ({1})".format(pawncolstr, "{0}"))
 
 
 def read_pawns_in_boards(db, names):
@@ -244,7 +263,7 @@ thing name.
     for row in db.c:
         rowdict = dictify_row(row, Pawn.colnames["pawn"])
         rowdict["db"] = db
-        r[rowdict["dimension"]][rowdict["thing"]] = Pawn(**rowdict)
+        r[rowdict["board"]][rowdict["thing"]] = Pawn(**rowdict)
     return r
 
 

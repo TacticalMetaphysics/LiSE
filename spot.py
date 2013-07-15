@@ -206,6 +206,23 @@ me."""
             self.hovered,
             self.tweaks)
 
+    def get_keydict(self):
+        return {
+            "spot": {
+                "dimension": self._dimension,
+                "place": self._place}}
+
+    def get_tabdict(self):
+        return {
+            "spot": {
+                "dimension": self._dimension,
+                "place": self._place,
+                "img": self._img,
+                "x": self.x,
+                "y": self.y,
+                "visible": self._visible,
+                "interactive": self._interactive}}
+
 
 spot_dimension_qryfmt = (
     "SELECT {0} FROM spot WHERE dimension IN ({1})".format(

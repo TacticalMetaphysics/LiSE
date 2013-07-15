@@ -64,15 +64,19 @@ class Card:
         self.style.unravel()
 
     def get_tabdict(self):
-        stylen = str(self.style)
         return {
             "card": {
                 "name": self.name,
                 "display_name": self._display_name,
                 "img": self._img,
                 "text": self._text,
-                "style": stylen}
+                "style": self._style}
         }
+
+    def get_keydict(self):
+        return {
+            "card": {
+                "name": self.name}}
 
     def delete(self):
         # May leave a gap in whatever hands it's in. The hands should
@@ -500,6 +504,17 @@ class Hand:
                 "right": self._right,
                 "bot": self._bot,
                 "top": self._top}}
+
+    def get_keydict(self):
+        return {
+            "hand_card": [
+                {
+                    "hand": self.name,
+                    "idx": idx}
+                for idx in self.db.handcarddict[self.name].iterkeys()],
+            "hand_board": {
+                "hand": self.name,
+                "board": self._board}}
 
     def delete(self):
         del self.db.handcarddict[self.name]

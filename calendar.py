@@ -113,15 +113,15 @@ between any two states that should appear different on-screen."""
             self.tweaks)
 
     def toggle_visibility(self):
-        self.visible = not self.visible
+        self._visibility = not self._visibility
         self.tweaks += 1
 
     def show(self):
-        if not self.visible:
+        if not self._visible:
             self.toggle_visibility()
 
     def hide(self):
-        if self.visible:
+        if self._visible:
             self.toggle_visibility()
 
 
@@ -138,25 +138,25 @@ cells.
     __metaclass__ = SaveableMetaclass
     tables = [
         ("calendar_col",
-         {"dimension": "text not null DEFAULT 'Physical'",
+         {"board": "text not null DEFAULT 'Physical'",
           "item": "text not null",
           "visible": "boolean not null DEFAULT 1",
           "interactive": "boolean not null DEFAULT 1",
           "style": "text not null DEFAULT 'BigLight'",
           "cel_style": "text not null DEFAULT 'SmallDark'"},
-         ("dimension", "item"),
-         {"dimension, item": ("item", "dimension, name"),
+         ("board", "item"),
+         {"board, item": ("item", "dimension, name"),
           "style": ("style", "name"),
           "cel_style": ("style", "name")},
          []
          )]
 
-    def __init__(self, db, dimension, item,
+    def __init__(self, db, board, item,
                  visible, interactive, style, cel_style):
         self.db = db
-        self._dimension = str(dimension)
+        self._dimension = str(board)
         self._item = str(item)
-        self._visible = visible
+        self._visible = bool(visible)
         self.tweaks = 0
         self._interactive = interactive
         self._style = str(style)
@@ -168,9 +168,9 @@ cells.
         self.celldict = {}
         self.cell_cache = {}
         self.oldwidth = None
-        if self._dimension not in db.calcoldict:
-            db.calcoldict[self._dimension] = {}
-        db.calcoldict[self._dimension][self._item] = self
+        if self._dimension not in self.db.calcoldict:
+            self.db.calcoldict[self._dimension] = {}
+        self.db.calcoldict[self._dimension][self._item] = self
 
     def __iter__(self):
         return self.celldict.itervalues()
@@ -188,12 +188,16 @@ cells.
             return self.db.itemdict[self._dimension][self._item]
         elif attrn == 'board':
             return self.db.boarddict[self._dimension]
+        elif attrn == 'cal':
+            return self.db.caldict[self._dimension]
+        elif attrn == 'idx':
+            return self.cal.index(self)
         elif attrn == 'style':
             return self.db.styledict[self._style]
         elif attrn == 'cel_style':
             return self.db.styledict[self._cel_style]
         elif attrn == 'visible':
-            return self._visible and self.item.name in self.cal.coldict
+            return self._visible and self in self.cal.cols
         elif attrn == 'interactive':
             return self._interactive
         elif attrn == 'window_top':
@@ -216,34 +220,49 @@ cells.
     def get_tabdict(self):
         return {
             "calendar_col": {
-                "board": self.board.dimension.name,
-                "item": self.item.name,
-                "visible": self.visible,
-                "interactive": self.interactive,
-                "style": self.style.name,
-                "cel_style": self.cel_style.name}}
+                "board": self._dimension,
+                "item": self._item,
+                "visible": self._visible,
+                "interactive": self._interactive,
+                "style": self._style,
+                "cel_style": self._cel_style}}
+
+    def delete(self):
+        del self.db.calcoldict[self._dimension][self._item]
+        self.erase()
 
     def toggle_visibility(self):
-        if self in self.cal:
-            self.cal.remove(self)
-            self.visible = False
-        else:
-            self.cal.add(self)
-            self.visible = True
-        self.cal.adjust()
+        self._visible = not self._visible
+        if not self.visible:  # no underscore!
+            try:
+                self.sprite.delete()
+            except:
+                pass
+            self.sprite = None
+            for cel in self.celldict.itervalues():
+                try:
+                    cel.sprite.delete()
+                except:
+                    pass
+                try:
+                    cel.label.delete()
+                except:
+                    pass
+                cel.sprite = None
+                cel.label = None
+                cel.tweaks += 1
         self.tweaks += 1
 
     def hide(self):
-        if self.visible:
+        if self._visible:
             self.toggle_visibility()
 
     def show(self):
-        if not self.visible:
+        if not self._visible:
             self.toggle_visibility()
 
     def unravel(self):
         db = self.db
-        self.item.pawn.calcol = self
         if stringlike(self.style):
             self.style = db.styledict[self.style]
         self.style.unravel()
@@ -272,8 +291,8 @@ cells.
 between any two states that should appear different on-screen."""
         return (
             self.celhash(),
-            self.dimension.name,
-            self.item.name,
+            self._dimension,
+            self._item,
             self.window_left,
             self.window_right,
             self.window_top,
@@ -281,10 +300,6 @@ between any two states that should appear different on-screen."""
             self.visible,
             self.interactive,
             self.tweaks)
-
-    def delete(self):
-        del self.db.calcoldict[self._dimension][self._item]
-        self.erase()
 
 
 class Calendar:
@@ -298,7 +313,7 @@ schedule, possibly several.
             self, board, left, right, top, bot, visible, interactive,
             rows_on_screen, scrolled_to):
         self.db = board.db
-        self._dimension = board
+        self._dimension = str(board)
         self.left_prop = left
         self.right_prop = right
         self.top_prop = top
@@ -310,13 +325,14 @@ schedule, possibly several.
         self.oldstate = None
         self.sprite = None
         self.tweaks = 0
-        self.db.caldict[str(self.board)] = self
+        self.db.caldict[self._dimension] = self
+        self.cols = []
 
     def __iter__(self):
-        return self.coldict.itervalues()
+        return iter(self.cols)
 
     def __len__(self):
-        return len(self.coldict)
+        return len(self.cols)
 
     def __getattr__(self, attrn):
         if attrn == 'board':
@@ -351,7 +367,7 @@ schedule, possibly several.
         elif attrn == 'height':
             return self.window_top - self.window_bot
         elif attrn == 'visible':
-            return self._visible and len(self.coldict) > 0
+            return self._visible and len(self.cols) > 0
         elif attrn == 'interactive':
             return self._interactive
         else:
@@ -359,24 +375,23 @@ schedule, possibly several.
                 "Calendar instance has no such attribute: " +
                 attrn)
 
-    def __getitem__(self, colname):
-        """Return the CalendarCol by the given name."""
-        return self.coldict[colname]
+    def __getitem__(self, i):
+        return self.cols[i]
 
     def __contains__(self, col):
-        return col.item.name in self.coldict
+        return col in self.cols
 
     def colhash(self):
         hashes = [
             hash(col.get_state_tup())
-            for col in self.coldict.itervalues()]
+            for col in self.cols]
         return hash(tuple(hashes))
 
     def get_state_tup(self):
         """Return a tuple containing information enough to tell the difference
 between any two states that should appear different on-screen."""
         return (
-            self.board.dimension.name,
+            self._dimension,
             self.colhash(),
             self.window_left,
             self.window_right,
@@ -396,34 +411,29 @@ OrderedDict containing the columns herein, and every CalendarCol in
 self.coldict being itself unraveled.
 
         """
-        db = self.db
-        if str(self.board) not in db.calcoldict:
-            db.calcoldict[str(self.board)] = OrderedDict()
-        self.coldict = db.calcoldict[str(self.board)]
-        for column in self.coldict.itervalues():
-            column.unravel()
+        pass
 
     def adjust(self):
         """Create missing calendar cells. Delete those whose events are no
 longer present.
 
         """
-        if len(self.coldict) > 0:
-            self.col_width = self.width / len(self.coldict)
+        self.cols = []
+        for col in self.db.calcoldict[self._dimension].itervalues():
+            if col._visible:
+                self.cols.append(col)
+                for ev in iter(col.item.schedule):
+                    if ev.name not in col.celldict:
+                        col.celldict[ev.name] = CalendarCell(col, ev)
+                for evname in col.celldict:
+                    if evname not in col.item.schedule.events:
+                        del col.celldict[evname]
+        if len(self.cols) > 0:
+            self.col_width = self.width / len(self.cols)
         else:
             self.col_width = 0
         self.row_height = self.height / self.rows_on_screen
-        i = 0
-        for col in self.coldict.itervalues():
-            col.cal = self
-            col.idx = i
-            i += 1
-            for ev in iter(col.item.schedule):
-                if ev.name not in col.celldict:
-                    col.celldict[ev.name] = CalendarCell(col, ev)
-            for evname in col.celldict:
-                if evname not in col.item.schedule.events:
-                    del col.celldict[evname]
+            
 
     def gettop(self):
         """Get the absolute Y value of my top edge."""
@@ -466,31 +476,33 @@ that it's in this calendar. You'll want to do that elsewhere, using
 the CalendarCol's set_cal() method.
 
         """
-        if col.item.name not in self.coldict:
-            self.coldict[col.item.name] = col
+        if col.item.name not in self.db.calcoldict[self._dimension]:
+            self.db.calcoldict[self._dimension][col.item.name] = col
 
     def remove(self, col):
         """Remove a CalendarCol.
 
 This doesn't necessarily delete the CalendarCol's graphics."""
-        del self.coldict[col.item.name]
+        self.cols.remove(col)
 
     def discard(self, col):
         """Remove a CalendarCol if it's a member.
 
 This doesn't necessarily delete the CalendarCol's graphics."""
-        if col.item.name in self.coldict:
-            del self.coldict[col.item.name]
+        if col in self.cols:
+            self.cols.remove(col)
 
     def index(self, col):
         """Get the index of the CalendarCol within the order of displayed
 columns."""
-        return self.coldict.keys().index(col.item.name)
+        return self.cols.index(col)
 
     def pop(self, colname):
         """Return and remove the CalendarCol by the given name."""
-        r = self.coldict.pop(colname)
-        return r
+        for col in self.cols:
+            if col.name == colname:
+                return col
+        return None
 
     def toggle_visibility(self):
         """Hide or show myself, as applicable."""
@@ -507,15 +519,8 @@ columns."""
         if not self.visible:
             self.toggle_visibility()
 
-    def delete(self):
-        for item in self.coldict.iteritems():
-            item[1].delete()
-            del self.coldict[item[0]]
-        del self.db.caldict[self._dimension]
-
-
 rcib_format = (
-    "SELECT {0} FROM calendar_col WHERE dimension IN ({1})".format(
+    "SELECT {0} FROM calendar_col WHERE board IN ({1})".format(
         ", ".join(CalendarCol.colns), "{0}"))
 
 
@@ -529,5 +534,5 @@ def read_calendar_cols_in_boards(db, boardnames):
     for row in db.c:
         rowdict = dictify_row(row, CalendarCol.colns)
         rowdict["db"] = db
-        r[rowdict["dimension"]][rowdict["item"]] = CalendarCol(**rowdict)
+        r[rowdict["board"]][rowdict["item"]] = CalendarCol(**rowdict)
     return r

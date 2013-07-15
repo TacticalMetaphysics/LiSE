@@ -314,10 +314,11 @@ Register with the database's itemdict and thingdict too.
 
     def __getattr__(self, attrn):
         if attrn == 'location':
-            dimn = str(self.dimension)
-            return self.db.locdict[dimn][self.name]
+            return self.db.locdict[self._dimension][self.name]
         elif attrn == 'schedule':
-            return self.db.scheduledict[str(self.dimension)][self.name]
+            return self.db.scheduledict[self._dimension][self.name]
+        elif attrn == 'pawn':
+            return self.db.pawndict[self._dimension][self.name]
         else:
             return Item.__getattr__(self, attrn)
 
@@ -377,16 +378,13 @@ immediately. Else raise exception as appropriate."""
         return {
             "thing": {
                 "dimension": self._dimension,
-                "name": self.name},
-            "item": {
-                "dimension": self._dimension,
                 "name": self.name}}
 
     def delete(self):
         del self.db.locdict[self._dimension][self.name]
         del self.db.thingdict[self._dimension][self.name]
-        del self.db.itemdict[self._dimension][self.name]
         self.erase()
+        Item.delete(self)
 
     def pass_through(self, there, elsewhere):
         """Try to enter there, and immediately go elsewhere. Raise

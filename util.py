@@ -280,12 +280,22 @@ and your table will be ready.
                     insert_rowdicts_table(db, rd, tabname)
 
         def delete_tabdict(db, tabdict):
-            for item in tabdict.iteritems():
-                (tabname, rd) = item
-                if isinstance(rd, dict):
-                    delete_keydicts_table(db, [rd], tabname)
-                else:
-                    delete_keydicts_table(db, rd, tabname)
+            qryfmt = "DELETE FROM {0} WHERE {1}"
+            for (tabn, rows) in tabdict.iteritems():
+                vals = []
+                ors = []
+                if isinstance(rows, dict):
+                    rows = [rows]
+                for row in rows:
+                    keyns = keynames[tabn]
+                    ands = []
+                    for keyn in keyns:
+                        ands.append(keyn + "=?")
+                        vals.append(row[keyn])
+                    ors.append("(" + " AND ".join(ands) + ")")
+                qrystr = qryfmt.format(tabn, " OR ".join(ors))
+                qrytup = tuple(vals)
+                db.c.execute(qrystr, qrytup)
 
         def detect_tabdict(db, tabdict):
             r = {}
@@ -314,8 +324,17 @@ and your table will be ready.
             delete_tabdict(db, td)
             insert_tabdict(db, td)
 
+        def get_keydict(self):
+            tabd = self.get_tabdict()
+            r = {}
+            for tabn in tablenames:
+                r[tabn] = {}
+                for keyn in keynames[tabn]:
+                    r[tabn][keyn] = tabd[tabn][keyn]
+            return r
+
         def erase(self):
-            delete_tabdict(self.db, self.get_tabdict())
+            delete_tabdict(self.db, self.get_keydict())
             
 
         dbop = {'insert': insert_tabdict,
@@ -338,6 +357,7 @@ and your table will be ready.
                   'dbop': dbop,
                   'save': save,
                   'maintab': tablenames[0],
+                  'get_keydict': get_keydict,
                   'erase': erase}
         atrdic.update(attrs)
 

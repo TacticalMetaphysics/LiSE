@@ -101,6 +101,25 @@ item's name, and the name of the attribute.
             "character_skill_link": skills,
             "attribution": attributions}
 
+    def get_keydict(self):
+        items = [
+            {"character": self.name,
+             "dimension": it.dimension.name,
+             "item": it.name}
+            for it in iter(self.itemset)]
+        skills = [
+            {"character": self.name,
+             "skill": sk.name}
+            for sk in iter(self.skillset)]
+        attributions = [
+            {"character": self.name,
+             "attribute": att}
+            for att in self.attributiondict.iterkeys()]
+        return {
+            "character_item_link": items,
+            "character_skill_link": skills,
+            "attribution": attributions}
+
     def delete(self):
         del self.db.characterdict[self.name]
         self.erase()
