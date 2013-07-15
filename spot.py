@@ -28,6 +28,7 @@ class Spot:
          {"dimension, place": ("place", "dimension, name"),
           "img": ("img", "name")},
          [])]
+    selectable = True
 
     def __init__(self, db, dimension, place, img, x, y,
                  visible=True, interactive=True):
@@ -48,6 +49,7 @@ given coordinates, and visible or interactive as indicated.
         self._interactive = interactive
         self.grabpoint = None
         self.sprite = None
+        self.box_edges = (None, None, None, None)
         self.oldstate = None
         self.newstate = None
         self.tweaks = 0
@@ -124,7 +126,7 @@ given coordinates, and visible or interactive as indicated.
                         self.window_bot < self.window.height and
                         self.window_right < self.window.width)
         elif attrn == 'visible':
-            return self._visible and self.in_window
+            return self._visible and self.img is not None and self.in_window
         elif attrn == 'interactive':
             return self._interactive and self.in_window
         else:
@@ -206,12 +208,6 @@ me."""
             self.hovered,
             self.tweaks)
 
-    def get_keydict(self):
-        return {
-            "spot": {
-                "dimension": self._dimension,
-                "place": self._place}}
-
     def get_tabdict(self):
         return {
             "spot": {
@@ -222,6 +218,28 @@ me."""
                 "y": self.y,
                 "visible": self._visible,
                 "interactive": self._interactive}}
+
+    def delete(self):
+        todel = [
+            port.edge for port in self.db.portaldestorigdict[
+                self._dimension][self._place].itervalues()]
+        todel += [
+            port.edge for port in self.db.portalorigdestdict[
+                self._dimension][self._place].itervalues()]
+        for dead in todel:
+            dead.delete()
+        del self.db.spotdict[self._dimension][self._place]
+        try:
+            self.sprite.delete()
+        except:
+            pass
+        for vertls in self.box_edges:
+            try:
+                vertls.delete()
+            except:
+                pass
+        self.erase()
+        self.place.delete()
 
 
 spot_dimension_qryfmt = (

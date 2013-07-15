@@ -312,14 +312,29 @@ board; all visible menus; and the calendar, if it's visible."""
                             except:
                                 pass
             # draw the spots, representing places
-            for spot in self.board.spotdict.itervalues():
+            for spot in self.board.spots:
                 newstate = spot.get_state_tup()
                 if newstate in self.onscreen:
                     continue
                 self.onscreen.discard(spot.oldstate)
                 self.onscreen.add(newstate)
                 spot.oldstate = newstate
-                if spot.visible and spot.img is not None:
+                if spot.visible:
+                    l = spot.window_left
+                    r = spot.window_right
+                    b = spot.window_bot
+                    t = spot.window_top
+                    if spot in self.selected:
+                        yelo = (255, 255, 0, 0)
+                        spot.box_edges = self.draw_box(
+                            l, t, r, b, yelo, self.higroup, spot.box_edges)
+                    else:
+                        for vertls in spot.box_edges:
+                            try:
+                                vertls.delete()
+                            except (AttributeError, AssertionError):
+                                pass
+                        spot.box_edges = (None, None, None, None)
                     try:
                         spot.sprite.x = spot.window_left
                         spot.sprite.y = spot.window_bot
@@ -336,7 +351,7 @@ board; all visible menus; and the calendar, if it's visible."""
                     except (AttributeError, AssertionError):
                         pass
             # draw the pawns, representing things
-            for pawn in self.board.pawndict.itervalues():
+            for pawn in self.board.pawns:
                 newstate = pawn.get_state_tup()
                 if newstate in self.onscreen:
                     continue
@@ -359,27 +374,8 @@ board; all visible menus; and the calendar, if it's visible."""
                             group=self.pawngroup)
                     if pawn in self.selected:
                         yelo = (255, 255, 0, 0)
-                        pawn.box_edges = (
-                            self.draw_line(
-                                (l, b, l, t),
-                                yelo,
-                                self.higroup,
-                                pawn.box_edges[0]),
-                            self.draw_line(
-                                (l, t, r, t),
-                                yelo,
-                                self.higroup,
-                                pawn.box_edges[1]),
-                            self.draw_line(
-                                (r, t, r, b),
-                                yelo,
-                                self.higroup,
-                                pawn.box_edges[2]),
-                            self.draw_line(
-                                (r, b, l, b),
-                                yelo,
-                                self.higroup,
-                                pawn.box_edges[3]))
+                        pawn.box_edges = self.draw_box(
+                            l, t, r, b, yelo, self.higroup, pawn.box_edges)
                     else:
                         for edge in pawn.box_edges:
                             try:
@@ -1033,3 +1029,28 @@ move_with_mouse method, use it.
             verts.vertices = list(points)
             verts.colors = list(colors)
         return verts
+
+    def draw_box(
+        self, left, top, right, bot,
+            color, group, verts=(None, None, None, None)):
+        return (
+            self.draw_line(
+                (left, bot, left, top),
+                color,
+                group,
+                verts[0]),
+            self.draw_line(
+                (left, top, right, top),
+                color,
+                group,
+                verts[1]),
+            self.draw_line(
+                (right, top, right, bot),
+                color,
+                group,
+                verts[2]),
+            self.draw_line(
+                (right, bot, left, bot),
+                color,
+                group,
+                verts[3]))
