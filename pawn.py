@@ -181,13 +181,6 @@ portal {1} properly.""".format(repr(self), repr(port)))
             return (ls.window_x + self.drag_offset_x,
                     ls.window_y + self.drag_offset_y)
 
-    def onclick(self):
-        """For now, pawns toggle their associated calendar columns on being
-clicked. This is probably not the ideal."""
-        if hasattr(self, 'calcol'):
-            self.calcol.toggle_visibility()
-            self.calcol.cal.adjust()
-
     def get_state_tup(self):
         """Return a tuple containing everything you might need to draw me."""
         return (

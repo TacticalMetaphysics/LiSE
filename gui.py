@@ -731,6 +731,7 @@ it."""
         def on_mouse_press(x, y, button, modifiers):
             """If there's something already highlit, and the mouse is
 still over it when pressed, it's been half-way clicked; remember this."""
+            logger.debug("mouse pressed at %d, %d", x, y)
             if self.placing or self.thinging:
                 return
             elif self.hovered is None:
@@ -767,6 +768,7 @@ still over it when pressed, it's been half-way clicked; remember this."""
         def on_mouse_release(x, y, button, modifiers):
             """If something was being dragged, drop it. If something was being
 pressed but not dragged, it's been clicked. Otherwise do nothing."""
+            logger.debug("mouse released at %d, %d", x, y)
             if self.placing:
                 placed = self.db.make_generic_place(str(self.board))
                 self.db.make_spot(
@@ -775,10 +777,12 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                     y + self.board.offset_y)
                 self.window.set_mouse_cursor()
                 self.placing = False
+                logger.debug("made generic place: %s", str(placed))
             elif self.thinging:
                 thung = self.db.make_generic_thing(str(self.board))
                 self.db.make_pawn(str(self.board), str(thung))
                 self.thinging = False
+                logger.debug("made generic thing: %s", str(thung))
             elif self.portaling:
                 if self.portal_from is None:
                     if hasattr(self.pressed, 'place'):
@@ -819,36 +823,44 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                             except:
                                 pass
                     self.portal_triple = ((None,None),(None,None),(None,None))
-            elif self.grabbed is None:
-                pass
-            else:
+            elif self.grabbed is not None:
                 if hasattr(self.grabbed, 'dropped'):
                     self.grabbed.dropped(x, y, button, modifiers)
-            self.grabbed = None
-            if self.pressed not in self.selected:
+                self.grabbed = None
+            if self.pressed is None or self.pressed not in self.selected:
                 if not self.keep_selected:
                     logger.debug("Unselecting %d widgets.", len(self.selected))
+                    need_adjust = False
                     for sel in iter(self.selected):
                         sel.tweaks += 1
+                        if hasattr(sel, 'calcol'):
+                            sel.calcol.hide()
+                            need_adjust = True
                     self.selected = set()
-            if (
-                    self.pressed is not None and
-                    x > self.pressed.window_left and
-                    x < self.pressed.window_right and
-                    y > self.pressed.window_bot and
-                    y < self.pressed.window_top):
-                logger.debug("%s clicked", str(self.pressed))
-                if hasattr(self.pressed, 'onclick'):
-                    self.pressed.onclick()
-                if hasattr(self.pressed, 'selectable'):
-                    logger.debug("Selecting it.")
-                    self.selected.add(self.pressed)
-                    self.pressed.tweaks += 1
-                    if hasattr(self.pressed, 'reciprocate'):
-                        reciprocal = self.pressed.reciprocate()
-                        if reciprocal is not None:
-                            self.selected.add(reciprocal)
-            self.pressed = None
+                    if need_adjust:
+                        self.calendar.adjust()
+            if self.pressed is not None:
+                if (
+                        x > self.pressed.window_left and
+                        x < self.pressed.window_right and
+                        y > self.pressed.window_bot and
+                        y < self.pressed.window_top):
+                    logger.debug("%s clicked", str(self.pressed))
+                    if hasattr(self.pressed, 'onclick'):
+                        self.pressed.onclick()
+                    if hasattr(self.pressed, 'selectable'):
+                        logger.debug("Selecting it.")
+                        self.selected.add(self.pressed)
+                        self.pressed.tweaks += 1
+                        if hasattr(self.pressed, 'reciprocate'):
+                            reciprocal = self.pressed.reciprocate()
+                            if reciprocal is not None:
+                                self.selected.add(reciprocal)
+                                reciprocal.tweaks += 1
+                if hasattr(self.pressed, 'calcol'):
+                    self.pressed.calcol.show()
+                    self.calendar.adjust()
+                self.pressed = None
 
         @window.event
         def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
