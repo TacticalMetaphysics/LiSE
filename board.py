@@ -1,4 +1,3 @@
-# TODO: hands are not being loaded. fix.
 from util import SaveableMetaclass, dictify_row, stringlike
 from menu import read_menus_in_boards
 from img import load_imgs
@@ -85,7 +84,7 @@ time.
 
     def __getattr__(self, attrn):
         if attrn == "dimension":
-            return self.db.dimensiondict[self._dimension]
+            return self.db.get_dimension(self._dimension)
         elif attrn in ("wallpaper", "img"):
             return self.db.imgdict[self._wallpaper]
         elif attrn == "offset_x":

@@ -14,6 +14,7 @@ import dimension
 import item
 import re
 import logging
+import igraph
 from collections import OrderedDict
 from style import read_colors, read_styles
 from spot import Spot
@@ -88,6 +89,7 @@ arguments.
         self.eventdict = {}
         self.handdict = {}
         self.handcarddict = {}
+        self.iggdict = {}
         self.imgdict = {}
         self.itemdict = {}
         self.journeydict = {}
@@ -253,7 +255,7 @@ list.
         """Load the color by the given name."""
         return self.load_colors((colorname,))
 
-    def make_place(self, arg, effect=None, deck=None, event=None):
+    def create_place(self, arg, effect=None, deck=None, event=None):
         """Return a new Place object by the given name, in the given
 dimension.
 
@@ -263,12 +265,13 @@ dimension.place
         """
         mat = re.match(MAKE_PLACE_RE, arg)
         (dimension, name) = mat.groups()
-        return self.create_place(dimension, name)
+        return self.make_place(dimension, name)
 
-    def create_place(self, dimension, name):
+    def make_place(self, dimension, name):
         pl = item.Place(self, dimension, name)
         pl.unravel()
         pl.save()
+        dimension.index_place(pl)
         return pl
 
     def things_in_place(self, place):
@@ -309,7 +312,7 @@ If the place does not exist, it will be created.
 
     def make_spot(self, dimension, place, x, y, img=None):
         if dimension not in self.placedict or place not in self.placedict[dimension]:
-            self.make_place("{0}.{1}".format(dimension, place))
+            self.make_place(dimension, place)
         sp = Spot(self, dimension, place, img, x, y)
         sp.unravel()
         sp.save()
@@ -335,7 +338,7 @@ location: The name of a place in that dimension.
         """
         mat = re.match(MAKE_PLACE_RE, arg)
         (dimension, name, location) = mat.groups()
-        return self.create_thing(dimension, name, location)
+        return self.make_thing(dimension, name, location)
 
     def make_thing(self, dimension, name, location):
         th = Thing(dimension, name, location)
@@ -384,6 +387,7 @@ dimension: The name of the dimension that both places are in.
         port = item.Portal(self, dimension, origin, destination)
         port.unravel()
         port.save()
+        dimension.index_portal(port)
         return port
 
     def toggle_menu(self, menuitem, menu):
@@ -587,11 +591,11 @@ destination.
         return self.make_generic_place(arg)
 
     def make_generic_place(self, dimension):
-        placename = "Place_{0}".format(self.hi_place)
+        placename = "Place_{0}".format(dimension.hi_place)
         place = item.Place(self, dimension, placename)
         place.unravel()
         place.save()
-        self.hi_place += 1
+        dimension.index_place(place)
         return place
 
     def mi_create_place(self, menuitem, arg):
@@ -628,6 +632,22 @@ destination.
         if name not in self.styledict:
             self.load_styles(name)
         return self.styledict[name]
+
+    def make_dimension(self, name):
+        self.dimensiondict[name] = dimension.Dimension(self, name)
+
+    def get_dimension(self, name):
+        if name not in self.dimensiondict:
+            self.make_dimension(name)
+        return self.dimensiondict[name]
+
+    def make_igraph_graph(self, name):
+        self.iggdict[name] = igraph.Graph()
+
+    def get_igraph_graph(self, name):
+        if name not in self.iggdict:
+            self.make_igraph_graph(name)
+        return self.iggdict[name]
 
 
 def load_game(dbfilen, language):

@@ -57,7 +57,7 @@ With db, register in db's pawndict.
         if attrn == 'board':
             return self.db.boarddict[self._dimension]
         elif attrn == 'dimension':
-            return self.db.dimensiondict[self._dimension]
+            return self.db.get_dimension(self._dimension)
         elif attrn == 'thing':
             return self.db.thingdict[self._dimension][self._thing]
         elif attrn == 'calcol':
@@ -201,12 +201,15 @@ portal {1} properly.""".format(repr(self), repr(port)))
         self.drag_offset_x = 0
         self.drag_offset_y = 0
         spot = self.board.get_spot_at(x, y)
-        if (
-                spot is not None and
-                self.thing.journey.steps_left() == 0 and
-                str(self.thing.location) in
-                self.db.portaldestorigdict[self._dimension][spot._place]):
-            self.thing.journey.steps.append(self.thing._location, spot._place)
+        if spot is not None:
+            destplace = spot.place
+            startplacen = self.thing.journey.steps[-1][1]
+            startplace = self.db.placedict[self._dimension][startplacen]
+            path = self.dimension.shortest_path(startplace, destplace)[1:]
+            if path == []:
+                return
+            for step in path:
+                self.thing.journey.append_place_by_name(step)
             self.thing.journey.schedule()
             self.db.caldict[self._dimension].adjust()
 

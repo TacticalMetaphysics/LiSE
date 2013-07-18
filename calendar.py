@@ -183,7 +183,7 @@ cells.
 
     def __getattr__(self, attrn):
         if attrn == 'dimension':
-            return self.db.dimensiondict[self._dimension]
+            return self.db.get_dimension(self._dimension)
         elif attrn == 'item':
             return self.db.itemdict[self._dimension][self._item]
         elif attrn == 'board':

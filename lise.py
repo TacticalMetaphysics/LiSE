@@ -10,6 +10,7 @@ logging.basicConfig()
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
+
 i = 0
 lang = "English"
 dbfn = "default.sqlite"

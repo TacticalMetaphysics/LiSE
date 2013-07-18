@@ -61,7 +61,7 @@ given coordinates, and visible or interactive as indicated.
 
     def __getattr__(self, attrn):
         if attrn == 'dimension':
-            return self.db.dimensiondict[self._dimension]
+            return self.db.get_dimension(self._dimension)
         elif attrn == 'place':
             return self.db.placedict[self._dimension][self._place]
         elif attrn == 'board':

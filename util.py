@@ -23,26 +23,18 @@ class DictValues2DIterator:
     def __iter__(self):
         return self
 
+    def __len__(self):
+        i = 0
+        for layer2 in self.d.itervalues():
+            i += len(layer2)
+        return i
+
     def next(self):
         try:
             return self.layer2.next()
         except (AttributeError, TypeError, StopIteration):
-            try:
-                self.layer2 = self.layer1.next().itervalues()
-                return self.layer2.next()
-            except StopIteration:
-                raise StopIteration
-
-
-class DictWrapper2D:
-    def __init__(self, d):
-        self.d = d
-
-    def __getattr__(self, attrn):
-        return getattr(self.d, attrn)
-
-    def itervalues(self):
-        return DictValues2DIterator(self.d)
+            self.layer2 = self.layer1.next().itervalues()
+            return self.layer2.next()
 
 
 class LocationException(Exception):

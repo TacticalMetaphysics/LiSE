@@ -7,7 +7,8 @@ from util import (
     stringlike,
     LocationException,
     ContainmentException,
-    PortalException)
+    PortalException,
+    DictValues2DIterator)
 from event import (
     read_events,
     lookup_between,
@@ -44,7 +45,7 @@ much."""
 
     def __init__(self, db, dimension, name):
         self.db = db
-        self._dimension = dimension
+        self._dimension = str(dimension)
         self.name = name
         if self._dimension not in self.db.locdict:
             self.db.locdict[self._dimension] = {}
@@ -77,16 +78,12 @@ much."""
             return [it for it in self.db.itemdict[str(self.dimension)].itervalues()
                     if it.location == self]
         elif attrn == 'dimension':
-            return self.db.dimensiondict[self._dimension]
+            return self.db.get_dimension(self._dimension)
         else:
-            raise AttributeError("Item has no attribute by that name")
+            raise AttributeError("Item has no attribute named " + attrn)
 
     def add(self, that):
-        if stringlike(that.dimension):
-            dimn = that.dimension
-        else:
-            dimn = that.dimension.name
-        self.db.locdict[dimn][that.name] = self
+        self.db.locdict[str(that.dimension)][that.name] = self
 
     def assert_can_contain(self, other):
         pass
@@ -210,7 +207,7 @@ class Portal(Item):
         elif attrn == "edge":
             return self.db.edgedict[self._dimension][str(self)]
         elif attrn == "dimension":
-            return self.db.dimensiondict[self._dimension]
+            return self.db.get_dimension(self._dimension)
         elif attrn == "reciprocal":
             return self.db.portaldestorigdict[
                 self._dimension][self._orig][self._dest]
@@ -462,7 +459,7 @@ class Journey:
 
     def __getattr__(self, attrn):
         if attrn == 'dimension':
-            return self.db.dimensiondict[self._dimension]
+            return self.db.get_dimension(self._dimension)
         elif attrn == 'thing':
             return self.db.thingdict[self._thing]
         else:
@@ -615,6 +612,14 @@ by default, but you can change that by supplying delay.
             i += 1
         return self.thing.schedule
 
+    def append_portal_by_name(self, name):
+        port = self.db.itemdict[self._dimension][name]
+        self.steps.append((str(port.orig), str(port.dest)))
+
+    def append_place_by_name(self, name):
+        lastplace = self.steps[-1][1]
+        self.steps.append((lastplace, name))
+
 
 journey_qvals = ["journey_step." + valn for valn in Journey.valns]
 
@@ -659,7 +664,7 @@ contevdict, and endevdict."""
 
     def __getattr__(self, attrn):
         if attrn == 'dimension':
-            return self.db.dimensiondict[self._dimension]
+            return self.db.get_dimension(self._dimension)
         elif attrn == 'item':
             return self.db.itemdict[self._dimension][self._item]
         else:
@@ -1016,6 +1021,9 @@ Return them in a 2D dict keyed by dimension name, then place name.
             if num > db.hi_place:
                 db.hi_place = num
         r[rowdict["dimension"]][rowdict["name"]] = Place(**rowdict)
+    for dimname in dimnames:
+        dimension = db.get_dimension(dimname)
+        dimension.index_places(r[dimname].values())
     return r
 
 
@@ -1075,6 +1083,10 @@ Return them in a 2D dict keyed by dimension name, then portal name.
         if orig not in r[dim]:
             r[dim][orig] = {}
         r[dim][orig][dest] = Portal(**rowdict)
+    for dimname in dimnames:
+        dimension = db.get_dimension(dimname)
+        ports = [port for port in DictValues2DIterator(r[dimname])]
+        dimension.index_portals(ports)
     return r
 
 

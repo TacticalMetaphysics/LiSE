@@ -64,7 +64,7 @@ to."""
             return r
 
     def delete(self):
-        del self.db.dimensiondict[self.name]
+        del self.db.effectdict[self.name]
         self.erase()
 
 
