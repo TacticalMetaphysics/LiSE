@@ -1,12 +1,10 @@
-import igraph
-from item import (
+from thing import (
     read_things_in_dimensions,
-    read_places_in_dimensions,
-    read_portals_in_dimensions,
     read_schedules_in_dimensions,
     read_journeys_in_dimensions)
-from util import DictValues2DIterator
-from collections import OrderedDict
+from place import read_places_in_dimensions
+from portal import read_portals_in_dimensions
+from util import DictValues2DIterator, SaveableMetaclass, dictify_row
 from logging import getLogger
 
 logger = getLogger(__name__)
@@ -15,18 +13,39 @@ logger = getLogger(__name__)
 """Class and loaders for dimensions--the top of the world hierarchy."""
 
 
+DIMENSION_QRYFMT = "INSERT INTO paths VALUES {0}"
+PATH_ROW = "(?, ?, ?, ?, ?)"
+
+
+class EdgeIterator:
+    def __init__(self, portiter):
+        self.portiter = portiter
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        p = self.portiter.next()
+        return (p._orig, p._dest)
+
+
 class Dimension:
     """Container for a given view on the game world, sharing no things,
 places, or portals with any other dimension, but possibly sharing
 characters."""
-    class EdgeIterator:
-        def __init__(self, portiter):
-            self.portiter = portiter
-        def __iter__(self):
-            return self
-        def next(self):
-            p = self.portiter.next()
-            return (p._orig, p._dest)
+    __metaclass__ = SaveableMetaclass
+    tables = [(
+        "paths",
+        {"dimension": "text not null",
+         "origin": "integer not null",
+         "destination": "integer not null",
+         "i": "integer not null",
+         "to_place": "integer not null"},
+        ("dimension", "origin", "destination", "i"),
+        {"dimension, origin": ("place", "dimension, i"),
+         "dimension, destination": ("place", "dimension, i"),
+         "dimension, to_place": ("place", "dimension, i")},
+        ["origin<>destination", "i>=0"])]
 
     def __init__(self, db, name):
         """Return a dimension with the given name.
@@ -39,14 +58,23 @@ keyed with their names.
         """
         self.name = name
         db.dimensiondict[name] = self
+        if name not in db.pathdestorigdict:
+            db.pathdestorigdict[name] = {}
+        if name not in db.placeidxdict:
+            db.placeidxdict[name] = {}
+        if name not in db.portalidxdict:
+            db.portalidxdict[name] = {}
         self.db = db
         self.hiplace = 0
         self.hiport = 0
-        self.paths = {}
 
     def __getattr__(self, attrn):
         if attrn == 'graph':
             return self.db.get_igraph_graph(self.name)
+        elif attrn == 'vs':
+            return self.graph.vs
+        elif attrn == 'es':
+            return self.graph.es
         elif attrn == 'portals':
             return DictValues2DIterator(self.portalorigdestdict)
         elif attrn == 'itemdict':
@@ -73,6 +101,10 @@ keyed with their names.
             return self.db.portalorigdestdict[self.name]
         elif attrn == 'portaldestorigdict':
             return self.db.portaldestorigdict[self.name]
+        elif attrn == 'pathdestorigdict':
+            return self.db.pathdestorigdict[self.name]
+        elif attrn == 'paths':
+            return DictValues2DIterator(self.pathdestorigdict)
         elif attrn == 'edges':
             return EdgeIterator(self.portals)
         else:
@@ -118,72 +150,112 @@ everything."""
         for thing in self.things:
             thing.unravel()
 
+    def get_tabdict(self):
+        path_steps = []
+        for p in self.paths:
+            path = list(p)
+            desti = path[0]
+            origi = path.pop()
+            before = origi
+            after = path.pop()
+            i = 0
+            while path != []:
+                path_steps.append(
+                    {
+                        "dimension": self.name,
+                        "origin": origi,
+                        "destination": desti,
+                        "i": i,
+                        "from_place": before,
+                        "to_place": after})
+                before = after
+                after = path.pop()
+                i += 1
+        return {"paths": path_steps}
+
     def index_places(self, places):
         for place in places:
-            if not hasattr(place, 'dimidx'):
-                place.dimidx = {}
-        n = len(places)
-        # igraph graphs start with a single vertex in.
-        self.graph.add_vertices(n - 1)
-        old_hi = self.hiplace
-        self.hiplace += n
-        i = 0
-        while old_hi + i < self.hiplace:
-            self.graph.vs[old_hi + i]["name"] = str(places[i])
-            places[i].dimidx[self.name] = old_hi + i
-            i += 1
+            self.index_place(place)
 
     def index_place(self, place):
-        self.index_places([place])
+        if (
+                place.i > len(self.vs) or "name" not in
+                self.vs[place.i].attributes() or
+                self.vs[place.i]["name"] != str(place)):
+            self.graph.add_vertices(1)
+            place.i = len(self.vs) - 1
+            self.graph.vs[place.i]["name"] = str(place)
+            self.db.placeidxdict[self.name][place.i] = place
 
     def index_portals(self, portals):
-        self.paths = {}
-        unindexed_places = set()
-        for port in portals:
-            if not hasattr(port, 'dimidx'):
-                port.dimidx = {}
-            for place in (port.orig, port.dest):
-                if (
-                        not hasattr(place, 'dimidx') or
-                        self.name not in place.dimidx):
-                    unindexed_places.add(place)
-        if len(unindexed_places) > 0:
-            self.index_places(tuple(unindexed_places))
-        edges = []
-        for port in portals:
-            edges.append(
-                (port.orig.dimidx[self.name],
-                 port.dest.dimidx[self.name]))
-        self.graph.add_edges(edges)
-        n = len(portals)
-        old_hi = self.hiport
-        self.hiport += n
-        i = 0
-        while old_hi + i < self.hiport:
-            self.graph.es[old_hi + i]["name"] = str(portals[i])
-            portals[i].dimidx[self.name] = old_hi + 1
-            i += 1
+        for portal in portals:
+            self.index_portal(portal)
 
     def index_portal(self, portal):
-        self.index_portals([portal])
+        self.index_places([portal.orig, portal.dest])
+        if (
+                len(self.es) == 0 or
+                portal.i > len(self.es) or
+                "name" not in self.es[portal.i].attributes() or
+                self.es[portal.i]["name"] != str(portal)):
+            self.graph.add_edges([(portal.orig.i, portal.dest.i)])
+            portal.i = len(self.es) - 1
+            self.graph.es[portal.i]["name"] = str(portal)
+            self.db.portalidxdict[self.name][portal.i] = portal
 
     def shortest_path(self, orig, dest):
         # TODO hinting
-        origi = orig.dimidx[self.name]
-        desti = dest.dimidx[self.name]
-        paths = self.graph.get_shortest_paths(desti)
-        for path in paths:
-            if path[-1] == origi:
-                r = []
-                for e in reversed(path):
-                    r.append(self.graph.vs[e]["name"])
-                return r
-        return None
+        origi = orig.i
+        desti = dest.i
+        if desti not in self.pathdestorigdict:
+            self.pathdestorigdict[desti] = {}
+        if origi not in self.pathdestorigdict[desti]:
+            paths = self.graph.get_shortest_paths(desti)
+            for path in paths:
+                if path == []:
+                    continue
+                path_origi = path[-1]
+                logger.debug("hinting path from %d to %d",
+                             path_origi, desti)
+                self.pathdestorigdict[desti][path_origi] = path
+        if origi in self.pathdestorigdict[desti]:
+            return self.pathdestorigdict[desti][origi]
+        else:
+            return None
 
     def get_igraph_layout(self, layout_type):
         """Return a Graph layout, of the kind that igraph uses, representing
 this dimension, and laid out nicely."""
         return self.graph.layout(layout=layout_type)
+
+
+PATH_DIMENSION_QRYFMT = (
+    "SELECT {0} FROM paths WHERE dimension IN ({1})".format(
+        ", ".join(Dimension.colns), "{0}"))
+
+
+def read_paths_in_dimensions(db, names):
+    qryfmt = PATH_DIMENSION_QRYFMT
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
+    qrytup = tuple(names)
+    for name in names:
+        if name not in db.pathdestorigdict:
+            db.pathdestorigdict[name] = {}
+    db.c.execute(qrystr, qrytup)
+    for row in db.c:
+        rowdict = dictify_row(row, Dimension.colns)
+        pdod = db.pathdestorigdict[rowdict["dimension"]]
+        orig = rowdict["origin"]
+        dest = rowdict["dest"]
+        topl = rowdict["to_place"]
+        i = rowdict["i"]
+        if dest not in pdod:
+            pdod[dest] = {}
+        if orig not in pdod[dest]:
+            pdod[dest][orig] = []
+        while len(pdod[dest][orig]) <= i:
+            pdod[dest][orig].append(None)
+        pdod[dest][orig][i] = topl
 
 
 def read_dimensions(db, names):
@@ -199,6 +271,7 @@ thereof will be returned, but the objects won't be unraveled yet.
     read_portals_in_dimensions(db, names)
     read_schedules_in_dimensions(db, names)
     read_journeys_in_dimensions(db, names)
+    read_paths_in_dimensions(db, names)
     r = {}
     for name in names:
         r[name] = Dimension(db, name)

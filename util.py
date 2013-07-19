@@ -1,18 +1,260 @@
 import pyglet
-import ctypes
 from math import sqrt
 
 phi = (1.0 + sqrt(5))/2.0
+
+
+def start_new_map(nope):
+    pass
+
+
+def open_map(nope):
+    pass
+
+
+def save_map(nope):
+    pass
+
+
+def quit_map_editor(nope):
+    pass
+
+
+def editor_select(nope):
+    pass
+
+
+def editor_copy(nope):
+    pass
+
+
+def editor_paste(nope):
+    pass
+
+
+def editor_delete(nope):
+    pass
+
+
+def new_place(place_type):
+    pass
+
+
+def new_thing(thing_type):
+    pass
+
+
+funcs = [start_new_map, open_map, save_map, quit_map_editor, editor_select,
+         editor_copy, editor_paste, editor_delete, new_place, new_thing]
+
+
+def mkitemd(dimension, name):
+    return {'dimension': dimension,
+            'name': name}
+
+
+def reciprocate(porttup):
+    return (porttup[1], porttup[0])
+
+
+def reciprocate_all(porttups):
+    return [reciprocate(port) for port in porttups]
+
+
+def reciprocal_pairs(pairs):
+    return pairs + [reciprocate(pair) for pair in pairs]
+
+
+def mkportald(dimension, orig, dest):
+    return {'dimension': dimension,
+            'name': "portal[%s->%s]" % (orig, dest),
+            'from_place': orig,
+            'to_place': dest}
+
+
+def mklocd(dimension, thing, place):
+    return {'dimension': dimension,
+            'thing': thing,
+            'place': place}
+
+
+def mkstepd(dimension, thing, idx, portal):
+    return {"dimension": dimension,
+            "thing": thing,
+            "idx": idx,
+            "portal": portal}
+
+
+def translate_color(name, rgb):
+    return {
+        'name': name,
+        'red': rgb[0],
+        'green': rgb[1],
+        'blue': rgb[2],
+        'alpha': 255}
+
+
+def mkcontd(dimension, contained, container):
+    # I have not made any containments yet
+    return {"dimension": dimension,
+            "contained": contained,
+            "container": container}
+
+
+def mkjourneyd(thing):
+    return {"dimension": "Physical",
+            "thing": thing,
+            "curstep": 0,
+            "progress": 0.0}
+
+
+def mkboardd(dimension, width, height, wallpaper):
+    return {"dimension": dimension,
+            "width": width,
+            "height": height,
+            "wallpaper": wallpaper}
+
+
+def mkboardmenud(board, menu):
+    return {"board": board,
+            "menu": menu}
+
+
+def mkimgd(name, path, rltile):
+    return {"name": name,
+            "path": path,
+            "rltile": rltile}
+
+
+def mkspotd(dimension, place, img, x, y, visible, interactive):
+    return {"dimension": dimension,
+            "place": place,
+            "img": img,
+            "x": x,
+            "y": y,
+            "visible": visible,
+            "interactive": interactive}
+
+
+def mkpawnd(dimension, thing, img, visible, interactive):
+    return {"dimension": dimension,
+            "thing": thing,
+            "img": img,
+            "visible": visible,
+            "interactive": interactive}
+
+
+def mkstyled(name, fontface, fontsize, spacing,
+             bg_inactive, bg_active,
+             fg_inactive, fg_active):
+    return {'name': name,
+            'fontface': fontface,
+            'fontsize': fontsize,
+            'spacing': spacing,
+            'bg_inactive': bg_inactive,
+            'bg_active': bg_active,
+            'fg_inactive': fg_inactive,
+            'fg_active': fg_active}
+
+
+def untuple(list_o_tups):
+    r = []
+    for tup in list_o_tups:
+        for val in tup:
+            r.append(val)
+    return r
+
+
+def dictify_row(row, colnames):
+    return dict(zip(colnames, row))
+
+
+def dictify_rows(rows, keynames, colnames):
+    # Produce a dictionary with which to look up rows--but rows that
+    # have themselves been turned into dictionaries.
+    r = {}
+    # Start this dictionary with empty dicts, deep enough to hold
+    # all the partial keys in keynames and then a value.
+    # I think this fills deeper than necessary?
+    keys = len(keynames)  # use this many fields as keys
+    for row in rows:
+        ptr = r
+        i = 0
+        while i < keys:
+            i += 1
+            try:
+                ptr = ptr[row[i]]
+            except:
+                ptr = {}
+        # Now ptr points to the dict of the last key that doesn't get
+        # a dictified row. i is one beyond that.
+        ptr[row[i]] = dictify_row(row)
+    return r
+
+
+def dicl2tupl(dicl):
+    # Converts list of dicts with one set of keys to list of tuples of
+    # *values only*, not keys. They'll be in the same order as given
+    # by dict.keys().
+    keys = dicl[0].keys()
+    r = []
+    for dic in dicl:
+        l = [dic[k] for k in keys]
+        r.append(tuple(l))
+    return r
+
+
+def deep_lookup(dic, keylst):
+    key = keylst.pop()
+    ptr = dic
+    while keylst != []:
+        ptr = ptr[key]
+        key = keylst.pop()
+    return ptr[key]
+
+
+def compile_tabdicts(objs):
+    tabdicts = [o.tabdict for o in objs]
+    mastertab = {}
+    for tabdict in tabdicts:
+        for item in tabdict.iteritems():
+            (tabname, rowdict) = item
+            if tabname not in mastertab:
+                mastertab[tabname] = []
+            mastertab[tabname].append(rowdict)
+    return mastertab
+
+
+def stringlike(o):
+    """Return True if I can easily cast this into a string, False
+otherwise."""
+    return isinstance(o, str) or isinstance(o, unicode)
+
+
+def place2idx(db, dimname, pl):
+    if isinstance(pl, int):
+        return pl
+    elif hasattr(pl, '_index'):
+        return pl._index
+    elif stringlike(pl):
+        return db.placedict[dimname][pl].i
+    else:
+        raise ValueError("Can't convert that into a place-index")
+
 
 class PatternHolder:
     """Takes a style and makes pyglet.image.SolidColorImagePatterns out of
 its four colors, accessible through the attributes bg_active,
 bg_inactive, fg_active, and fg_inactive."""
     def __init__(self, sty):
-        self.bg_inactive = pyglet.image.SolidColorImagePattern(sty.bg_inactive.tup)
-        self.bg_active = pyglet.image.SolidColorImagePattern(sty.bg_active.tup)
-        self.fg_inactive = pyglet.image.SolidColorImagePattern(sty.fg_inactive.tup)
+        self.bg_inactive = (
+            pyglet.image.SolidColorImagePattern(sty.bg_inactive.tup))
+        self.bg_active = (
+            pyglet.image.SolidColorImagePattern(sty.bg_active.tup))
+        self.fg_inactive = (
+            pyglet.image.SolidColorImagePattern(sty.fg_inactive.tup))
         self.fg_active = pyglet.image.SolidColorImagePattern(sty.fg_active.tup)
+
 
 class DictValues2DIterator:
     def __init__(self, d):
@@ -37,6 +279,12 @@ class DictValues2DIterator:
             return self.layer2.next()
 
 
+class PortalException(Exception):
+    """Exception raised when a Thing tried to move into or out of or along
+a Portal, and it made no sense."""
+    pass
+
+
 class LocationException(Exception):
     pass
 
@@ -46,12 +294,6 @@ class ContainmentException(Exception):
 Thing, and it made no sense.
 
     """
-    pass
-
-
-class PortalException(Exception):
-    """Exception raised when a Thing tried to move into or out of or along
-a Portal, and it made no sense."""
     pass
 
 
@@ -327,7 +569,6 @@ and your table will be ready.
 
         def erase(self):
             delete_tabdict(self.db, self.get_keydict())
-            
 
         dbop = {'insert': insert_tabdict,
                 'delete': delete_tabdict,
@@ -354,230 +595,3 @@ and your table will be ready.
         atrdic.update(attrs)
 
         return type.__new__(metaclass, clas, parents, atrdic)
-
-
-def start_new_map(nope):
-    pass
-
-
-def open_map(nope):
-    pass
-
-
-def save_map(nope):
-    pass
-
-
-def quit_map_editor(nope):
-    pass
-
-
-def editor_select(nope):
-    pass
-
-
-def editor_copy(nope):
-    pass
-
-
-def editor_paste(nope):
-    pass
-
-
-def editor_delete(nope):
-    pass
-
-
-def new_place(place_type):
-    pass
-
-
-def new_thing(thing_type):
-    pass
-
-
-funcs = [start_new_map, open_map, save_map, quit_map_editor, editor_select,
-         editor_copy, editor_paste, editor_delete, new_place, new_thing]
-
-
-def mkitemd(dimension, name):
-    return {'dimension': dimension,
-            'name': name}
-
-
-def reciprocate(porttup):
-    return (porttup[1], porttup[0])
-
-
-def reciprocate_all(porttups):
-    return [reciprocate(port) for port in porttups]
-
-
-def reciprocal_pairs(pairs):
-    return pairs + [reciprocate(pair) for pair in pairs]
-
-
-def mkportald(dimension, orig, dest):
-    return {'dimension': dimension,
-            'name': "portal[%s->%s]" % (orig, dest),
-            'from_place': orig,
-            'to_place': dest}
-
-
-def mklocd(dimension, thing, place):
-    return {'dimension': dimension,
-            'thing': thing,
-            'place': place}
-
-
-def mkstepd(dimension, thing, idx, portal):
-    return {"dimension": dimension,
-            "thing": thing,
-            "idx": idx,
-            "portal": portal}
-
-
-def translate_color(name, rgb):
-    return {
-        'name': name,
-        'red': rgb[0],
-        'green': rgb[1],
-        'blue': rgb[2],
-        'alpha': 255}
-
-
-def mkcontd(dimension, contained, container):
-    # I have not made any containments yet
-    return {"dimension": dimension,
-            "contained": contained,
-            "container": container}
-
-
-def mkjourneyd(thing):
-    return {"dimension": "Physical",
-            "thing": thing,
-            "curstep": 0,
-            "progress": 0.0}
-
-
-def mkboardd(dimension, width, height, wallpaper):
-    return {"dimension": dimension,
-            "width": width,
-            "height": height,
-            "wallpaper": wallpaper}
-
-
-def mkboardmenud(board, menu):
-    return {"board": board,
-            "menu": menu}
-
-
-def mkimgd(name, path, rltile):
-    return {"name": name,
-            "path": path,
-            "rltile": rltile}
-
-
-def mkspotd(dimension, place, img, x, y, visible, interactive):
-    return {"dimension": dimension,
-            "place": place,
-            "img": img,
-            "x": x,
-            "y": y,
-            "visible": visible,
-            "interactive": interactive}
-
-
-def mkpawnd(dimension, thing, img, visible, interactive):
-    return {"dimension": dimension,
-            "thing": thing,
-            "img": img,
-            "visible": visible,
-            "interactive": interactive}
-
-
-def mkstyled(name, fontface, fontsize, spacing,
-             bg_inactive, bg_active,
-             fg_inactive, fg_active):
-    return {'name': name,
-            'fontface': fontface,
-            'fontsize': fontsize,
-            'spacing': spacing,
-            'bg_inactive': bg_inactive,
-            'bg_active': bg_active,
-            'fg_inactive': fg_inactive,
-            'fg_active': fg_active}
-
-
-def untuple(list_o_tups):
-    r = []
-    for tup in list_o_tups:
-        for val in tup:
-            r.append(val)
-    return r
-
-
-def dictify_row(row, colnames):
-    return dict(zip(colnames, row))
-
-
-def dictify_rows(rows, keynames, colnames):
-    # Produce a dictionary with which to look up rows--but rows that
-    # have themselves been turned into dictionaries.
-    r = {}
-    # Start this dictionary with empty dicts, deep enough to hold
-    # all the partial keys in keynames and then a value.
-    # I think this fills deeper than necessary?
-    keys = len(keynames)  # use this many fields as keys
-    for row in rows:
-        ptr = r
-        i = 0
-        while i < keys:
-            i += 1
-            try:
-                ptr = ptr[row[i]]
-            except:
-                ptr = {}
-        # Now ptr points to the dict of the last key that doesn't get
-        # a dictified row. i is one beyond that.
-        ptr[row[i]] = dictify_row(row)
-    return r
-
-
-def dicl2tupl(dicl):
-    # Converts list of dicts with one set of keys to list of tuples of
-    # *values only*, not keys. They'll be in the same order as given
-    # by dict.keys().
-    keys = dicl[0].keys()
-    r = []
-    for dic in dicl:
-        l = [dic[k] for k in keys]
-        r.append(tuple(l))
-    return r
-
-
-def deep_lookup(dic, keylst):
-    key = keylst.pop()
-    ptr = dic
-    while keylst != []:
-        ptr = ptr[key]
-        key = keylst.pop()
-    return ptr[key]
-
-
-def compile_tabdicts(objs):
-    tabdicts = [o.tabdict for o in objs]
-    mastertab = {}
-    for tabdict in tabdicts:
-        for item in tabdict.iteritems():
-            (tabname, rowdict) = item
-            if tabname not in mastertab:
-                mastertab[tabname] = []
-            mastertab[tabname].append(rowdict)
-    return mastertab
-
-
-def stringlike(o):
-    """Return True if I can easily cast this into a string, False
-otherwise."""
-    return isinstance(o, str) or isinstance(o, unicode)

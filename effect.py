@@ -1,5 +1,4 @@
 from util import SaveableMetaclass, dictify_row, stringlike
-from pyglet.window import ImageMouseCursor
 
 
 class Effect:
@@ -24,24 +23,15 @@ may be fired by calling the do() method.
         """Return an Effect of the given name, where the given function is
 called with the given argument. Register in db.effectdict."""
         self.db = db
-        if not hasattr(self, '_func'):
-            self._func = func
-        if not hasattr(self, 'arg'):
-            self.arg = arg
-        if name is None:
-            name = "{0}({1})".format(func, arg)
+        name = "{0}({1})".format(func, arg)
+        self._func = str(func)
+        self.arg = str(arg)
         self.name = name
         db.effectdict[name] = self
-        assert(None not in (self.db, self.name, self.func, self.arg))
+        assert(None not in (self.db, self.name, self._func, self.arg))
 
     def __str__(self):
         return self.name
-
-    def __getattr__(self, attrn):
-        if attrn == 'func':
-            return self.db.func[self._func]
-        else:
-            raise AttributeError("Effect instance has no such attribute")
 
     def get_tabdict(self):
         return {
@@ -57,11 +47,7 @@ to."""
 
     def do(self, deck=None, event=None):
         """Call the function with the argument."""
-        r = self.func(self.arg, self, deck, event)
-        if r is None:
-            return (self, None)
-        else:
-            return r
+        return self.db.handle_effect(self, deck, event)
 
     def delete(self):
         del self.db.effectdict[self.name]
@@ -93,6 +79,15 @@ class CreateSpotEffect(Effect):
         func = "create_spot"
         name = "{0}({1})".format(func, arg)
         Effect.__init__(self, db, name, func, arg)
+
+
+class PortalEntryEffect(Effect):
+    """Effect to take a thing from a place and put it into a portal."""
+    def __init__(self, db, thing, portal):
+        self.thing = thing
+        arg = "{0}.{1}->{2}".format(thing._dimension, thing.name, str(portal))
+        name = "thing_into_portal({0})".format(arg)
+        Effect.__init__(self, db, name, "thing_into_portal", arg)
 
 
 class PortalProgressEffect(Effect):
@@ -137,7 +132,7 @@ in the RumorMill.
     def do(self, deck=None, event=None):
         r = []
         while self.condition():
-            r.extend(self.effect.do(self, deck, event))
+            r.extend(self.effect.do(deck, event))
         return r
 
 
@@ -276,27 +271,13 @@ of an effect, look up the real effect object. Then unravel it."""
     def do(self, event=None):
         """Fire all the Effects herein, in whatever order my iterator says to.
 
-Return a list. Its first item is this deck. The rest of the items are
-tuples. The first item in each tuple is an Effect object. The list is
-in the order in which these were fired, which may not be the order
-this EffectDeck is in. The remainder (if present) are particular to
-the Effect, and may be thought of as the Effect's return value.
-
-To decide what order the Effects should be fired in, set my draw_order
-attribute to one of the DeckIter classes. The default is FILODeckIter,
-which behaves the most like an actual deck of cards--but if you want
-something more like a *shuffled* deck of cards, use
-RandomDiscardDeckIter.
-
-        """
+Return a list of the effects, paired with their return values."""
         fritter = iter(self)
         r = []
         for eff in fritter:
-            erl = [self]
-            while erl[-1] is not None:
-                erl.extend(eff.do(self, event))
-            r.append((eff,) + tuple(erl))
+            r.append((eff, eff.do(self, event)))
         return r
+
 
 class PortalEntryEffectDeck(EffectDeck):
     reset = True

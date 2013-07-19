@@ -17,9 +17,15 @@ state of the interface.
     def __init__(self, db):
         """Return a GameState controlling everything in the given database."""
         self.db = db
-        self.age = db.get_age()
         self.since = 0
         self.db.state = self
+
+    def __getattr__(self, attrn):
+        if attrn == 'age':
+            return self.db.age
+        else:
+            AttributeError(
+                "GameState instance has no attribute " + attrn)
 
     def update(self, ts, st):
         """Update an appropriate number of ticks given that ts time has
@@ -28,13 +34,13 @@ floats."""
         # assuming for now that time only goes forward, at a rate of
         # one tick every st seconds
         self.since += ts
-        newage = self.age
+        newage = self.db.age
         while self.since > st:
             self.since -= st
             newage += 1
-        if newage == self.age:
+        if newage == self.db.age:
             return
-        for i in xrange(self.age, newage):
+        for i in xrange(self.db.age, newage):
             if i in self.db.startevdict:
                 starts = iter(self.db.startevdict[i])
             else:
@@ -48,11 +54,9 @@ floats."""
             else:
                 ends = tuple()
             for ev in starts:
-                logger.debug("Starting event %s at tick %d", repr(ev), self.age)
                 ev.commence()
             for ev in conts:
                 ev.proceed()
             for ev in ends:
-                logger.debug("Ending event %s at tick %d", repr(ev), self.age)
                 ev.conclude()
-        self.age = newage
+        self.db.age = newage

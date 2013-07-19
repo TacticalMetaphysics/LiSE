@@ -2,7 +2,7 @@ from util import stringlike
 from math import hypot
 
 
-class Edge:
+class Arrow:
     margin = 20
     w = 10
     def __init__(self, gw, portal):
@@ -17,7 +17,7 @@ class Edge:
         self.y_at_hints = {}
         self.tweaks = 0
         dimname = self.gw.board._dimension
-        self.db.edgedict[dimname][self._portal] = self
+        self.db.arrowdict[dimname][self._portal] = self
 
     def __str__(self):
         return str(self.portal)

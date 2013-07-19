@@ -1,16 +1,5 @@
 import rumor
 import os
-from item import Item, Thing, Place, Portal, Schedule, Journey
-from character import Character
-from effect import Effect, EffectDeck
-from event import Event, EventDeck
-from style import Color, Style
-from menu import Menu, MenuItem
-from img import Img
-from calendar import CalendarCol
-from spot import Spot
-from pawn import Pawn
-from board import Board
 from sqlite3 import OperationalError
 from rltileins import ins_rltiles
 from util import schemata

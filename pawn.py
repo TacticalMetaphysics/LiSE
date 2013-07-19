@@ -1,5 +1,9 @@
 from util import SaveableMetaclass, dictify_row, stringlike
 from calendar import CalendarCol
+from logging import getLogger
+
+
+logger = getLogger(__name__)
 
 
 """Widget representing things that move about from place to place."""
@@ -48,7 +52,6 @@ With db, register in db's pawndict.
         if self._dimension not in self.db.pawndict:
             self.db.pawndict[self._dimension] = {}
         self.db.pawndict[self._dimension][self._thing] = self
-
 
     def __str__(self):
         return str(self.thing)
@@ -159,8 +162,8 @@ make a new, hidden calendar column to represent the schedule.
         # point between the start and end spots in proportion to the
         # journey's progress. If there is no end spot, behave as if
         # there's no journey.
-        if hasattr(self.thing, 'journey') and\
-           self.thing.journey.steps_left() > 0:
+        if (hasattr(self.thing, 'journey') and
+           self.thing.journey.steps_left() > 0):
             j = self.thing.journey
             port = j.portal_at(self.thing.journey_step)
             if stringlike(port.orig) or stringlike(port.dest):
@@ -196,21 +199,26 @@ portal {1} properly.""".format(repr(self), repr(port)))
     def move_with_mouse(self, x, y, dx, dy, buttons, modifiers):
         self.drag_offset_x += dx
         self.drag_offset_y += dy
+        self.tweaks += 1
 
     def dropped(self, x, y, button, modifiers):
+        logger.debug("Dropped the pawn %s at (%d,%d)",
+                     str(self), x, y)
         self.drag_offset_x = 0
         self.drag_offset_y = 0
         spot = self.board.get_spot_at(x, y)
         if spot is not None:
+            logger.debug("Hit the spot %s", str(spot))
             destplace = spot.place
             startplacen = self.thing.journey.steps[-1][1]
-            startplace = self.db.placedict[self._dimension][startplacen]
-            path = self.dimension.shortest_path(startplace, destplace)[1:]
-            if path == []:
+            startplace = self.db.get_place(self._dimension, startplacen)
+            logger.debug("Plotting a course from %s to %s",
+                         startplacen, str(destplace))
+            path = self.dimension.shortest_path(startplace, destplace)
+            logger.debug("Got the path: " + str(path))
+            if path is None:
                 return
-            for step in path:
-                self.thing.journey.append_place_by_name(step)
-            self.thing.journey.schedule()
+            self.thing.journey.add_path(path)
             self.db.caldict[self._dimension].adjust()
 
     def get_tabdict(self):

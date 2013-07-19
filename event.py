@@ -132,6 +132,9 @@ the three given effect decks. Register with db.eventdict.
                 self.start,
                 self.start + self.length)
 
+    def __len__(self):
+        return self.length
+
     def get_tabdict(self):
         return {
             "name": self.name,
@@ -239,7 +242,7 @@ one place to another."""
         name = self.name_format.format(
             dimname, thing.name, origname, str(portal), destname)
         text = self.text_format.format(origname, destname)
-        commence_effects = None
+        commence_effects = PortalEntryEffectDeck(db, thing, portal)
         proceed_effects = PortalProgressEffectDeck(db, thing)
         conclude_effects = PortalExitEffectDeck(db, thing)
         Event.__init__(

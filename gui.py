@@ -3,7 +3,7 @@ import ctypes
 import math
 import logging
 from math import atan, pi, sin, cos, hypot
-from edge import Edge
+from arrow import Arrow
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +120,7 @@ def set_line_width(w):
     wcf = ctypes.c_float(w)
     pyglet.gl.glLineWidth(wcf)
 
+
 class BoldLineOrderedGroup(pyglet.graphics.OrderedGroup):
     def __init__(self, order, parent=None, width=1.0):
         self.width = float(width)
@@ -128,6 +129,7 @@ class BoldLineOrderedGroup(pyglet.graphics.OrderedGroup):
     def set_state(self):
         pyglet.gl.glDisable(pyglet.gl.GL_LINE_SMOOTH)
         set_line_width(self.width)
+
 
 class SmoothBoldLineOrderedGroup(pyglet.graphics.OrderedGroup):
     def __init__(self, order, parent=None, width=1.0):
@@ -277,7 +279,7 @@ board; all visible menus; and the calendar, if it's visible."""
                         (x1, y1, x2, y2) = coords
                         self.portal_triple = self.connect_arrow(
                             x1, y1, x2, y2, 0, self.portal_triple)
-            for edge in self.board.edges:
+            for edge in self.board.arrows:
                 newstate = edge.get_state_tup()
                 if newstate in self.onscreen:
                     continue
@@ -294,7 +296,8 @@ board; all visible menus; and the calendar, if it's visible."""
                                     unit.delete()
                                 except:
                                     pass
-                        edge.vertices = ((None, None), (None, None), (None, None))
+                        edge.vertices = (
+                            (None, None), (None, None), (None, None))
                     edge.vertices = self.connect_arrow(
                         edge.orig.window_x,
                         edge.orig.window_y,
@@ -757,7 +760,7 @@ still over it when pressed, it's been half-way clicked; remember this."""
                         self.pressed = spot
                         self.pressed.tweaks += 1
                         return
-                for edge in self.board.edges:
+                for edge in self.board.arrows:
                     if edge.touching(x, y):
                         if self.pressed is None or edge.order > self.pressed.order:
                             self.pressed = edge
@@ -812,10 +815,9 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                             str(self.board),
                             str(self.portal_from.place),
                             str(self.pressed.place))
-                        Edge(self, port)
+                        Arrow(self, port)
                     self.portaling = False
                     self.portal_from = None
-                    self.pressed = None
                     for line in self.portal_triple:
                         for edge in line:
                             try:
@@ -826,20 +828,7 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
             elif self.grabbed is not None:
                 if hasattr(self.grabbed, 'dropped'):
                     self.grabbed.dropped(x, y, button, modifiers)
-                self.grabbed = None
-            if self.pressed is None or self.pressed not in self.selected:
-                if not self.keep_selected:
-                    logger.debug("Unselecting %d widgets.", len(self.selected))
-                    need_adjust = False
-                    for sel in iter(self.selected):
-                        sel.tweaks += 1
-                        if hasattr(sel, 'calcol'):
-                            sel.calcol.hide()
-                            need_adjust = True
-                    self.selected = set()
-                    if need_adjust:
-                        self.calendar.adjust()
-            if self.pressed is not None:
+            elif self.pressed is not None:
                 if (
                         x > self.pressed.window_left and
                         x < self.pressed.window_right and
@@ -860,7 +849,18 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                 if hasattr(self.pressed, 'calcol'):
                     self.pressed.calcol.show()
                     self.calendar.adjust()
-                self.pressed = None
+            if self.pressed is None or self.pressed not in self.selected:
+                need_adjust = False
+                for sel in iter(self.selected):
+                    sel.tweaks += 1
+                    if hasattr(sel, 'calcol'):
+                        sel.calcol.hide()
+                        need_adjust = True
+                self.selected = set()
+                if need_adjust:
+                    self.calendar.adjust()
+            self.pressed = None
+            self.grabbed = None
 
         @window.event
         def on_mouse_drag(x, y, dx, dy, buttons, modifiers):

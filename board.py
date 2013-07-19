@@ -7,7 +7,7 @@ from calendar import Calendar, read_calendar_cols_in_boards
 from pawn import read_pawns_in_boards
 from dimension import read_dimensions, load_dimensions
 from card import read_hands_in_boards
-from edge import Edge
+from arrow import Arrow
 
 
 """Class for user's view on gameworld, and support functions."""
@@ -81,7 +81,6 @@ time.
             "scrolled_to": calendar_scrolled_to}
         self.calendar = Calendar(**caldict)
 
-
     def __getattr__(self, attrn):
         if attrn == "dimension":
             return self.db.get_dimension(self._dimension)
@@ -99,8 +98,8 @@ time.
             return self.db.menudict[str(self)]
         elif attrn == "handdict":
             return self.db.boardhanddict[str(self)]
-        elif attrn == "edgedict":
-            return self.db.edgedict[str(self)]
+        elif attrn == "arrowdict":
+            return self.db.arrowdict[str(self)]
         elif attrn == "pawns":
             return self.pawndict.itervalues()
         elif attrn == "spots":
@@ -109,8 +108,8 @@ time.
             return self.menudict.itervalues()
         elif attrn == "hands":
             return self.handdict.itervalues()
-        elif attrn == "edges":
-            return self.edgedict.itervalues()
+        elif attrn == "arrows":
+            return self.arrowdict.itervalues()
         else:
             return getattr(self.dimension, attrn)
 
@@ -155,8 +154,8 @@ and menus herein.
             self.db.menudict[str(self)] = {}
         if str(self) not in self.db.boardhanddict:
             self.db.boardhanddict[str(self)] = {}
-        if str(self) not in self.db.edgedict:
-            self.db.edgedict[str(self)] = {}
+        if str(self) not in self.db.arrowdict:
+            self.db.arrowdict[str(self)] = {}
         for pwn in self.pawndict.itervalues():
             pwn.unravel()
         for spt in self.spotdict.itervalues():
@@ -166,7 +165,7 @@ and menus herein.
             mnu.unravel()
         for hand in self.handdict.itervalues():
             hand.unravel()
-        for edge in self.edgedict.itervalues():
+        for edge in self.arrowdict.itervalues():
             edge.unravel()
         self.calendar.unravel()
 
@@ -178,8 +177,8 @@ and menus herein.
         for hand in self.handdict.itervalues():
             hand.adjust()
         for port in self.portals:
-            if str(port) not in self.db.edgedict[port._dimension]:
-                port.edge = Edge(self.gw, port)
+            if str(port) not in self.db.arrowdict[port._dimension]:
+                port.arrow = Arrow(self.gw, port)
 
     def get_tabdict(self):
         return {
