@@ -620,7 +620,7 @@ necessary."""
         return self.dimensiondict[name]
 
     def make_igraph_graph(self, name):
-        self.graphdict[name] = igraph.Graph()
+        self.graphdict[name] = igraph.Graph(directed=True)
 
     def get_igraph_graph(self, name):
         if name not in self.graphdict:

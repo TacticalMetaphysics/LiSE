@@ -236,7 +236,14 @@ with None as needed."""
         except:
             origi = self.place2idx(port.orig)
             desti = self.place2idx(port.dest)
-        if origi == desti:
+        orign = self.db.placeidxdict[self._dimension][origi]
+        destn = self.db.placeidxdict[self._dimension][desti]
+        if (
+                origi == desti or
+                orign not in
+                self.db.portalorigdestdict[self._dimension] or
+                destn not in
+                self.db.portaldestorigdict[self._dimension]):
             return
         while idx >= len(self.steps):
             self.steps.append(None)
@@ -269,13 +276,17 @@ with None as needed."""
         begin_s = str(self.db.placeidxdict[self._dimension][begin])
         end_s = str(self.db.placeidxdict[self._dimension][end])
         if (
-                begin != end and
-                begin_s in self.db.portalorigdestdict[self._dimension] and
-                end_s in self.db.portalorigdestdict[self._dimension][begin_s]):
-            self.steps.append((begin, end))
+                begin_s not in
+                self.db.portalorigdestdict[self._dimension] or
+                end_s not in
+                self.db.portalorigdestdict[self._dimension][begin_s]):
+            raise PortalException("There is no portal from %d to %d",
+                              begin, end)
+        elif begin == end:
+            raise PortalException(
+                "Portals can't lead to the place they are from.")
         else:
-            raise ValueError("There is no portal from %d to %d",
-                             begin, end)
+            self.steps.append((begin, end))
 
     def extend(self, it):
         for step in it:
@@ -290,8 +301,18 @@ with None as needed."""
             place = path.pop()
             if place == prev:
                 continue
-            self.steps.append((prev, place))
-            prev = place
+            placen = str(self.db.placeidxdict[self._dimension][place])
+            prevn = str(self.db.placeidxdict[self._dimension][prev])
+            if (
+                    prevn not in
+                    self.db.portalorigdestdict[self._dimension] or
+                    placen not in
+                    self.db.portalorigdestdict[self._dimension][prevn]):
+                raise PortalException("No portal between {0} and {1}".format(
+                    prevn, placen))
+            else:
+                self.steps.append((prev, place))
+                prev = place
         while i < len(self.steps):
             ev = self.schedule_step(i, age)
             age += len(ev) + 1
