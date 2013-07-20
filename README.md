@@ -1,4 +1,4 @@
-LiSE is both a library and a standalone application for developing life simulation games.
+LiSE is an application for developing life simulation games.
 
 # What is a life simulation game?
 
