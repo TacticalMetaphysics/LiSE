@@ -74,7 +74,7 @@ it with the placedict and itemdict in the db."""
             "place": {
                 "dimension": self._dimension,
                 "name": self.name,
-                "order": self.order}}
+                "i": self.i}}
 
     def delete(self):
         del self.db.placedict[self._dimension][self.name]

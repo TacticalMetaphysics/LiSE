@@ -74,6 +74,8 @@ Register with the database's itemdict and thingdict too.
             return self.db.get_schedule(self._dimension, self.name)
         elif attrn == 'pawn':
             return self.db.pawndict[self._dimension][self.name]
+        elif attrn == 'journey':
+            return self.db.get_journey(self._dimension, self.name)
         else:
             return Item.__getattr__(self, attrn)
 
@@ -129,7 +131,8 @@ immediately. Else raise exception as appropriate."""
         return {
             "thing": {
                 "dimension": self._dimension,
-                "name": self.name}}
+                "name": self.name,
+                "location": str(self.location)}}
 
     def delete(self):
         del self.db.locdict[self._dimension][self.name]
@@ -152,6 +155,11 @@ which is not a portal.""".format(repr(self), repr(self.location)))
 
     def speed_thru(self, port):
         return 1.0/60.0
+
+    def save(self):
+        self.schedule.save()
+        self.journey.save()
+        self.coresave()
 
 
 thing_qvals = ["thing." + valn for valn in Thing.valns]
@@ -471,7 +479,7 @@ true of events in different schedules.
           "event": "text not null",
           "start": "integer not null",
           "length": "integer not null default 1"},
-         ("dimension", "item"),
+         ("dimension", "item", "start"),
          {"dimension, item": ("item", "dimension, name"),
           "event": ("event", "name")},
          [])]
@@ -525,15 +533,16 @@ contevdict, and endevdict."""
             ev in self.events_ending[ev_end])
 
     def get_tabdict(self):
-        return {
-            "scheduled_event": [
-                {
-                    "dimension": self.dimension.name,
-                    "item": self.item.name,
-                    "start": ev.start,
+        r = []
+        for s in self.events_starting.itervalues():
+            for ev in iter(s):
+                r.append({
+                    "dimension": self._dimension,
+                    "item": self._item,
                     "event": ev.name,
-                    "length": ev.length}
-                for ev in self.events_starting.itervalues()]}
+                    "start": ev.start,
+                    "length": ev.length})
+        return {"scheduled_event": r}
 
     def delete(self):
         del self.db.scheduledict[self._dimension][self.name]
@@ -665,7 +674,7 @@ def read_schedules_in_dimensions(db, dimnames):
         dimn = rowdict["dimension"]
         itn = rowdict["item"]
         if itn not in r[dimn]:
-            r[dimn][itn] = Schedule(dimn, itn, db)
+            r[dimn][itn] = Schedule(db, dimn, itn)
         events.add(rowdict["event"])
     read_events(db, events)
     return r

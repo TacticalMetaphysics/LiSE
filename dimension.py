@@ -179,7 +179,7 @@ everything."""
 
     def index_place(self, place):
         if (
-                place.i > len(self.vs) or "name" not in
+                place.i+1 > len(self.vs) or "name" not in
                 self.vs[place.i].attributes() or
                 self.vs[place.i]["name"] != str(place)):
             self.graph.add_vertices(1)
@@ -195,7 +195,7 @@ everything."""
         self.index_places([portal.orig, portal.dest])
         if (
                 len(self.es) == 0 or
-                portal.i > len(self.es) or
+                portal.i+1 > len(self.es) or
                 "name" not in self.es[portal.i].attributes() or
                 self.es[portal.i]["name"] != str(portal)):
             self.graph.add_edges([(portal.orig.i, portal.dest.i)])
@@ -227,6 +227,15 @@ everything."""
         """Return a Graph layout, of the kind that igraph uses, representing
 this dimension, and laid out nicely."""
         return self.graph.layout(layout=layout_type)
+
+    def save(self):
+        for place in self.places:
+            place.save()
+        for portal in self.portals:
+            portal.save()
+        for thing in self.things:
+            thing.save()
+        self.coresave()
 
 
 PATH_DIMENSION_QRYFMT = (

@@ -19,7 +19,7 @@ from pawn import Pawn
 from card import load_cards
 from place import Place
 from portal import Portal
-from thing import Thing, Schedule
+from thing import Thing, Schedule, Journey
 from dimension import Dimension, load_dimensions
 from util import dictify_row
 from logging import getLogger
@@ -619,6 +619,23 @@ necessary."""
             self.make_dimension(name)
         return self.dimensiondict[name]
 
+    def make_journey(self, dimension, thing, steps=[]):
+        dimn = str(dimension)
+        thn = str(thing)
+        if dimn not in self.journeydict:
+            self.journeydict[dimn] = {}
+        self.journeydict[dimn][thn] = Journey(
+            self, dimn, thn, steps)
+
+    def get_journey(self, dimension, thing):
+        dimn = str(dimension)
+        thn = str(thing)
+        if (
+                dimn not in self.journeydict or
+                thn not in self.journeydict[dimn]):
+            self.make_journey(dimn, thn)
+        return self.journeydict[dimn][thn]
+
     def make_igraph_graph(self, name):
         self.graphdict[name] = igraph.Graph(directed=True)
 
@@ -632,6 +649,17 @@ necessary."""
         argmatch = re.match(ex, effect.arg)
         args = argmatch.groups() + (effect, deck, event)
         return fun(*args)
+
+    def save_game(self):
+        self.c.execute("DELETE FROM game")
+        fieldnames = self.game.keys()
+        qrystr = "INSERT INTO game ({0}) VALUES ({1})".format(
+            ", ".join(fieldnames), ", ".join(["?"] * len(fieldnames)))
+        qrylst = [self.game[field] for field in fieldnames]
+        qrytup = tuple(qrylst)
+        self.c.execute(qrystr, qrytup)
+        for dimension in self.dimensiondict.itervalues():
+            dimension.save()
 
 
 def load_game(dbfilen, language):

@@ -237,7 +237,10 @@ def place2idx(db, dimname, pl):
     elif hasattr(pl, '_index'):
         return pl._index
     elif stringlike(pl):
-        return db.placedict[dimname][pl].i
+        try:
+            return int(pl)
+        except ValueError:
+            return db.placedict[dimname][pl].i
     else:
         raise ValueError("Can't convert that into a place-index")
 
@@ -508,6 +511,8 @@ and your table will be ready.
         def insert_tabdict(db, tabdict):
             for item in tabdict.iteritems():
                 (tabname, rd) = item
+                if not rd:
+                    continue
                 if isinstance(rd, dict):
                     insert_rowdicts_table(db, [rd], tabname)
                 else:
@@ -516,6 +521,8 @@ and your table will be ready.
         def delete_tabdict(db, tabdict):
             qryfmt = "DELETE FROM {0} WHERE {1}"
             for (tabn, rows) in tabdict.iteritems():
+                if not rows:
+                    continue
                 vals = []
                 ors = []
                 if isinstance(rows, dict):
@@ -551,12 +558,13 @@ and your table will be ready.
                     r[tabname] = missing_keydicts_table(db, rd, tabname)
             return r
 
-        def save(self, db=None):
-            if db is None:
-                db = self.db
+        def coresave(self):
             td = self.get_tabdict()
-            delete_tabdict(db, td)
-            insert_tabdict(db, td)
+            delete_tabdict(self.db, td)
+            insert_tabdict(self.db, td)
+
+        def save(self):
+            coresave(self)
 
         def get_keydict(self):
             tabd = self.get_tabdict()
@@ -588,6 +596,7 @@ and your table will be ready.
                   'keyqms': keyqms,
                   'rowqms': rowqms,
                   'dbop': dbop,
+                  'coresave': coresave,
                   'save': save,
                   'maintab': tablenames[0],
                   'get_keydict': get_keydict,
