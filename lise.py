@@ -36,5 +36,8 @@ gw = GameWindow(s, "Physical")
 pyglet.clock.schedule_interval(s.update, 1/30., 1/30.)
 pyglet.app.run()
 
+print "Saving..."
 db.save_game()
+print "Saved. Committing..."
 db.conn.commit()
+print "Committed."

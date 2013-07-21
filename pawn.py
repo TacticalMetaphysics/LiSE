@@ -210,7 +210,10 @@ portal {1} properly.""".format(repr(self), repr(port)))
         if spot is not None:
             logger.debug("Hit the spot %s", str(spot))
             destplace = spot.place
-            startplacen = self.thing.journey.steps[-1][1]
+            try:
+                startplacen = self.thing.journey.steps[-1][1]
+            except IndexError:
+                startplacen = str(self.thing.location)
             startplace = self.db.get_place(self._dimension, startplacen)
             logger.debug("Plotting a course from %s to %s",
                          startplacen, str(destplace))

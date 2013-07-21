@@ -304,7 +304,10 @@ with None as needed."""
         logger.debug("adding path to %s's journey", str(self.thing))
         i = len(self.steps)
         age = self.db.age
-        prev = self.steps[-1][1]
+        try:
+            prev = self.steps[-1][1]
+        except IndexError:
+            prev = path.pop()
         while path != []:
             place = path.pop()
             if place == prev:

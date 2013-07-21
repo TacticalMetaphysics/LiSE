@@ -152,21 +152,29 @@ everything."""
 
     def get_tabdict(self):
         path_steps = []
+        pathed_steps = set()
         for p in self.paths:
             path = list(p)
-            desti = path[0]
-            origi = path.pop()
-            before = origi
-            after = path.pop()
+            try:
+                desti = path[0]
+                origi = path.pop()
+                before = origi
+                after = path.pop()
+            except IndexError:
+                continue
             i = 0
             while path != []:
+                pt = (self.name, origi, desti, i, after)
+                if pt in pathed_steps:
+                    after = path.pop()
+                    continue
+                pathed_steps.add(pt)
                 path_steps.append(
                     {
                         "dimension": self.name,
                         "origin": origi,
                         "destination": desti,
                         "i": i,
-                        "from_place": before,
                         "to_place": after})
                 before = after
                 after = path.pop()
@@ -255,7 +263,7 @@ def read_paths_in_dimensions(db, names):
         rowdict = dictify_row(row, Dimension.colns)
         pdod = db.pathdestorigdict[rowdict["dimension"]]
         orig = rowdict["origin"]
-        dest = rowdict["dest"]
+        dest = rowdict["destination"]
         topl = rowdict["to_place"]
         i = rowdict["i"]
         if dest not in pdod:
