@@ -36,14 +36,13 @@ too.
           "name": "text not null",
           "location": "text not null",
           "journey_progress": "float not null DEFAULT 0.0",
-          "journey_step": "integer not null DEFAULT 0",
           "age": "integer not null DEFAULT 0"},
          ("dimension", "name"),
          {"dimension, location": ("item", "dimension, name")},
          [])]
 
     def __init__(self, db, dimension, name, location,
-                 journey_step=0, journey_progress=0.0, age=0,
+                 journey_progress=0.0, age=0,
                  schedule=None):
         """Return a Thing in the given dimension and location,
 with the given name. Its contents will be empty to start; later on,
@@ -55,7 +54,6 @@ Register with the database's itemdict and thingdict too.
         """
         Item.__init__(self, db, dimension, name)
         self.start_location = location
-        self.journey_step = journey_step
         self.journey_progress = journey_progress
         self.age = age
         if self._dimension not in db.itemdict:
@@ -343,6 +341,12 @@ with None as needed."""
         return {
             "journey_step": iod}
 
+    def save(self):
+        qrystr = "DELETE FROM journey_step WHERE dimension=? AND thing=?"
+        qrytup = (self._dimension, self._thing)
+        self.db.c.execute(qrystr, qrytup)
+        self.dbop['insert'](self.db, self.get_tabdict())
+
     def delete(self):
         del self.db.journeydict[self._dimension][self._thing]
         self.erase()
@@ -368,7 +372,7 @@ with None as needed."""
         including the one the traveller is in right now.
 
         """
-        return len(self.steps) - self.thing.journey_step
+        return len(self.steps)
 
     def speed_at_step(self, i):
         """Get the thing's speed at step i.
@@ -395,14 +399,17 @@ current portal, and then move it along."""
                 "Tried to move {0} past the natural end "
                 "of its journey".format(self.thing.name))
         else:
-            port = self.portal_at(self.thing.journey_step)
+            (o, d) = self.steps[0]
+            orig = str(self.db.placeidxdict[self._dimension][o])
+            dest = str(self.db.placeidxdict[self._dimension][d])
+            port = self.db.portalorigdestdict[self._dimension][orig][dest]
             self.thing.enter(port)
             self.thing.move_thru_portal(prop)
             return True
 
     def step(self):
         """Teleport the thing to the destination of the portal it's in, and
-increment the journey_step.
+advance to the next step of the journey.
 
 Return a pair containing the place passed through and the portal it's
 now in. If the place is the destination of the journey, the new portal
@@ -411,9 +418,9 @@ will be None.
         """
         oldport = self.thing.location
         newplace = self.thing.location.dest
-        self.thing.journey_step += 1
         self.thing.journey_progress = 0.0
         self.thing.enter(newplace)
+        del self.steps[0]
         return (oldport, newplace)
 
     def schedule_step(self, i, start):

@@ -165,7 +165,7 @@ make a new, hidden calendar column to represent the schedule.
         if (hasattr(self.thing, 'journey') and
            self.thing.journey.steps_left() > 0):
             j = self.thing.journey
-            port = j.portal_at(self.thing.journey_step)
+            port = j.portal_at(0)
             if stringlike(port.orig) or stringlike(port.dest):
                 # The portals haven't actually been loaded yet
                 raise Exception(
