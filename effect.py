@@ -19,16 +19,13 @@ may be fired by calling the do() method.
          {},
          [])]
 
-    def __init__(self, db, name=None, func=None, arg=None):
+    def __init__(self, db, name, func, arg):
         """Return an Effect of the given name, where the given function is
 called with the given argument. Register in db.effectdict."""
         self.db = db
-        name = "{0}({1})".format(func, arg)
+        self.name = name
         self._func = str(func)
         self.arg = str(arg)
-        self.name = name
-        db.effectdict[name] = self
-        assert(None not in (self.db, self.name, self._func, self.arg))
 
     def __str__(self):
         return self.name
@@ -203,19 +200,25 @@ batch."""
         ("effect_deck_link",
          {"deck": "text not null",
           "idx": "integer not null",
+          "branch": "integer not null default 0",
+          "tick_from": "integer not null default 0",
+          "tick_to": "integer default null",
           "effect": "text not null"},
-         ("deck", "idx"),
+         ("deck", "idx", "branch", "tick_from"),
          {"effect": ("effect", "name")},
          [])]
 
-    def __init__(self, db, name, effects):
+    def __init__(self, db, name, effects, branch=None, tick_from=None, tick_to=None):
         """Return an EffectDeck with the given name, containing the effects in
 the given list.
         """
         self.name = name
-        self.effects = effects
-        db.effectdeckdict[self.name] = self
         self.db = db
+        if branch is None:
+            branch = self.db.branch
+        if tick_from is None:
+            tick_from = self.db.tick
+        self.db.record_effect_deck(self.name, effects, branch, tick_from, tick_to)
 
     def __str__(self):
         return self.name
@@ -231,6 +234,17 @@ the given list.
 
     def __contains__(self, that):
         return that in self.effects
+
+    def __dict__(self):
+        return {
+            "name": self.name,
+            "effects": self.effects}
+
+    def __getattr__(self, attrn):
+        if attrn in ("effects", "cards"):
+            return self.db.get_effects_in_deck(str(self))
+        else:
+            raise AttributeError("EffectDeck has no attribute " + attrn)
 
     def append(self, that):
         self.effects.append(that)

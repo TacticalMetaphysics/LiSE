@@ -17,14 +17,20 @@ class Pawn:
 
     tables = [
         ("pawn",
-         {"board": "text not null default 'Physical'",
+         {"board": "text not null default 'default_board'",
+          "dimension": "text not null default 'Physical'",
           "thing": "text not null",
+          "branch": "integer not null default 0",
+          "tick_from": "integer not null default 0",
+          "tick_to": "integer default null",
           "img": "text not null default 'troll_m'",
           "visible": "boolean not null default 1",
           "interactive": "boolean not null default 1"},
-         ("board", "thing"),
+         ("board", "dimension", "thing", "branch", "tick_from"),
          {"img": ("img", "name"),
-          "board, thing": ("thing", "dimension, name")},
+          "board": ("board", "name"),
+          "dimension, thing, branch, tick_from": 
+          ("thing", "dimension, name, branch, tick_from")},
          [])]
 
     def __init__(self, db, board, thing, img, visible, interactive):
@@ -175,7 +181,7 @@ portal {1} properly.""".format(repr(self), repr(port)))
             end = port.dest.spot
             hdist = end.window_x - start.window_x
             vdist = end.window_y - start.window_y
-            p = self.thing.journey_progress
+            p = self.thing.portal_progress
             x = start.window_x + hdist * p
             y = start.window_y + vdist * p
             return (int(x), int(y))

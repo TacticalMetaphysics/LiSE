@@ -12,13 +12,17 @@ __metaclass__ = SaveableMetaclass
 
 
 class Item:
-    """Master class for all items that are in the game world. Doesn't do
-much."""
+    """Abstract class for all items that are in the game world.
+
+Unlike all the subclasses, this doesn't keep any coordinates for the
+timeline of the item. It's really just to enforce the uniqueness of
+item names within the dimension.
+
+    """
     tables = [
         ("item",
          {"dimension": "text not null DEFAULT 'Physical'",
-          "name": "text not null",
-          "character": "text default null"},
+          "name": "text not null"},
          ("dimension", "name"),
          {},
          [])]

@@ -31,18 +31,30 @@ too.
 
     """
     tables = [
-        ("thing",
-         {"dimension": "text not null DEFAULT 'Physical'",
-          "name": "text not null",
-          "location": "text not null",
-          "journey_progress": "float not null DEFAULT 0.0",
-          "age": "integer not null DEFAULT 0"},
-         ("dimension", "name"),
-         {"dimension, location": ("item", "dimension, name")},
-         [])]
-
+        ("thing_location",
+         {"dimension": "text not null default 'Physical'",
+          "thing": "text not null",
+          "branch": "integer not null default 0",
+          "tick_from": "integer not null default 0",
+          "tick_to": "integer default null",
+          "location": "text not null"},
+         ("dimension", "thing", "branch", "tick_from"),
+         {"dimension, thing": ("item", "dimension, name"),
+          "dimension, location": ("item", "dimension, name")},
+         []),
+        ("portal_progress",
+         {"dimension": "text not null default 'Physical'",
+          "thing": "text not null",
+          "branch": "integer not null default 0",
+          "tick_from": "integer not null default 0",
+          "tick_to": "integer default null",
+          "progress": "float not null default 0.0"},
+         ("dimension", "thing", "branch", "tick_from"),
+         {"dimension, thing": ("thing_loc", "dimension, thing")},
+         ["progress>=0.0", "progress<=1.0"])]
+          
     def __init__(self, db, dimension, name, location,
-                 journey_progress=0.0, age=0,
+                 portal_progress=0.0, age=0,
                  schedule=None):
         """Return a Thing in the given dimension and location,
 with the given name. Its contents will be empty to start; later on,
@@ -54,7 +66,7 @@ Register with the database's itemdict and thingdict too.
         """
         Item.__init__(self, db, dimension, name)
         self.start_location = location
-        self.journey_progress = journey_progress
+        self.portal_progress = portal_progress
         self.age = age
         if self._dimension not in db.itemdict:
             db.itemdict[self._dimension] = {}
@@ -149,16 +161,10 @@ ShortstopException if it doesn't work."""
                 """The location of {0} is {1},
 which is not a portal.""".format(repr(self), repr(self.location)))
         self.location.notify_moving(self, amount)
-        self.journey_progress += amount
+        self.portal_progress += amount
 
     def speed_thru(self, port):
         return 1.0/60.0
-
-    def save(self):
-        self.schedule.save()
-        self.journey.save()
-        self.coresave()
-
 
 thing_qvals = ["thing." + valn for valn in Thing.valns]
 
@@ -192,9 +198,12 @@ class Journey:
          {"dimension": "text not null default 'Physical'",
           "thing": "text not null",
           "idx": "integer not null",
+          "branch": "integer not null default 0",
+          "from_tick": "integer not null default 0",
+          "to_tick": "integer default null",
           "from_place": "text not null",
           "to_place": "text not null"},
-         ("dimension", "thing", "idx"),
+         ("dimension", "thing", "idx", "branch", "from_tick"),
          {"dimension, thing": ("thing", "dimension, name"),
           "dimension, from_place, to_place":
           ("portal", "dimension, from_place, to_place")},
@@ -341,16 +350,6 @@ with None as needed."""
         return {
             "journey_step": iod}
 
-    def save(self):
-        qrystr = "DELETE FROM journey_step WHERE dimension=? AND thing=?"
-        qrytup = (self._dimension, self._thing)
-        self.db.c.execute(qrystr, qrytup)
-        self.dbop['insert'](self.db, self.get_tabdict())
-
-    def delete(self):
-        del self.db.journeydict[self._dimension][self._thing]
-        self.erase()
-
     def portal_at(self, i):
         """Return the portal represented by the given step."""
         (origi, desti) = self.steps[i]
@@ -418,7 +417,7 @@ will be None.
         """
         oldport = self.thing.location
         newplace = self.thing.location.dest
-        self.thing.journey_progress = 0.0
+        self.thing.portal_progress = 0.0
         self.thing.enter(newplace)
         del self.steps[0]
         return (oldport, newplace)
@@ -491,7 +490,7 @@ true of events in different schedules.
           "length": "integer not null default 1"},
          ("dimension", "item", "start"),
          {"dimension, item": ("item", "dimension, name"),
-          "event": ("event", "name")},
+          "event, start": ("event", "name, tick_from")},
          [])]
 
     def __init__(self, db, dimension, item):
@@ -500,16 +499,6 @@ dimension. With db, register in db's scheduledict, startevdict,
 contevdict, and endevdict."""
         self._dimension = dimension
         self._item = item
-        self.events = {}
-        self.events_starting = dict()
-        self.events_ending = dict()
-        self.events_ongoing = dict()
-        self.cached_commencements = {}
-        self.cached_processions = {}
-        self.cached_conclusions = {}
-        if self._dimension not in db.scheduledict:
-            db.scheduledict[self._dimension] = {}
-        db.scheduledict[self._dimension][self._item] = self
         self.db = db
 
     def __getattr__(self, attrn):

@@ -76,17 +76,17 @@ success that strains a person terribly and causes them injury.
         ("event",
          {"name": "text not null",
           "text": "text not null",
-          "ongoing": "boolean not null",
           "commence_effects": "text",
           "proceed_effects": "text",
           "conclude_effects": "text"},
-         ("name",),
+         ("name", "branch", "tick_from"),
          {"commence_effects": ("effect_deck", "name"),
           "proceed_effects": ("effect_deck", "name"),
           "conclude_effects": ("effect_deck", "name")},
          [])]
 
-    def __init__(self, db, name, text, ongoing, commence_effects,
+    def __init__(self, db, name,
+                 text, commence_effects,
                  proceed_effects, conclude_effects):
         """Return an Event with the given name, text, and ongoing-status, and
 the three given effect decks. Register with db.eventdict.
@@ -94,11 +94,9 @@ the three given effect decks. Register with db.eventdict.
         """
         self.name = name
         self._text = text
-        self.ongoing = ongoing
         self._commence_effects = str(commence_effects)
         self._proceed_effects = str(proceed_effects)
         self._conclude_effects = str(conclude_effects)
-        db.add_event(self)
         self.db = db
 
     def __getattr__(self, attrn):
@@ -133,7 +131,7 @@ the three given effect decks. Register with db.eventdict.
                 self.start + self.length)
 
     def __len__(self):
-        return self.length
+        return self.tick_to - self.tick_from
 
     def get_tabdict(self):
         return {

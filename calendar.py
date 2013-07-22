@@ -138,24 +138,26 @@ cells.
     __metaclass__ = SaveableMetaclass
     tables = [
         ("calendar_col",
-         {"calendar": "text not null DEFAULT 'default_calendar'",
+         {"calendar": "text not null default 'default_calendar'",
           "dimension": "text not null DEFAULT 'Physical'",
           "item": "text not null",
           "visible": "boolean not null DEFAULT 1",
           "interactive": "boolean not null DEFAULT 1",
           "style": "text not null DEFAULT 'BigLight'",
           "cel_style": "text not null DEFAULT 'SmallDark'"},
-         ("calendar", "item"),
+         ("calendar", "dimension", "item"),
          {"dimension, item": ("item", "dimension, name"),
+          "calendar": ("calendar", "name"),
           "style": ("style", "name"),
           "cel_style": ("style", "name")},
          []
          )]
 
-    def __init__(self, db, board, item,
+    def __init__(self, db, calendar, dimension, item,
                  visible, interactive, style, cel_style):
         self.db = db
-        self._dimension = str(board)
+        self._calendar = str(calendar)
+        self._dimension = str(dimension)
         self._item = str(item)
         self._visible = bool(visible)
         self.tweaks = 0
@@ -178,19 +180,19 @@ cells.
 
     def __eq__(self, other):
         return (
-            isinstance(other, CalendarCol) and
-            other.board == self.board and
-            other.item == self.item)
+            other._calendar = self._calendar and
+            other._dimension == self._dimension and
+            other._item == self._item)
 
     def __getattr__(self, attrn):
         if attrn == 'dimension':
             return self.db.get_dimension(self._dimension)
         elif attrn == 'item':
             return self.db.itemdict[self._dimension][self._item]
+        elif attrn in ('cal', 'calendar'):
+            return self.db.caldict[self._calendar]
         elif attrn == 'board':
-            return self.db.boarddict[self._dimension]
-        elif attrn == 'cal':
-            return self.db.caldict[self._dimension]
+            return self.calendar.board
         elif attrn == 'idx':
             return self.cal.index(self)
         elif attrn == 'style':
@@ -221,7 +223,8 @@ cells.
     def get_tabdict(self):
         return {
             "calendar_col": {
-                "board": self._dimension,
+                "calendar": self._calendar,
+                "dimension": self._dimension,
                 "item": self._item,
                 "visible": self._visible,
                 "interactive": self._interactive,

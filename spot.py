@@ -18,16 +18,22 @@ class Spot:
     tables = [
         ("spot",
          {"board": "text not null default 'default_board'",
+          "dimension": "text not null",
           "place": "text not null",
+          "branch": "integer not null default 0",
+          "tick_from": "integer not null default 0",
+          "tick_to": "integer default null",
           "img": "text not null default 'default_spot'",
           "x": "integer not null default 50",
           "y": "integer not null default 50",
           "visible": "boolean not null default 1",
           "interactive": "boolean not null default 1"},
-         ("board", "place"),
+         ("board", "dimension", "place", "branch", "tick_from"),
          {"board": ("board", "name"),
-          "img": ("img", "name")}
-         [])]
+          "img": ("img", "name"),
+          "dimension, place, branch, tick_from":
+          ("place", "dimension, name, branch, tick_from")},
+        [] ) ]
     selectable = True
 
     def __init__(self, db, board, place, img, x, y,

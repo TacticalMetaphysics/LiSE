@@ -13,34 +13,24 @@ connected to other Places, forming a graph."""
         ("place",
          {"dimension": "text not null DEFAULT 'Physical'",
           "name": "text not null",
+          "branch": "integer not null default 0",
+          "tick_from": "integer not null default 0",
+          "tick_to": "integer default null",
           "i": "integer not null default 0"},
-         ("dimension", "name"),
+         ("dimension", "name", "branch", "tick_from"),
          {},
          [])]
 
-    def __init__(self, db, dimension, name, i):
+    def __init__(self, db, dimension, name)
         """Return a Place of the given name, in the given dimension. Register
 it with the placedict and itemdict in the db."""
         Item.__init__(self, db, dimension, name)
-        self.i = i
-        if self._dimension not in db.placedict:
-            db.placedict[self._dimension] = {}
-        if self._dimension not in db.contentsdict:
-            db.contentsdict[self._dimension] = {}
-        if self.name not in db.contentsdict[self._dimension]:
-            db.contentsdict[self._dimension][self.name] = set()
-        db.placedict[self._dimension][self.name] = self
-        self.dimension.index_place(self)
-
-    def __eq__(self, other):
-        if not isinstance(other, Place):
-            return False
-        else:
-            # The name is the key in the database. Must be unique.
-            return self.name == other.name
 
     def __str__(self):
         return self.name
+
+    def __int__(self):
+        return self.i
 
     def __repr__(self):
         return str(self)
@@ -49,18 +39,14 @@ it with the placedict and itemdict in the db."""
         if attrn == 'spot':
             return self.db.spotdict[self._dimension][self.name]
         elif attrn == 'contents':
-            return self.db.contentsdict[self._dimension][self.name]
+            # TODO
+        elif attrn == 'i':
+            # TODO
         else:
-            return Item.__getattr__(self, attrn)
-
-    def __setattr__(self, attrn, val):
-        if (
-                attrn == "i" and hasattr(self, 'i') and
-                self._dimension in self.db.placeidxdict and
-                val in self.db.placeidxdict[self._dimension]):
-            del self.db.placeidxdict[self._dimension][self.i]
-            self.db.placeidxdict[self._dimension][val] = self
-        super(Place, self).__setattr__(attrn, val)
+            try:
+                return Item.__getattr__(self, attrn)
+            except AttributeError:
+                raise AttributeError("Place instance has no attribute " + attrn)
 
     def unravel(self):
         pass
@@ -75,10 +61,6 @@ it with the placedict and itemdict in the db."""
                 "dimension": self._dimension,
                 "name": self.name,
                 "i": self.i}}
-
-    def delete(self):
-        del self.db.placedict[self._dimension][self.name]
-        Item.delete(self)
 
 
 place_dimension_qryfmt = (

@@ -33,7 +33,6 @@ time.
     tables = [
         ("board",
          {"name": "text not null DEFAULT 'default_board'",
-          "dimension": "text not null DEFAULT 'Physical'",
           "wallpaper": "text not null default 'default_wallpaper'",
           "width": "integer not null default 4000",
           "height": "integer not null default 3000",
@@ -45,17 +44,14 @@ time.
           "view_bot<height"])
     ]
 
-    def __init__(self, db, dimension, width, height, view_left, view_bot,
-                 wallpaper,
-                 calendar_left, calendar_right, calendar_top,
-                 calendar_bot, calendar_visible, calendar_interactive,
-                 calendar_rows_on_screen, calendar_scrolled_to):
+    def __init__(self, db, name, width, height, view_left, view_bot,
+                 wallpaper)
         """Return a board representing the given dimension.
 
         """
+        self.name = name
         self.db = db
-        self._dimension = str(dimension)
-        self.db.boarddict[self._dimension] = self
+        self.db.boarddict[self.name] = self
         self.width = width
         self.height = height
         self._wallpaper = wallpaper

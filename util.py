@@ -240,7 +240,7 @@ def place2idx(db, dimname, pl):
         try:
             return int(pl)
         except ValueError:
-            return db.placedict[dimname][pl].i
+            return db.placedict[str(dimname)][pl].i
     else:
         raise ValueError("Can't convert that into a place-index")
 

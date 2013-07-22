@@ -16,8 +16,11 @@ class Portal(Item):
          {"dimension": "text not null DEFAULT 'Physical'",
           "from_place": "text not null",
           "to_place": "text not null",
+          "branch": "integer not null default 0",
+          "tick_from": "integer not null default 0",
+          "tick_to": "integer default null",
           "i": "integer not null default 0"},
-         ("dimension", "from_place", "to_place"),
+         ("dimension", "from_place", "to_place", "branch", "tick_from"),
          # This schema relies on a trigger to create an appropriate
          # item record.
          {"dimension, from_place": ("place", "dimension, name"),
