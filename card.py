@@ -265,11 +265,9 @@ class CardWidget:
             space_left = x - min_x
             space_right = max_x - x
             if space_left < space_right:
-                print "Dropped {0} to the left of the hand".format(str(self))
                 self.hand.discard(self)
                 self.hand.insert(0, self)
             else:
-                print "Dropped {0} to the right of the hand".format(str(self))
                 self.hand.discard(self)
                 self.hand.append(self)
         self.floating = False
@@ -334,7 +332,7 @@ class Hand:
             ("hand", "board"),
             {
                 "hand": ("hand_card", "hand"),
-                "board": ("board", "dimension"),
+                "board": ("board", "name"),
                 "style": ("style", "name")},
             ("left>=0.0", "left<=1.0", "right>=0.0", "right<=1.0",
              "bot>=0.0", "bot<=1.0", "top>=0.0", "top<=1.0",

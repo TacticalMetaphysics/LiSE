@@ -17,28 +17,28 @@ class Spot:
     """
     tables = [
         ("spot",
-         {"dimension": "text not null default 'Physical'",
+         {"board": "text not null default 'default_board'",
           "place": "text not null",
           "img": "text not null default 'default_spot'",
           "x": "integer not null default 50",
           "y": "integer not null default 50",
           "visible": "boolean not null default 1",
           "interactive": "boolean not null default 1"},
-         ("dimension", "place"),
-         {"dimension, place": ("place", "dimension, name"),
-          "img": ("img", "name")},
+         ("board", "place"),
+         {"board": ("board", "name"),
+          "img": ("img", "name")}
          [])]
     selectable = True
 
-    def __init__(self, db, dimension, place, img, x, y,
+    def __init__(self, db, board, place, img, x, y,
                  visible=True, interactive=True):
         """Return a new spot on the board for the given dimension,
 representing the given place with the given image. It will be at the
 given coordinates, and visible or interactive as indicated.
         """
         self.db = db
-        self._dimension = dimension
-        self._place = place
+        self._board = str(board)
+        self._place = str(place)
         if img in (None, ''):
             self._img = 'default_spot'
         else:
@@ -60,12 +60,14 @@ given coordinates, and visible or interactive as indicated.
         db.spotdict[dimname][placename] = self
 
     def __getattr__(self, attrn):
-        if attrn == 'dimension':
-            return self.db.get_dimension(self._dimension)
+        if attrn == 'board':
+            return self.db.get_board(self._board)
+        elif atttrn == 'dimension':
+            return self.board.dimension
+        elif attrn == '_dimension':
+            return self.board._dimension
         elif attrn == 'place':
             return self.db.placedict[self._dimension][self._place]
-        elif attrn == 'board':
-            return self.db.boarddict[self._dimension]
         elif attrn == 'img':
             try:
                 return self.db.imgdict[self._img]

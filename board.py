@@ -32,24 +32,16 @@ time.
 """
     tables = [
         ("board",
-         {"dimension": "text not null DEFAULT 'Physical'",
-          "wallpaper": "text DEFAULT 'default_wallpaper'",
-          "width": "integer not null DEFAULT 4000",
-          "height": "integer not null DEFAULT 3000",
-          "view_left": "integer not null DEFAULT 0",
-          "view_bot": "integer not null DEFAULT 0",
-          "calendar_visible": "boolean not null DEFAULT 1",
-          "calendar_interactive": "boolean not null DEFAULT 1",
-          "calendar_left": "float not null DEFAULT 0.8",
-          "calendar_right": "float not null DEFAULT 1.0",
-          "calendar_top": "float not null DEFAULT 1.0",
-          "calendar_bot": "float not null DEFAULT 0.0",
-          "calendar_rows_on_screen": "integer not null DEFAULT 240",
-          "calendar_scrolled_to": "integer not null DEFAULT 0"},
-         ("dimension",),
+         {"name": "text not null DEFAULT 'default_board'",
+          "dimension": "text not null DEFAULT 'Physical'",
+          "wallpaper": "text not null default 'default_wallpaper'",
+          "width": "integer not null default 4000",
+          "height": "integer not null default 3000",
+          "view_left": "integer not null default 0",
+          "view_bot": "integer not null default 0"},
+         ("name",),
          {"wallpaper": ("image", "name")},
-         ["calendar_rows_on_screen>0", "calendar_scrolled_to>=0",
-          "view_left>=0", "view_bot>=0", "view_left<width",
+         ["view_left>=0", "view_bot>=0", "view_left<width",
           "view_bot<height"])
     ]
 
@@ -69,17 +61,6 @@ time.
         self._wallpaper = wallpaper
         self.view_left = view_left
         self.view_bot = view_bot
-        caldict = {
-            "board": self,
-            "left": calendar_left,
-            "bot": calendar_bot,
-            "right": calendar_right,
-            "top": calendar_top,
-            "visible": calendar_visible,
-            "interactive": calendar_interactive,
-            "rows_on_screen": calendar_rows_on_screen,
-            "scrolled_to": calendar_scrolled_to}
-        self.calendar = Calendar(**caldict)
 
     def __getattr__(self, attrn):
         if attrn == "dimension":
@@ -100,6 +81,10 @@ time.
             return self.db.boardhanddict[str(self)]
         elif attrn == "arrowdict":
             return self.db.arrowdict[str(self)]
+        elif attrn == "caldict":
+            return self.db.caldict[str(self)]
+        elif attrn == "calcoldict":
+            return self.db.calcoldict[str(self)]
         elif attrn == "pawns":
             return self.pawndict.itervalues()
         elif attrn == "spots":
@@ -110,6 +95,10 @@ time.
             return self.handdict.itervalues()
         elif attrn == "arrows":
             return self.arrowdict.itervalues()
+        elif attrn == "calendars":
+            return self.caldict.itervalues()
+        elif attrn == "calcols":
+            return self.calcoldict.itervalues()
         else:
             return getattr(self.dimension, attrn)
 

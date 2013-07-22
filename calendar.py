@@ -138,14 +138,15 @@ cells.
     __metaclass__ = SaveableMetaclass
     tables = [
         ("calendar_col",
-         {"board": "text not null DEFAULT 'Physical'",
+         {"calendar": "text not null DEFAULT 'default_calendar'",
+          "dimension": "text not null DEFAULT 'Physical'",
           "item": "text not null",
           "visible": "boolean not null DEFAULT 1",
           "interactive": "boolean not null DEFAULT 1",
           "style": "text not null DEFAULT 'BigLight'",
           "cel_style": "text not null DEFAULT 'SmallDark'"},
-         ("board", "item"),
-         {"board, item": ("item", "dimension, name"),
+         ("calendar", "item"),
+         {"dimension, item": ("item", "dimension, name"),
           "style": ("style", "name"),
           "cel_style": ("style", "name")},
          []
@@ -307,11 +308,37 @@ class Calendar:
 schedule, possibly several.
 
 """
+    __metaclass__ = SaveableMetaclass
     scroll_factor = 4
+    tables = [
+        (
+            "calendar",
+            {"name": "text not null",
+             "window_relative": "boolean not null default 1",
+             "left": "float not null default 0.8",
+             "right": "float not null default 1.0",
+             "top": "float not null default 1.0",
+             "bot": "float not null default 0.0",
+             "visible": "boolean not null default 1",
+             "interactive": "boolean not null default 1",
+             "rows_shown": "integer not null default 240",
+             "scrolled_to": "integer default null"},
+            ("name",),
+            {},
+            ["rows_shown>0", "left>=0.0", "right<=1.0", "top<=1.0", "bot>=0.0"]),
+        (
+            "cal_board",
+            {"calendar": "text not null",
+             "board": "text not null"},
+            ("calendar", "board"),
+            {"calendar": ("calendar", "name"),
+             "board": ("board", "name")},
+            [])]
  
     def __init__(
-            self, board, left, right, top, bot, visible, interactive,
+            self, name, board, left, right, top, bot, visible, interactive,
             rows_on_screen, scrolled_to):
+        self.name = name
         self.db = board.db
         self._dimension = str(board)
         self.left_prop = left

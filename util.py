@@ -300,8 +300,7 @@ Thing, and it made no sense.
     pass
 
 
-schemata = set()
-
+schemata = []
 
 class SaveableMetaclass(type):
     """Sort of an object relational mapper.
@@ -452,7 +451,8 @@ and your table will be ready.
             missing_stmt_start = "SELECT %s FROM %s WHERE (%s) NOT IN " % (
                 colnamestr[tablename], tablename, pkeynamestr)
             missings[tablename] = missing_stmt_start
-            schemata.add(create_stmt)
+            schemata.append((tablename, [fkey[0] for fkey in fkeys.itervalues()], create_stmt))
+            
 
         def insert_rowdicts_table(db, rowdicts, tabname):
             sample = rowdicts[0]
