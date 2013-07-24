@@ -30,7 +30,7 @@ class Card:
         self._text = text
         self._style = style
         self.widget = None
-        self.db.carddict[self.name] = self
+        self.db.carddict[str(self)] = self
 
     def __getattr__(self, attrn):
         if attrn == 'base':
@@ -77,12 +77,6 @@ class Card:
         return {
             "card": {
                 "name": self.name}}
-
-    def delete(self):
-        # May leave a gap in whatever hands it's in. The hands should
-        # be able to handle this.
-        del self.db.carddict[self._dimension][self.name]
-        self.erase()
 
     def mkwidget(self, x, y):
         self.widget = CardWidget(self, x, y)
@@ -312,8 +306,11 @@ class Hand:
             {
                 "hand": "text not null",
                 "idx": "integer not null",
+                "branch": "integer not null default 0",
+                "tick_from": "integer not null default 0",
+                "tick_to": "integer default null",
                 "card": "text not null"},
-            ("hand", "idx"),
+            ("hand", "idx", "branch", "tick_from"),
             {"card": ("card", "name")},
             ("idx>=0",)
         ),
@@ -407,7 +404,7 @@ class Hand:
                 "Hand has no attribute named {0}".format(attrn))
 
     def __getitem__(self, i):
-        return self.db.handcarddict[str(self)][i]
+        
 
     def __len__(self):
         return len(self.db.handcarddict[str(self)])

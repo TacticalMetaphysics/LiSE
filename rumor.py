@@ -21,11 +21,23 @@ from place import Place
 from portal import Portal
 from thing import Thing, Schedule, Journey
 from dimension import Dimension, load_dimensions
-from util import dictify_row
+from util import dictify_row, keyify_dict
 from logging import getLogger
 
 
 logger = getLogger(__name__)
+
+
+def set_previous_end(d, tick, pair=False):
+    if d != {} and tick not in d:
+        p = max([tock for tock in d if tock < tick])
+        if pair:
+            d[p][1] = tick
+        else:
+            d[p] = tick
+
+def set_previous_end_pair(d, tick):
+    set_previous_end(d, tick, True)
 
 
 class Fake3DictIter:
@@ -113,14 +125,19 @@ class Tick:
             self.commence.character_attrib,
             self.proceed.character_attrib,
             self.conclude.character_attrib)
-        self.effect_deck = Fake3Dict(
-            self.commence.effect_deck,
-            self.proceed.effect_deck,
-            self.conclude.effect_deck)
+        self.deck_effect = Fake3Dict(
+            self.commence.deck_effect,
+            self.proceed.deck_effect,
+            self.conclude.deck_effect)
         self.hand_card = Fake3Dict(
             self.commence.hand_card,
             self.proceed.hand_card,
             self.conclude.hand_card)
+        # TODO: look at all the various window dicts and add all the
+        # stuff that they indicate should happen now
+
+        def __int__(self):
+            return self.i
 
         def __getattr__(self, attrn):
             if attrn == 'event':
@@ -130,6 +147,25 @@ class Tick:
                     self.conclude.event)
             else:
                 raise AttributeError("Tick has no attribute " + attrn)
+
+        def successor(self):
+            pass
+            
+
+        def move_thing(self, dimension, thing, dest):
+            # May throw KeyError, in which case you can't logically
+            # END the location, because the thing isn't THERE.
+            curloc = self.proceed.dimensiondict[dimension]["thing_loc"][thing]
+            del self.proceed.dimensiondict[dimension]["thing_loc"][thing]
+            self.conclude.add_thing_loc(dimension, thing, curloc)
+            self.commence.add_thing_loc(dimension, thing, dest)
+
+        def thing_thru_portal(self, dimension, thing, inc):
+            curprog = self.proceed.dimensiondict[dimension]["thing_prog"][thing]
+            self.conclude.set_thing_prog(dimension, thing, curprog)
+            self.commence.set_thing_prog(dimension, thing, curprog + inc)
+            del self.proceed.dimensiondict[dimension]["thing_prog"][thing]
+            
 
 def mkdimdict():
     return {
@@ -152,7 +188,7 @@ class Ticklet:
         self.dimensiondict = {}
         self.character_skill = {}
         self.character_attrib = {}
-        self.effect_deck = {}
+        self.deck_effect = {}
         self.event = set()
         self.hand_card = {}
 
@@ -185,7 +221,7 @@ class Ticklet:
         except KeyError:
             pass
 
-    def add_character_attribution(self, character, attribute, value):
+    def set_character_attribution(self, character, attribute, value):
         d = self.character_attrib
         if character not in d:
             d[character] = {}
@@ -203,10 +239,19 @@ class Ticklet:
     def discard_event(self, name):
         self.event.discard(name)
 
-    def set_effect_deck(self, deck, effects):
-        self.effect_deck[deck] = effects
+    def remove_event(self, name):
+        self.event.remove(name)
 
-    def set_hand_cards(self, hand, cards):
+    def insert_into_effect_deck(self, deck, i, effect):
+        self.deck_effect[deck].insert(i, effect)
+
+    def set_effect_deck(self, deck, effects):
+        self.deck_effect[deck] = effects
+
+    def insert_into_hand(self, hand, i, card):
+        self.hand_card[hand].insert(i, card)
+
+    def set_hand(self, hand, cards):
         self.hand_card[hand] = cards
 
     def set_path(self, dimension, origi, desti, path):
@@ -221,7 +266,7 @@ class Ticklet:
         d[origi][desti] = path
         e[desti][origi] = path
 
-    def add_place(self, dimension, name, i):
+    def set_place(self, dimension, name, i):
         if dimension not in self.dimensiondict:
             self.dimensiondict[dimension] = mkdimdict()
         d = self.dimensiondict[dimension]["place_by_name"]
@@ -231,7 +276,7 @@ class Ticklet:
             e.append(None)
         e[i] = name
 
-    def add_portal(self, dimension, orign, destn, i):
+    def set_portal(self, dimension, orign, destn, i):
         if dimension not in self.dimensiondict:
             self.dimensiondict[dimension] = mkdimdict()
         d = self.dimensiondict[dimension]["portal_by_orig_dest"]
@@ -337,14 +382,37 @@ arguments.
         self.stringdict = {}
         self.styledict = {}
         self.tickdict = {}
-        self.branch_start_tick = {0: 0}
-        self.branch_end_tick = {}
-        self.branch_precursor = {}
+        self.branch_start = {}
+        self.branch_end = {}
+        self.branch_parent = {}
+        self.branch_children = {}
         self.spotdict = {}
         self.pawndict = {}
         self.arrowdict = {}
         self.eventdict = {}
-        self.effectdict = {}
+        self.placedict = {}
+        self.portaldict = {}
+        self.thingdict = {}
+        # "scheduled" dictionaries have a key that includes a branch
+        # and a tick. Their values may be either another tick, or else
+        # a pair containing some time-sensitive data as the 0th item
+        # and a tick as the 1th item. The tick in the value is when a
+        # fact stops being true. The tick in the key is when the fact
+        # begins being true. The tick in the value may be None, in which
+        # case the fact will stay true forever.
+        self.event_scheduled = {}
+        self.effect_deck_scheduled = {}
+        self.char_att_scheduled = {}
+        self.char_skill_scheduled = {}
+        self.char_item_scheduled = {}
+        self.location_scheduled = {}
+        self.progress_scheduled = {}
+        self.place_scheduled = {}
+        self.portal_scheduled = {}
+        self.thing_scheduled = {}
+        self.hand_card_scheduled = {}
+        
+
         placeholder = (noop, ITEM_ARG_RE)
         self.func = {
             'toggle_menu':
@@ -450,34 +518,62 @@ arguments.
             str(dimension), int(branch), i)
                 for i in xrange(int(start), int(end))]
 
-    def record_ticks(self, branch, tick_from, tick_to, adder_name, adder_args):
+    def alter_ticks_from_to(self, branch, tick_from, tick_to, function_name, function_args):
         starttick = self.get_tick(branch, tick_from).commence
-        getattr(starttick, adder_name)(*adder_args)
-        if tick_to is not None:
-            endtick = self.get_tick(branch, tick_to).conclude
-            getattr(endtick, adder_name)(*adder_args)
-            for i in xargs(tick_from+1, tick_to-1):
-                conttick = self.get_tick(branch, i).proceed
-                getattr(conttick, adder_name)(*adder_args)
+        getattr(starttick, function_name)(*function_args)
+        endtick = self.get_tick(branch, tick_to).conclude
+        getattr(endtick, function_name)(*function_args)
+        for i in xargs(tick_from+1, tick_to-1):
+            conttick = self.get_tick(branch, i).proceed
+            getattr(conttick, function_name)(*function_args)
+
+    def alter_all_ticks_from(self, branch, tick_from, function_name, function_args):
+        """Notably doesn't mark the conclusion!"""
+        tick_to = max([ticki in self.tickdict[branch] if ticki > tick_from])
+        starttick = self.get_tick(branch, tick_from).commence
+        getattr(starttick, function_name)(*function_args)
+        for i in xrange(tick_from+1, tick_to):
+            conttick = self.get_tick(branch, i).proceed
+            getattr(conttick, function_name)(*function_args)
+
+    def alter_all_ticks(self, branch, function_name, function_args):
+        """You'd better be damn sure."""
+        tick_from = min(self.tickdict[branch])
+        tick_to = max(self.tickdict[branch])
+        starttick = self.tickdict[branch][tick_from].commence
+        getattr(starttick, function_name)(*function_args)
+        for i in xrange(tick_from+1, tick_to):
+            conttick = self.get_tick(branch, i).proceed
+            getattr(conttick, function_name)(*function_args)
+        
+
+    def alter_ticks(self, branch, tick_from, tick_to, function_name, function_args):
+        if tick_to is None:
+            if tick_from is None:
+                self.alter_all_ticks(branch, function_name, function_args)
+            else:
+                self.alter_all_ticks_from(branch, tick_from, function_name, function_args)
+        else:
+            self.alter_ticks_from_to(branch, tick_from, tick_to, function_name, function_args)
 
     def record_character_item(self, character, dimension, item, branch, tick_from, tick_to):
-        self.record_ticks(branch, tick_from, tick_to,
-                          'add_character_item', (dimension, character, item))
+        self.alter_ticks(branch, tick_from, tick_to,
+                         'set_character_item', (character, dimension, item))
+
+    def erase_character_item(self, character, dimension, item, branch, tick_from, tick_to):
+        self.alter_ticks(branch, tick_from, tick_to,
+                         'remove_character_item', (dimension, character, item))
 
     def get_character_items(self, character, branch=None, tick=None):
         w = self.get_world_state(branch, tick)
         d = w.dimensiondict
         r = {}
         for dimension in iter(d):
+            if dimension not in r:
+                r[dimension] = set()
             if character in d[dimension]["character_item"]:
-                if dimension not in r:
-                    r[dimension] = set()
                 r[dimension].add(d[dimension]["character_item"][character])
         return r
-
-    def record_character_skill(self, character, skill, effect_deck, branch, tick_from, tick_to):
-        self.record_ticks(None, branch, tick_from, tick_to,
-                          'add_character_skill', (character, skill, effect_deck))
 
     def get_character_skills(self, character, branch=None, tick=None):
         w = self.get_world_state(branch, tick)
@@ -485,16 +581,27 @@ arguments.
 
     def record_character_attribution(self, character, attribute, value,
                                      branch, tick_from, tick_to):
-        self.record_ticks(None, branch, tick_from, tick_to,
-                          'add_character_attribution', (character, attribute, value))
+        self.alter_ticks(None, branch, tick_from, tick_to,
+                          'set_character_attribution', (character, attribute, value))
+
+    def erase_character_attribution(self, character, attribute, value, branch, tick_from, tick_to):
+        self.alter_ticks(None, branch, tick_from, tick_to,
+                         'remove_character_attribution', (character, attribute))
 
     def get_character_attributions(self, character, branch=None, tick=None):
         w = self.get_world_state(branch, tick)
         return w.character_attrib[character]
 
     def record_scheduled_event(self, event_name, branch, tick_from, tick_to):
-        self.record_ticks(branch, tick_from, tick_to,
-                          'add_event', (event_name,))
+        self.alter_ticks(branch, tick_from, tick_to,
+                         'add_event', (event_name,))
+
+    def erase_scheduled_event(self, event_name, branch, tick_from, tick_to=None):
+        if tick_to is None:
+            tick_to = self.event_by_start[event_name][tick_from].tick_to
+        del self.event_by_start[event_name][tick_from]
+        self.alter_ticks(branch, tick_from, tick_to,
+                         'remove_event', (event_name,))
 
     def get_events(self, branch=None, tick=None):
         w = self.get_world_state(branch, tick)
@@ -512,26 +619,14 @@ arguments.
         w = self.get_world_state(branch, tick)
         return w.conclude.events
 
-    def make_event(self, name, text, commence_effects, proceed_effects, conclude_effects):
-        self.eventdict[name] = Event(name, text, commence_effects, proceed_effects, conclude_effects)
-
-    def get_event(self, name):
-        return self.eventdict[name]
-
-    def make_effect(self, name, func, arg):
-        self.effectdict[name] = Effect(name, func, arg)
-
-    def get_effect(self, name):
-        return self.effectdict[name]
-
-    def record_effect_deck(self, effect_deck_name, effect_deck_cards,
+    def record_effect_deck(self, effect_deck_name, effect_list,
                            branch, tick_from, tick_to):
         self.record_ticks(branch, tick_from, tick_to,
-                          'set_effect_deck', (effect_deck_name, effect_deck_cards))
+                          'set_effect_deck', (effect_deck_name, effect_list))
 
     def get_effects_in_deck(self, name, branch=None, tick=None):
         w = self.get_world_state(branch, tick)
-        return w.effect_deck[name]
+        return w.deck_effect[name]
 
     def record_hand_cards(self, hand_name, hand_cards,
                           branch, tick_from, tick_to):
@@ -822,9 +917,10 @@ Spell the lang argument the same way it's spelled in the strings table.
         self.load_strings()
         self.load_board(self.game["front_board"])
 
-    def thing_into_portal(self, dimension_s, thing_s, orig_s, dest_s)
+    def thing_into_portal(self, dimension_s, thing_s, orig_s, dest_s,
+                          effect=None, deck=None, event=None, branch=None, tick=None):
+        portal = self.get_portal_orig_dest(dimension_s, orig_s, dest_s)
         thing = self.thingdict[dimension_s][thing_s]
-        portal = self.portalorigdestdict[dimension_s][orig_s][dest_s]
         thing.enter(portal)
 
     def thing_along_portal(
@@ -912,8 +1008,285 @@ necessary."""
             branch = self.branch
         if tick is None:
             tick = self.tick
+        if branch not in self.tickdict:
+            self.tickdict[branch] = {}
+        if tick not in self.tickdict[branch]:
+            prevticks = [n for n in self.tickdict[branch] if n<tick]
+            if prevticks == []:
+                self.tickdict[branch][tick] = Tick(self, branch, tick)
+            else:
+                prevtick = max(prevticks)
+                for i in xrange(prevtick+1, tick):
+                    self.tickdict[branch][i] = self.tickdict[branch][i-1].successor()
         return self.tickdict[branch][tick]
+    # TODO: For all these schedule functions, handle the case where I
+    # try to schedule something for a time outside of the given
+    # branch. These functions may not be the most appropriate *place*
+    # to handle that.
 
+    def schedule_something(self, scheddict, dictkeytup,
+                           val=None, branch=None, tick_from=None, tick_to=None):
+        if branch is None:
+            branch = self.branch
+        if tick_from is None:
+            tick_from = self.tick
+        ptr = scheddict
+        for key in dictkeytup + (branch,):
+            if key not in ptr:
+                ptr[key] = {}
+            ptr = ptr[key]
+        if val is None:
+            ptr[tick_from] = tick_to
+        else:
+            ptr[tick_from] = (val, tick_to)
+
+    def schedule_event(self, name, branch=None, tick_from=None, tick_to=None):
+        self.schedule_something(
+            self.event_scheduled, (name,), None, branch, tick_from, tick_to)
+
+    def event_is_commencing(self, name, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        return (name in self.event_scheduled and
+                branch in self.event_scheduled[name] and
+                tick in self.event_scheduled[name][branch])
+
+    def event_is_concluding(self, name, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+            return False
+        for prevstart in self.event_scheduled[name][branch]:
+            if prevstart < tick and self.event_scheduled[name][branch][prevstart] == tick:
+                return True
+        return False
+
+    def event_is_proceeding(self, name, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+            return False
+        for prevstart in self.event_scheduled[name][branch]:
+            if prevstart < tick and self.event_scheduled[name][branch][prevstart] > tick:
+                return True
+        return False
+
+    def event_is_starting_or_proceeding(self, name, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+            return False
+        for prevstart in self.event_scheduled[name][branch]:
+            if prevstart == tick:
+                return True
+            elif prevstart < tick and self.event_scheduled[name][branch][prevstart] > tick:
+                return True
+        return False
+
+    def event_is_proceeding_or_concluding(self, name, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+            return False
+        for prevstart in self.event_scheduled[name][branch]:
+            if prevstart < tick:
+                if self.event_scheduled[name][branch][prevstart] >= tick:
+                    return True
+        return False
+
+    def event_is_happening(self, name, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+            return False
+        for prevstart in self.event_scheduled[name][branch]:
+            if prevstart == tick:
+                return True
+            elif prevstart < tick:
+                if self.event_scheduled[name][branch][prevstart] >= tick:
+                    return True
+        return False
+
+    def schedule_effect_deck(self, name, cards,
+                             branch=None, tick_from=None, tick_to=None):
+        self.schedule_something(
+            self.effect_deck_scheduled, (name,), cards, branch, tick_from, tick_to)
+
+    def get_effect_deck_card_names(self, name, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        for (commencement, (cards, conclusion)) in self.effect_deck_scheduled[
+                name][branch].iteritems():
+            if commencement <= tick and conclusion >= tick:
+                return cards
+        return None
+
+    def schedule_char_att(self, char_s, att_s, val,
+                          branch=None, tick_from=None, tick_to=None):
+        self.schedule_something(
+            self.char_att_scheduled, (char_s, att_s), val, branch, tick_from, tick_to)
+
+    def get_char_att_val(self, char_s, att_s, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        for (commencement, (value, conclusion)) in self.char_att_scheduled[
+                char_s][att_s][branch].iteritems():
+            if commencement <= tick and conclusion >= tick:
+                return value
+        return None
+
+    def schedule_char_skill(self, char_s, skill_s, effect_deck_s,
+                            branch=None, tick_from=None, tick_to=None):
+        self.schedule_something(
+            self.char_skill_scheduled, (char_s, skill_s), effect_deck_s,
+            branch, tick_from, tick_to)
+
+    def get_char_skill_deck_name(self, char_s, skill_s, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        for (commencement, (deck, conclusion)) in self.char_skill_scheduled[
+                char_s][skill_s][branch_s].iteritems():
+            if commencement <= tick and conclusion >= tick:
+                return deck
+        return ''
+
+    def schedule_char_item(self, char_s, dimension_s, item_s,
+                           branch=None, tick_from=None, tick_to=None):
+        self.schedule_something(
+            self.char_item_scheduled, (char_s, dimension_s, item_s),
+            None, branch, tick_from, tick_to)
+
+    def character_is_item(self, char_s, dimension_s, item_s,
+                          branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        for (commencement, conclusion) in self.char_item_scheduled[char_s][dimension_s][item_s][branch]:
+            if commencement <= tick and conclusion >= tick:
+                return True
+        return False
+
+    def schedule_location(self, dimension_s, thing_s, place_s,
+                          branch=None, tick_from=None, tick_to=None):
+        self.schedule_something(
+            self.location_scheduled, (dimension_s, thing_s),
+            place_s, branch, tick_from, tick_to)
+
+    def get_location_name(self, dimension_s, thing_s, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        for (commencement, (locn, conclusion)) in self.location_scheduled[
+                dimension_s][thing_s][branch].iteritems():
+            if commencement <= tick and conclusion >= tick:
+                return locn
+        return ''
+
+    def schedule_progress(self, dimension_s, thing_s, new_prog,
+                          branch=None, tick_from=None, tick_to=None):
+        self.schedule_something(
+            self.progress_scheduled, (dimension_s, thing_s), new_prog,
+            branch, tick_from, tick_to)
+
+    def get_progress(self, dimension_s, thing_s, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        for (commencement, (progress, conclusion)) in self.progress_scheduled[
+                dimension_s][thing_s][branch]:
+            if commencement <= tick and conclusion >= tick:
+                return progress
+        return 0.0
+
+    def schedule_hand_card(self, hand_s, card_s, card_n,
+                           branch=None, tick_from=None, tick_to=None):
+        self.schedule_something(
+            self.hand_card_scheduled, (hand_s, card_s), card_n,
+            branch, tick_from, tick_to)
+
+    def card_copies_in_hand(self, hand_s, card_s, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        for (commencement, (n, conclusion)) in self.hand_card_scheduled[
+                hand_s][card_s][branch].iteritems():
+            if commencement <= tick and conclusion >= tick:
+                return n
+        return 0
+
+    def schedule_place(self, dimension_s, place_s,
+                       branch=None, tick_from=None, tick_to=None):
+        self.schedule_something(
+            self.place_scheduled, (dimension_s, place_s),
+            None, branch, tick_from, tick_to)
+
+    def place_exists(self, dimension_s, place_s, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        for (commencement, conclusion) in self.place_scheduled[
+                dimension_s][place_s][branch].iteritems():
+            if commencement <= tick and conclusion >= tick:
+                return True
+        return False
+
+    def schedule_portal(self, dimension_s, orig_s, dest_s,
+                        branch=None, tick_from=None, tick_to=None):
+        self.schedule_something(
+            self.portal_scheduled, (dimension_s, orig_s, dest_s),
+            None, branch, tick_from, tick_to)
+
+    def portal_exists(self, dimension_s, orig_s, dest_s,
+                      branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        for (commencement, conclusion) in self.portal_scheduled[
+                dimension_s][orig_s][dest_s][branch].iteritems():
+            if commencement <= tick and conclusion >= tick:
+                return True
+        return False
+
+    def schedule_thing(self, dimension_s, thing_s,
+                       branch=None, tick_from=None, tick_to=None):
+        self.schedule_something(
+            self.thing_scheduled, (dimension_s, thing_s),
+            None, branch, tick_from, tick_to)
+
+    def thing_exists(self, dimension_s, thing_s, branch=None, tick=None):
+        if branch is None:
+            branch = self.branch
+        if tick is None:
+            tick = self.tick
+        for (commencement, conclusion) in self.thing_scheduled[
+                dimension_s][thing_s][branch].iteritems():
+            if commencement <= tick and conclusion >= tick:
+                return True
+        return False
 
 def load_game(dbfilen, language):
     """Load the game in the database file by the given name. Load strings

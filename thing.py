@@ -130,38 +130,23 @@ LocationException."""
         """If I can't contain the given item, raise a ContainmentException."""
         pass
 
-    def enter(self, it):
+    def enter(self, it, branch=None, tick=None):
         """Check if I can go into the destination, and if so, do it
 immediately. Else raise exception as appropriate."""
         self.assert_can_enter(it)
         it.assert_can_contain(self)
-        it.add(self)
+        w = self.db.get_world_state(branch, tick)
+        w.move_thing(self._dimension, self.name, it)
 
-    def get_tabdict(self):
-        return {
-            "thing": {
-                "dimension": self._dimension,
-                "name": self.name,
-                "location": str(self.location)}}
-
-    def delete(self):
-        del self.db.locdict[self._dimension][self.name]
-        del self.db.thingdict[self._dimension][self.name]
-        self.erase()
-        Item.delete(self)
-
-    def pass_through(self, there, elsewhere):
-        """Try to enter there, and immediately go elsewhere. Raise
-ShortstopException if it doesn't work."""
-
-    def move_thru_portal(self, amount):
+    def move_thru_portal(self, amount, branch=None, tick=None):
         """Move this amount through the portal I'm in"""
         if not isinstance(self.location, Portal):
             raise PortalException(
                 """The location of {0} is {1},
 which is not a portal.""".format(repr(self), repr(self.location)))
         self.location.notify_moving(self, amount)
-        self.portal_progress += amount
+        w = self.db.get_world_state(branch, tick)
+        w.thing_thru_portal(self._dimension, self.name, self.amount)
 
     def speed_thru(self, port):
         return 1.0/60.0
@@ -422,21 +407,24 @@ will be None.
         del self.steps[0]
         return (oldport, newplace)
 
-    def schedule_step(self, i, start):
+    def schedule_step(self, i, branch=None, tick=None):
         """Add an event representing the step at the given index to the
 thing's schedule, starting at the given tick."""
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
         logger.debug("scheduling step %d in %s's journey, "
-                     "with start at tick %d",
-                     i, str(self.thing),start)
+                     "with start in branch %d at tick %d",
+                     i, str(self.thing), branch, tick)
         port = self.portal_at(i)
         ev = PortalTravelEvent(self.db, self.thing, port, False)
-        ev.start = start
-        ev.length = int(1/self.thing.speed_thru(port))
+        ev.tick_from = tick
+        length = int(1/self.thing.speed_thru(port))
+        ev.tick_to = tick_from + length
         self.scheduled[i] = ev
-        if self.thing.schedule is None:
-            self.thing.schedule = Schedule(self.db, self.dimension, self.thing)
-        logger.debug("...and end at tick %d", ev.start + ev.length)
-        self.thing.schedule.add(ev)
+        logger.debug("...and end at tick %d", ev.tick_to)
+        self.db.remember_scheduled_event(ev)
         return ev
 
     def schedule(self, delay=0):
@@ -471,189 +459,6 @@ by default, but you can change that by supplying delay.
 
 
 journey_qvals = ["journey_step." + valn for valn in Journey.valns]
-
-
-class Schedule:
-    """Many events, all assocated with the same item in the same dimension,
-and given start times and lengths.
-
-Events in a given schedule are assumed never to overlap. This is not
-true of events in different schedules.
-
-    """
-    tables = [
-        ("scheduled_event",
-         {"dimension": "text not null default 'Physical'",
-          "item": "text not null",
-          "event": "text not null",
-          "start": "integer not null",
-          "length": "integer not null default 1"},
-         ("dimension", "item", "start"),
-         {"dimension, item": ("item", "dimension, name"),
-          "event, start": ("event", "name, tick_from")},
-         [])]
-
-    def __init__(self, db, dimension, item):
-        """Return an empty event for the given item in the given
-dimension. With db, register in db's scheduledict, startevdict,
-contevdict, and endevdict."""
-        self._dimension = dimension
-        self._item = item
-        self.db = db
-
-    def __getattr__(self, attrn):
-        if attrn == 'dimension':
-            return self.db.get_dimension(self._dimension)
-        elif attrn == 'item':
-            return self.db.itemdict[self._dimension][self._item]
-        else:
-            raise AttributeError("Schedule has no such attribute")
-
-    def __iter__(self):
-        """Return iterator over my events in order of their start times."""
-        return self.events.itervalues()
-
-    def __len__(self):
-        return max(self.events_ongoing.viewkeys())
-
-    def __contains__(self, ev):
-        if not (
-                hasattr(ev, 'start') and hasattr(ev, 'length')):
-            return False
-        ev_end = ev.start + ev.length
-        if not (
-            ev.start in self.events_starting and
-                ev_end in self.events_ending):
-            return False
-        # Assume that self.add did its job right and I don't have to check all
-        # the inbetween periods.
-        return (
-            ev in self.events_starting[ev.start] and
-            ev in self.events_ending[ev_end])
-
-    def get_tabdict(self):
-        r = []
-        for s in self.events_starting.itervalues():
-            for ev in iter(s):
-                r.append({
-                    "dimension": self._dimension,
-                    "item": self._item,
-                    "event": ev.name,
-                    "start": ev.start,
-                    "length": ev.length})
-        return {"scheduled_event": r}
-
-    def delete(self):
-        del self.db.scheduledict[self._dimension][self.name]
-        self.erase()
-
-    def unravel(self):
-        """Dereference dimension and item."""
-        for ev in self.events.itervalues():
-            ev.unravel()
-
-    def trash_cache(self, start):
-        """Trash all cached results for commencements_between,
-processions_between, and conclusions_between."""
-        for cache in [
-                self.cached_commencements,
-                self.cached_processions,
-                self.cached_conclusions]:
-            try:
-                del cache[start]
-            except KeyError:
-                pass
-
-    def add(self, ev):
-        """Add an event to all dictionaries in me. Assume it has a start and a
-length already."""
-        self.events[ev.name] = ev
-        ev_end = ev.start + ev.length
-        if ev.start not in self.events_starting:
-            self.events_starting[ev.start] = set()
-        if ev_end not in self.events_ending:
-            self.events_ending[ev_end] = set()
-        for i in xrange(ev.start+1, ev_end-1):
-            if i not in self.events_ongoing:
-                self.events_ongoing[i] = set()
-            self.events_ongoing[i].add(ev)
-        self.events_starting[ev.start].add(ev)
-        self.events_ending[ev_end].add(ev)
-        self.trash_cache(ev.start)
-        if self.db is not None:
-            self.db.add_event(ev)
-
-    def remove(self, ev):
-        """Remove an event from all my dictionaries."""
-        del self.events[ev.name]
-        ev_end = ev.start + ev.length
-        self.events_starting[ev.start].remove(ev)
-        for i in xrange(ev.start+1, ev_end-1):
-            self.events_ongoing[i].remove(ev)
-        self.events_ending[ev_end].remove(ev)
-
-    def discard(self, ev):
-        """Remove an event from all my dictionaries in which it is a
-member."""
-        del self.events[ev.name]
-        if not hasattr(ev, 'start') or not hasattr(ev, 'length'):
-            return
-        ev_end = ev.start + ev.length
-        self.events_starting[ev.start].discard(ev)
-        self.events_ending[ev_end].discard(ev)
-        for i in xrange(ev.start+1, ev_end-1):
-            self.events_ongoing[i].discard(ev)
-        self.discard_global(ev)
-        self.trash_cache(ev.start)
-
-    def commencements_between(self, start, end):
-        """Return a dict of all events that start in the given timeframe,
-keyed by their start times."""
-        if (
-                start in self.cached_commencements and
-                end in self.cached_commencements[start]):
-            return self.cached_commencements[start][end]
-        lookup = lookup_between(self.events_starting, start, end)
-        if start not in self.cached_commencements:
-            self.cached_commencements[start] = {}
-        self.cached_commencements[start][end] = lookup
-        return lookup
-
-    def processions_between(self, start, end):
-        """Return a dict of all events that occur in the given timeframe,
-regardless of whether they start or end in it. Keyed by every tick in
-which the event is ongoing, meaning most events will be present more
-than once."""
-        if (
-                start in self.cached_processions and
-                end in self.cached_processions[start]):
-            return self.cached_processions[start][end]
-        lookup = lookup_between(self.events_ongoing, start, end)
-        if start not in self.cached_processions:
-            self.cached_processions[start] = {}
-        self.cached_processions[start][end] = lookup
-        return lookup
-
-    def conclusions_between(self, start, end):
-        """Return a dict of all events that end in the given time frame, keyed
-by their end times."""
-        if (
-                start in self.cached_conclusions and
-                end in self.cached_conclusions[start]):
-            return self.cached_conclusions[start][end]
-        lookup = lookup_between(self.events_ending, start, end)
-        if start not in self.cached_conclusions:
-            self.cached_conclusions[start] = {}
-        self.cached_conclusions[start][end] = lookup
-        return lookup
-
-    def events_between(self, start, end):
-        """Return a tuple containing the results of commencements_between,
-processions_between, and conclusions_between, for the given
-timeframe."""
-        return (self.commencements_between(start, end),
-                self.processions_between(start, end),
-                self.conclusions_between(start, end))
 
 SCHEDULE_DIMENSION_QRYFMT = (
     "SELECT {0} FROM scheduled_event WHERE dimension "

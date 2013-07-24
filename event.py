@@ -98,6 +98,7 @@ the three given effect decks. Register with db.eventdict.
         self._proceed_effects = str(proceed_effects)
         self._conclude_effects = str(conclude_effects)
         self.db = db
+        self.db.eventdict[self.name] = self
 
     def __getattr__(self, attrn):
         if attrn == "text":

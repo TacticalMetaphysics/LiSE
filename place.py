@@ -6,6 +6,49 @@ import re
 __metaclass__ = SaveableMetaclass
 
 
+class PlaceContentsIter:
+    def __init__(self, place, branch=None, tick=None):
+        self.db = place.db
+        self.place_s = str(place)
+        self.dimension_s = place._dimension
+        self.branch = branch
+        self.tick = tick
+        self.locdictiter = self.db.get_world_state(
+            self.branch, self.tick).dimensiondict[
+                self.dimension_s]["thing_loc"].iteritems()
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        (thing_s, loc_s) = (None, None)
+        while loc_s != self.place_s:
+            (thing_s, loc_s) = self.locdictiter.next()
+        return self.place.db.thingdict[self.place._dimension][thing_s]
+
+
+class PortalOrigIter:
+    portfmt = "Portal({0}->{1})"
+    def __init__(self, place, branch=None, tick=None):
+        self.db = place.db
+        self.place_s = str(place)
+        self.dimension_s = place._dimension
+        self.branch = branch
+        self.tick = tick
+        self.portorigiter = self.db.get_world_state(
+            self.branch, self.tick).dimensiondict[
+                self.dimension_s]["portal_by_orig_dest"][
+                    self.place_s].iterkeys()
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        dest_s = self.portorigiter.next()
+        port_s = self.portfmt.format(self.place_s, dest_s)
+        return self.db.portaldict[self.dimension_s][port_s]
+
+
 class Place(Item):
     """The 'top level' of the world model. Places contain Things and are
 connected to other Places, forming a graph."""
@@ -25,23 +68,25 @@ connected to other Places, forming a graph."""
         """Return a Place of the given name, in the given dimension. Register
 it with the placedict and itemdict in the db."""
         Item.__init__(self, db, dimension, name)
+        if self._dimension not in self.db.placedict:
+            self.db.placedict[self._dimension] = {}
+        self.db.placedict[self._dimension][str(self)] = self
 
     def __str__(self):
         return self.name
 
     def __int__(self):
-        return self.i
-
-    def __repr__(self):
-        return str(self)
+        w = self.db.get_world_state()
+        d = w.dimensiondict[self._dimension]["place_by_name"]
+        return d[str(self)]
 
     def __getattr__(self, attrn):
         if attrn == 'spot':
             return self.db.spotdict[self._dimension][self.name]
         elif attrn == 'contents':
-            # TODO
-        elif attrn == 'i':
-            # TODO
+            return PlaceContentsIter(self)
+        elif attrn == 'portals':
+            return PortalOrigIter(self)
         else:
             try:
                 return Item.__getattr__(self, attrn)

@@ -26,6 +26,7 @@ called with the given argument. Register in db.effectdict."""
         self.name = name
         self._func = str(func)
         self.arg = str(arg)
+        self.db.effectdict[self.name] = self
 
     def __str__(self):
         return self.name
@@ -218,7 +219,7 @@ the given list.
             branch = self.db.branch
         if tick_from is None:
             tick_from = self.db.tick
-        self.db.record_effect_deck(self.name, effects, branch, tick_from, tick_to)
+        self.db.remember_effect_deck(self)
 
     def __str__(self):
         return self.name

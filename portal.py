@@ -27,61 +27,52 @@ class Portal(Item):
           "dimension, to_place": ("place", "dimension, name")},
          [])]
 
-    def __init__(self, db, dimension, from_place, to_place, i):
-        self._orig = from_place
-        self._dest = to_place
-        self.i = i
-        name = "Portal({0}->{1})".format(
-            str(from_place), str(to_place))
-        Item.__init__(self, db, dimension, name)
-        podd = db.portalorigdestdict
-        pdod = db.portaldestorigdict
-        for d in (db.itemdict, podd, pdod):
-            if self._dimension not in d:
-                d[self._dimension] = {}
-        if self._orig not in podd[self._dimension]:
-            podd[self._dimension][self._orig] = {}
-        if self._dest not in pdod[self._dimension]:
-            pdod[self._dimension][self._dest] = {}
-        podd[self._dimension][self._orig][self._dest] = self
-        pdod[self._dimension][self._dest][self._orig] = self
-        self.dimension.index_portal(self)
+    def __init__(self, db, dimension, from_place, to_place):
+        self._orig = str(from_place)
+        self._dest = str(to_place)
+        Item.__init__(self, db, dimension, str(self))
+        w = self.db.get_world_state(branch, tick)
+        d = w.dimensiondict[self._dimension]
+        if str(self) in d["portal_by_i"]:
+            i = d["portal_by_i"].index(str(self))
+        else:
+            i = len(d["portal_by_i"])
+            d["portal_by_i"].append(str(self))
+        if self._orig not in d["portal_by_orig_dest"]:
+            d["portal_by_orig_dest"][self._orig] = {}
+        d["portal_by_orig_dest"][self._dest] = i
+        if self._dest not in d["portal_by_dest_orig"]:
+            d["portal_by_dest_orig"][self._dest] = {}
+        d["portal_by_dest_orig"][self._dest][self._orig] = i
+        if self._dimension not in self.db.portaldict:
+            self.db.portaldict[self._dimension] = {}
+        self.db.portaldict[self._dimension][str(self)] = self
+        
 
     def __str__(self):
-        return 'Portal({0}->{1})'.format(str(self.orig), str(self.dest))
+        return 'Portal({0}->{1})'.format(self._orig, self._dest)
+
+    def __int__(self):
+        w = self.db.get_world_state()
+        d = w.dimensiondict["portal_by_orig_dest"]
+        return d[self._dimension][self._orig][self._dest]
 
     def __getattr__(self, attrn):
-        if attrn == "spot":
-            return self.dest.spot
-        elif attrn == "orig":
+        if attrn == 'exists':
+            w = self.db.get_world_state()
+            d = w.dimensiondict[self._dimension]
+            return (
+                self._orig in d["portal_by_orig_dest"] and
+                self._dest in d["portal_by_orig_dest"][self._orig])
+        elif attrn == 'orig':
             return self.db.placedict[self._dimension][self._orig]
-        elif attrn == "dest":
+        elif attrn == 'dest':
             return self.db.placedict[self._dimension][self._dest]
-        elif attrn == "edge":
-            return self.db.edgedict[self._dimension][str(self)]
-        elif attrn == "dimension":
-            return self.db.get_dimension(self._dimension)
-        elif attrn == "reciprocal":
-            return self.db.portaldestorigdict[
-                self._dimension][self._orig][self._dest]
         else:
             raise AttributeError("Portal has no such attribute")
 
     def unravel(self):
         pass
-
-    def get_tabdict(self):
-        return {
-            "portal": {
-                "dimension": self._dimension,
-                "from_place": self._orig,
-                "to_place": self._dest,
-                "i": self.i}}
-
-    def delete(self):
-        del self.db.portalorigdestdict[self._dimension][self._orig][self._dest]
-        del self.db.portaldestorigdict[self._dimension][self._dest][self._orig]
-        Item.delete(self)
 
     def admits(self, traveler):
         """Return True if I want to let the given thing enter me, False
@@ -89,7 +80,7 @@ otherwise."""
         return True
 
     def touches(self, place):
-        return self.orig is place or self.dest is place
+        return self.orig == place or self.dest == place
 
     def find_neighboring_portals(self):
         return self.orig.portals + self.dest.portals

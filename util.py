@@ -48,113 +48,12 @@ funcs = [start_new_map, open_map, save_map, quit_map_editor, editor_select,
          editor_copy, editor_paste, editor_delete, new_place, new_thing]
 
 
-def mkitemd(dimension, name):
-    return {'dimension': dimension,
-            'name': name}
-
-
-def reciprocate(porttup):
-    return (porttup[1], porttup[0])
-
-
-def reciprocate_all(porttups):
-    return [reciprocate(port) for port in porttups]
-
-
-def reciprocal_pairs(pairs):
-    return pairs + [reciprocate(pair) for pair in pairs]
-
-
-def mkportald(dimension, orig, dest):
-    return {'dimension': dimension,
-            'name': "portal[%s->%s]" % (orig, dest),
-            'from_place': orig,
-            'to_place': dest}
-
-
-def mklocd(dimension, thing, place):
-    return {'dimension': dimension,
-            'thing': thing,
-            'place': place}
-
-
-def mkstepd(dimension, thing, idx, portal):
-    return {"dimension": dimension,
-            "thing": thing,
-            "idx": idx,
-            "portal": portal}
-
-
-def translate_color(name, rgb):
-    return {
-        'name': name,
-        'red': rgb[0],
-        'green': rgb[1],
-        'blue': rgb[2],
-        'alpha': 255}
-
-
-def mkcontd(dimension, contained, container):
-    # I have not made any containments yet
-    return {"dimension": dimension,
-            "contained": contained,
-            "container": container}
-
-
-def mkjourneyd(thing):
-    return {"dimension": "Physical",
-            "thing": thing,
-            "curstep": 0,
-            "progress": 0.0}
-
-
-def mkboardd(dimension, width, height, wallpaper):
-    return {"dimension": dimension,
-            "width": width,
-            "height": height,
-            "wallpaper": wallpaper}
-
-
-def mkboardmenud(board, menu):
-    return {"board": board,
-            "menu": menu}
-
-
-def mkimgd(name, path, rltile):
-    return {"name": name,
-            "path": path,
-            "rltile": rltile}
-
-
-def mkspotd(dimension, place, img, x, y, visible, interactive):
-    return {"dimension": dimension,
-            "place": place,
-            "img": img,
-            "x": x,
-            "y": y,
-            "visible": visible,
-            "interactive": interactive}
-
-
-def mkpawnd(dimension, thing, img, visible, interactive):
-    return {"dimension": dimension,
-            "thing": thing,
-            "img": img,
-            "visible": visible,
-            "interactive": interactive}
-
-
-def mkstyled(name, fontface, fontsize, spacing,
-             bg_inactive, bg_active,
-             fg_inactive, fg_active):
-    return {'name': name,
-            'fontface': fontface,
-            'fontsize': fontsize,
-            'spacing': spacing,
-            'bg_inactive': bg_inactive,
-            'bg_active': bg_active,
-            'fg_inactive': fg_inactive,
-            'fg_active': fg_active}
+def keyify_dict(d, keytup):
+    ptr = d
+    for key in keytup:
+        if key not in ptr:
+            ptr[key] = {}
+        ptr = ptr[key]
 
 
 def untuple(list_o_tups):
