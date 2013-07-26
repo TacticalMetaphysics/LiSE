@@ -40,9 +40,6 @@ provided."""
     def __str__(self):
         return self.name
 
-    def __hash__(self):
-        return hash(self.tex)
-
     def __getattr__(self, attrn):
         if attrn == 'width':
             return self.tex.width

@@ -55,6 +55,20 @@ def keyify_dict(d, keytup):
             ptr[key] = {}
         ptr = ptr[key]
 
+def tickly_get(db, get_from, branch, tick):
+    if branch is None:
+        branch = db.branch
+    if tick is None:
+        tick = db.tick
+    if branch not in get_from:
+        return None
+    if tick in get_from[branch]:
+        return get_from[branch][tick]
+    for (tick_from, (val, tick_to)) in get_from[branch].iteritems():
+        if tick_from <= tick and tick <= tick_to:
+            return val
+    return None
+
 
 def untuple(list_o_tups):
     r = []
@@ -142,6 +156,190 @@ def place2idx(db, dimname, pl):
             return db.placedict[str(dimname)][pl].i
     else:
         raise ValueError("Can't convert that into a place-index")
+
+class TerminableImg:
+    def get_img(self, branch=None, tick=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.imagery:
+            return None
+        for (tick_from, (img, tick_to)) in self.imagery[branch].iteritems():
+            if tick_from <= tick and (tick_to is None or tick <= tick_to):
+                return img
+        return None
+
+    def set_img(self, img, branch=None, tick_from=None, tick_to=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick_from is None:
+            tick_from = self.db.tick
+        if branch in self.indefinite_imagery:
+            (indef_img, indef_start) = self.indefinite_imagery[branch]
+            if tick_to is None:
+                del self.imagery[branch][indef_start]
+                self.imagery[branch][tick_from] = (img, None)
+                self.indefinite_imagery[branch] = (img, tick_from)
+            else:
+                if tick_from < indef_start:
+                    if tick_to < indef_start:
+                        self.imagery[branch][tick_from] = (img, tick_to)
+                    elif tick_to == indef_start:
+                        del self.indefinite_imagery[branch]
+                        self.imagery[branch][tick_from] = (img, tick_to)
+                    else:
+                        del self.imagery[branch][indef_start]
+                        del self.indefinite_imagery[branch]
+                        self.imagery[branch][tick_from] = (img, tick_to)
+                elif tick_from == indef_start:
+                    del self.indefinite_imagery[branch]
+                    self.imagery[branch][tick_from] = (img, tick_to)
+                else:
+                    self.imagery[branch][indef_start] = (indef_img, tick_from-1)
+                    del self.indefinite_imagery[branch]
+                    self.imagery[branch][tick_from] = (img, tick_to)
+        else:
+            self.imagery[branch][tick_from] = (img, tick_to)
+            if tick_to is None:
+                self.indefinite_imagery[branch] = (img, tick_from)
+
+
+class TerminableInteractivity:
+    def is_interactive(self, branch=None, tick=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.interactivity:
+            return False
+        for (tick_from, tick_to) in self.interactivity[branch].iteritems():
+            if tick_from <= tick and (tick_to is None or tick <= tick_to):
+                return True
+        return False
+
+    def set_interactive(self, branch=None, tick_from=None, tick_to=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick_from is None:
+            tick_from = self.db.tick
+        if branch not in self.interactivity:
+            self.interactivity[branch] = {}
+        if branch in self.indefinite_interactive:
+            prevstart = self.indefinite_interactive[branch]
+            if tick_to is None:
+                # Two indefinite periods of interactivity cannot coexist.
+                # Assume that you meant to overwrite the old one.
+                del self.interactivity[branch][prevstart]
+                self.indefinite_interactive[branch] = tick_from
+                self.interactivity[branch][tick_from] = None
+            else:
+                if tick_from < prevstart:
+                    if tick_to > prevstart:
+                        # You had an indefinite period of interactivity,
+                        # and asked to overwrite a span of it--from the
+                        # beginning to some tick--with part of a definite
+                        # period of interactivity.
+                        #
+                        # That's a bit weird. The only way to really
+                        # comply with that request is to delete the
+                        # indefinite period.
+                        del self.interactivity[branch][prevstart]
+                        del self.indefinite_interactive[branch]
+                        self.interactivity[branch][tick_from] = tick_to
+                    elif tick_to == prevstart:
+                        # Putting a definite period of interactivity
+                        # on before the beginning of an indefinite one
+                        # is equivalent to rescheduling the start of
+                        # the indefinite one.
+                        del self.interactivity[branch][prevstart]
+                        self.interactivity[branch][tick_from] = None
+                    else:
+                        # This case I can simply schedule like normal.
+                        self.interactivity[branch][tick_from] = tick_to
+                elif tick_from == prevstart:
+                    # Assume you mean to overwrite
+                    self.interactivity[branch][tick_from] = tick_to
+                    del self.indefinite_interactivity[branch]
+                else:
+                    # By scheduling the start of something definite
+                    # after the start of something indefinite, you've
+                    # implied that the indefinite thing shouldn't be
+                    # so indefinite after all.
+                    self.interactivity[branch][prevstart] = tick_from - 1
+                    del self.indefinite_interactivity[branch]
+        else:
+            self.interactivity[branch][tick_from] = tick_to
+            if tick_to is None:
+                self.indefinite_interactivity[branch] = tick_from
+
+
+class TerminableCoords:
+    def get_coords(self, branch=None, tick=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.coords:
+            return None
+        for (tick_from, (x, y, tick_to)) in self.coords[branch].iteritems():
+            if tick_from <= tick and (tick_to is None or tick <= tick_to):
+                return (x, y)
+        return None
+
+    def set_coords(self, x, y, branch=None, tick_from=None, tick_to=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick_from is None:
+            tick_from = self.db.tick
+        if branch not in self.coords:
+            self.coords[branch] = {}
+        if branch in self.indefinite_coords:
+            if tick_to is None:
+                self.indefinite_coords[branch] = (x, y, tick_from)
+                self.coords[branch][tick_from] = (x, y, None)
+            else:
+                (ix, iy, istart) = self.indefinite_coords[branch]
+                if tick_from < istart:
+                    if tick_to < istart:
+                        self.coords[branch][tick_from] = (x, y, tick_to)
+                    elif tick_to == istart:
+                        self.indefinite_coords[branch] = (x, y, tick_from)
+                        self.coords[branch][tick_from] = (x, y, None)
+                    else:
+                        del self.indefinite_coords[branch]
+                        del self.coords[branch][istart]
+                        self.coords[branch][tick_from] = (x, y, tick_to)
+                elif tick_from == istart:
+                    del self.indefinite_coords[branch]
+                    self.coords[branch][tick_from] = (x, y, tick_to)
+                else:
+                    self.coords[branch][istart] = (ix, iy, tick_from - 1)
+                    del self.indefinite_coords[branch]
+                    self.coords[branch][tick_from] = (x, y, tick_to)
+        else:
+            self.coords[branch][tick_from] = (x, y, tick_to)
+            if tick_to is None:
+                self.indefinite_coords[branch] = (x, y, tick_from)
+
+class RowDict:
+    """A read-only dictionary-like object representing a database
+record. It has column names in the keys and the corresponding values
+in the values.
+
+    """
+    def __init__(self, d):
+        self.colnames = tuple(d.keys())
+        self.colvals = tuple([d[key] for key in self.colnames])
+
+    def __getitem__(self, key):
+        return self.colvals[self.colnames.index(key)]
+
+    def __hash__(self):
+        return hash(self.colvals)
+
+    def __eq__(self, other):
+        return self.colnames == other.colnames and self.colvals == other.colvals
 
 
 class PatternHolder:

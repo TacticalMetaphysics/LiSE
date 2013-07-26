@@ -1,4 +1,11 @@
-from util import SaveableMetaclass, dictify_row, stringlike
+from util import (
+    SaveableMetaclass,
+    dictify_row,
+    stringlike,
+    RowDict,
+    TerminableImg,
+    TerminableInteractivity,
+    TerminableCoords)
 
 
 """Widgets to represent places. Pawns move around on top of these."""
@@ -7,7 +14,7 @@ from util import SaveableMetaclass, dictify_row, stringlike
 __metaclass__ = SaveableMetaclass
 
 
-class Spot:
+class Spot(TerminableImg, TerminableInteractivity, TerminableCoords):
     """The icon that represents a Place.
 
     The Spot is located on the Board that represents the same
@@ -16,43 +23,56 @@ class Spot:
 
     """
     tables = [
-        ("spot",
-         {"board": "text not null default 'default_board'",
-          "dimension": "text not null",
+        ("spot_img",
+         {"dimension": "text not null default 'Physical'",
           "place": "text not null",
+          "board": "integer not null default 0",
           "branch": "integer not null default 0",
           "tick_from": "integer not null default 0",
           "tick_to": "integer default null",
-          "img": "text not null default 'default_spot'",
+          "img": "text not null"},
+         ("dimension", "place", "board", "branch", "tick_from"),
+         {"dimension, board": ("board", "dimension, i"),
+          "img": ("img", "name")},
+         []),
+        ("spot_interactive",
+         {"dimension": "text not null default 'Physical'",
+          "place": "text not null",
+          "board": "integer not null default 0",
+          "branch": "integer not null default 0",
+          "tick_from": "integer not null default 0",
+          "tick_to": "integer default null"},
+         ("dimension", "place", "board", "branch", "tick_from"),
+         {"dimension, board": ("board", "dimension, i")},
+         [])
+        ("spot_coords",
+         {"dimension": "text not null default 'Physical'",
+          "place": "text not null",
+          "board": "integer not null default 0",
+          "branch": "integer not null default 0",
+          "tick_from": "integer not null default 0",
+          "tick_to": "integer default null",
           "x": "integer not null default 50",
-          "y": "integer not null default 50",
-          "visible": "boolean not null default 1",
-          "interactive": "boolean not null default 1"},
-         ("board", "dimension", "place", "branch", "tick_from"),
-         {"board": ("board", "name"),
-          "img": ("img", "name"),
-          "dimension, place, branch, tick_from":
-          ("place", "dimension, name, branch, tick_from")},
-        [] ) ]
+          "y": "integer not null default 50"},
+         ("dimension", "place", "board", "branch", "tick_from"),
+         {"dimension, board": ("board", "dimension, i")},
+         [])]
     selectable = True
 
-    def __init__(self, db, board, place, img, x, y,
-                 visible=True, interactive=True):
+    def __init__(self, board, place):
         """Return a new spot on the board for the given dimension,
 representing the given place with the given image. It will be at the
 given coordinates, and visible or interactive as indicated.
         """
-        self.db = db
-        self._board = str(board)
-        self._place = str(place)
-        if img in (None, ''):
-            self._img = 'default_spot'
-        else:
-            self._img = str(img)
-        self.x = x
-        self.y = y
-        self._visible = visible
-        self._interactive = interactive
+        self.board = board
+        self.db = board.db
+        self.place = place
+        self.interactivity = {}
+        self.imagery = {}
+        self.coords = {}
+        self.indefinite_imagery = {}
+        self.indefinite_coords = {}
+        self.indefinite_interactivity = {}
         self.grabpoint = None
         self.sprite = None
         self.box_edges = (None, None, None, None)
@@ -66,19 +86,12 @@ given coordinates, and visible or interactive as indicated.
         db.spotdict[dimname][placename] = self
 
     def __getattr__(self, attrn):
-        if attrn == 'board':
-            return self.db.get_board(self._board)
-        elif atttrn == 'dimension':
+        if atttrn == 'dimension':
             return self.board.dimension
-        elif attrn == '_dimension':
-            return self.board._dimension
-        elif attrn == 'place':
-            return self.db.placedict[self._dimension][self._place]
+        elif attrn == 'interactive':
+            return self.is_interactive()
         elif attrn == 'img':
-            try:
-                return self.db.imgdict[self._img]
-            except:
-                return None
+            return self.get_img()
         elif attrn == 'gw':
             return self.board.gw
         elif attrn == 'hovered':
@@ -90,15 +103,17 @@ given coordinates, and visible or interactive as indicated.
         elif attrn == 'window':
             return self.gw.window
         elif attrn == 'width':
-            if self.img is None:
+            myimg = self.img
+            if myimg is None:
                 return 0
             else:
-                return self.img.width
+                return myimg.width
         elif attrn == 'height':
-            if self.img is None:
+            myimg = self.img
+            if myimg is None:
                 return 0
             else:
-                return self.img.height
+                returnn myimg.height
         elif attrn == 'rx':
             return self.width / 2
         elif attrn == 'ry':
@@ -134,17 +149,38 @@ given coordinates, and visible or interactive as indicated.
                         self.window_bot < self.window.height and
                         self.window_right < self.window.width)
         elif attrn == 'visible':
-            return self._visible and self.img is not None and self.in_window
-        elif attrn == 'interactive':
-            return self._interactive and self.in_window
+            return self.img is not None
         else:
             raise AttributeError(
                 "Spot instance has no such attribute: " +
                 attrn)
 
-    def __repr__(self):
-        """Represent the coordinates and the name of the place"""
-        return "spot(%i,%i)->%s" % (self.x, self.y, str(self.place))
+    def __setattr__(self, attrn, val):
+        if attrn == "img":
+            self.set_img(val)
+        elif attrn == "interactive":
+            self.set_interactive(val)
+        elif attrn == "x":
+            self.set_coords(val, self.y)
+        elif attrn == "y":
+            self.set_coords(self.x, val)
+        elif attrn == "coords":
+            self.set_coords(*val)
+        elif attrn == "hovered":
+            if val is True:
+                self.hovered()
+            else:
+                self.unhovered()
+        elif attrn == "pressed":
+            if val is True:
+                self.set_pressed()
+            else:
+                self.unset_pressed()
+        else:
+            super(Spot, self).__setattr__(self, attrn, val)
+
+    def __str__(self):
+        return str(self.place)
 
     def __eq__(self, other):
         """Compare the dimension and the name"""
@@ -152,13 +188,6 @@ given coordinates, and visible or interactive as indicated.
             isinstance(other, Spot) and
             self.dimension == other.dimension and
             self.name == other.name)
-
-    def unravel(self):
-        self.place.spot = self
-
-    def gettup(self):
-        """Return my image, left, and bottom"""
-        return (self.img, self.left, self.bot)
 
     def onclick(self):
         """Does nothing yet"""
@@ -203,98 +232,41 @@ mouse."""
         self.top = self.y + self.ry
         self.bot = self.y - self.ry
 
-    def get_state_tup(self):
-        """Return a tuple with all the information you might need to draw
-me."""
-        return (
-            self._img,
-            self.window_x,
-            self.window_y,
-            self.visible,
-            self.interactive,
-            self.grabpoint,
-            self.hovered,
-            self.tweaks)
-
     def get_tabdict(self):
+        dimn = str(self.dimension)
+        placen = str(self.place)
+        boardi = int(self.board)
+        spot_img_rows = set()
+        for branch in self.imagery:
+            for (tick_from, (img, tick_to)) in self.imagery[branch].iteritems():
+                spot_img_rows.add(RowDict({
+                    "dimension": dimn,
+                    "place": placen,
+                    "board": boardi,
+                    "tick_from": tick_from,
+                    "tick_to": tick_to,
+                    "img": str(img)}))
+        spot_interactive_rows = set()
+        for branch in self.interactivity:
+            for (tick_from, tick_to) in self.interactivity[branch].iteritems():
+                spot_interactive_rows.add(RowDict({
+                    "dimension": dimn,
+                    "place": placen,
+                    "board": boardi,
+                    "tick_from": tick_from,
+                    "tick_to": tick_to}))
+        spot_coords_rows = set()
+        for branch in self.coords:
+            for (tick_from, (x, y, tick_to)) in self.coords[branch].iteritems():
+                spot_coords_rows.add(RowDict({
+                    "dimension": dimn,
+                    "place": placen,
+                    "board": boardi,
+                    "tick_from": tick_from,
+                    "tick_to": tick_to,
+                    "x": x,
+                    "y": y}))
         return {
-            "spot": {
-                "dimension": self._dimension,
-                "place": self._place,
-                "img": self._img,
-                "x": self.x,
-                "y": self.y,
-                "visible": self._visible,
-                "interactive": self._interactive}}
-
-    def delete(self):
-        todel = [
-            port.edge for port in self.db.portaldestorigdict[
-                self._dimension][self._place].itervalues()]
-        todel += [
-            port.edge for port in self.db.portalorigdestdict[
-                self._dimension][self._place].itervalues()]
-        for dead in todel:
-            dead.delete()
-        del self.db.spotdict[self._dimension][self._place]
-        try:
-            self.sprite.delete()
-        except:
-            pass
-        for vertls in self.box_edges:
-            try:
-                vertls.delete()
-            except:
-                pass
-        self.erase()
-        self.place.delete()
-
-
-spot_dimension_qryfmt = (
-    "SELECT {0} FROM spot WHERE dimension IN ({1})".format(
-        ", ".join(Spot.colnames["spot"]), "{0}"))
-
-
-def read_spots_in_boards(db, names):
-    """Read all spots in the given boards. Instantiate them, but don't
-unravel yet.
-
-Return a 2D dictionary keyed with dimension name, then thing name.
-
-    """
-    qryfmt = spot_dimension_qryfmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, names)
-    r = {}
-    for name in names:
-        r[name] = {}
-    for row in db.c:
-        rowdict = dictify_row(row, Spot.colnames["spot"])
-        rowdict["db"] = db
-        r[rowdict["dimension"]][rowdict["place"]] = Spot(**rowdict)
-    return r
-
-
-def unravel_spots(spd):
-    """Take a dictionary of spots keyed by place name. Return it with the
-contents unraveled."""
-    for spot in spd.itervalues():
-        spot.unravel()
-    return spd
-
-
-def unravel_spots_in_boards(db, spdd):
-    """Unravel the output of read_spots_in_boards."""
-    for spots in spdd.itervalues():
-        unravel_spots(spots)
-    return spdd
-
-
-def load_spots_in_boards(db, names):
-    """Load all spots in the given boards.
-
-Return a 2D dictionary keyed first by board dimension name, then by
-place name.
-
-    """
-    return unravel_spots_in_boards(read_spots_in_boards(db, names))
+            "spot_img": spot_img_rows,
+            "spot_interactive": spot_interactive_rows,
+            "spot_coords": spot_coords_rows}

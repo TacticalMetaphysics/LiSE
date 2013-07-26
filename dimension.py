@@ -1,53 +1,37 @@
-from thing import (
-    read_things_in_dimensions,
-    read_schedules_in_dimensions,
-    read_journeys_in_dimensions)
-from place import read_places_in_dimensions
-from portal import read_portals_in_dimensions
+from thing import Thing
+from place import Place
+from portal import Portal
 from util import DictValues2DIterator, SaveableMetaclass, dictify_row
 from logging import getLogger
+from igraph import Graph
 
 logger = getLogger(__name__)
 
 
 """Class and loaders for dimensions--the top of the world hierarchy."""
 
-
-DIMENSION_QRYFMT = "INSERT INTO paths VALUES {0}"
-PATH_ROW = "(?, ?, ?, ?, ?)"
-
-
-class EdgeIterator:
-    def __init__(self, portiter):
-        self.portiter = portiter
-
-    def __iter__(self):
-        return self
-
-    def next(self):
-        p = self.portiter.next()
-        return (p._orig, p._dest)
-
-
 class Dimension:
     """Container for a given view on the game world, sharing no things,
 places, or portals with any other dimension, but possibly sharing
 characters."""
     __metaclass__ = SaveableMetaclass
+    thing_loc_qry_start = "SELECT thing, branch, tick_from, tick_to, location FROM thing_location WHERE dimension=?"
+    thing_speed_qry_start = "SELECT thing, branch, tick_from, tick_to, ticks_per_span FROM thing_speed WHERE dimension=?"
+    port_qry_start = "SELECT origin, destination, branch, tick_from, tick_to FROM portal_existence WHERE dimension=?"
     tables = [(
-        "paths",
+        "dimension_paths",
         {"dimension": "text not null",
-         "origin": "integer not null",
-         "destination": "integer not null",
+         "origin": "text not null",
+         "destination": "text not null",
          "i": "integer not null",
          "branch": "integer not null default 0",
          "tick_from": "integer not null default 0",
          "tick_to": "integer default null",
-         "to_place": "integer not null"},
+         "to_place": "text not null"},
         ("dimension", "origin", "destination", "i", "branch", "tick_from"),
-        {"dimension, origin": ("place", "dimension, i"),
-         "dimension, destination": ("place", "dimension, i"),
-         "dimension, to_place": ("place", "dimension, i")},
+        {"dimension, origin": ("place", "dimension, name"),
+         "dimension, destination": ("place", "dimension, name"),
+         "dimension, to_place": ("place", "dimension, name")},
         ["origin<>destination", "i>=0"])]
 
     def __init__(self, db, name):
@@ -60,59 +44,17 @@ keyed with their names.
 
         """
         self.name = name
-        db.dimensiondict[name] = self
-        if name not in db.pathdestorigdict:
-            db.pathdestorigdict[name] = {}
-        if name not in db.placeidxdict:
-            db.placeidxdict[name] = {}
-        if name not in db.portalidxdict:
-            db.portalidxdict[name] = {}
         self.db = db
-        self.hiplace = 0
-        self.hiport = 0
-
-    def __getattr__(self, attrn):
-        if attrn == 'graph':
-            return self.db.get_igraph_graph(self.name)
-        elif attrn == 'vs':
-            return self.graph.vs
-        elif attrn == 'es':
-            return self.graph.es
-        elif attrn == 'portals':
-            return DictValues2DIterator(self.portalorigdestdict)
-        elif attrn == 'itemdict':
-            return self.db.itemdict[self.name]
-        elif attrn == 'items':
-            return self.itemdict.itervalues()
-        elif attrn == 'thingdict':
-            return self.db.thingdict[self.name]
-        elif attrn == 'things':
-            return self.thingdict.itervalues()
-        elif attrn == 'placedict':
-            return self.db.placedict[self.name]
-        elif attrn == 'places':
-            return self.placedict.itervalues()
-        elif attrn == 'scheduledict':
-            return self.db.scheduledict[self.name]
-        elif attrn == 'schedules':
-            return self.scheduledict.itervalues()
-        elif attrn == 'journeydict':
-            return self.db.journeydict[self.name]
-        elif attrn == 'journeys':
-            return self.journeydict.itervalues()
-        elif attrn == 'portalorigdestdict':
-            return self.db.portalorigdestdict[self.name]
-        elif attrn == 'portaldestorigdict':
-            return self.db.portaldestorigdict[self.name]
-        elif attrn == 'pathdestorigdict':
-            return self.db.pathdestorigdict[self.name]
-        elif attrn == 'paths':
-            return DictValues2DIterator(self.pathdestorigdict)
-        elif attrn == 'edges':
-            return EdgeIterator(self.portals)
-        else:
-            raise AttributeError(
-                "Dimension instance has no attribute {0}.".format(attrn))
+        self.db.dimensiondict[str(self)] = self
+        self.places = []
+        self.places_by_name = {}
+        self.portals = []
+        self.portals_by_origi_desti = {}
+        self.portals_by_orign_destn = {}
+        self.things = []
+        self.things_by_name = {}
+        self.paths = {}
+        self.graph = Graph(directed=True)
 
     def __hash__(self):
         """Return the hash of this dimension's name, since the database
@@ -121,119 +63,7 @@ constrains it to be unique."""
 
     def __str__(self):
         return self.name
-
-    def unravel(self):
-        """Get the dictionaries of the items in this dimension from the given
-database. Then iterate over the values therein and unravel
-everything."""
-        db = self.db
-        if self.name not in db.itemdict:
-            db.itemdict[self.name] = {}
-        if self.name not in db.thingdict:
-            db.thingdict[self.name] = {}
-        if self.name not in db.placedict:
-            db.placedict[self.name] = {}
-        if self.name not in db.scheduledict:
-            db.scheduledict[self.name] = {}
-        if self.name not in db.journeydict:
-            db.journeydict[self.name] = {}
-        if self.name not in db.portalorigdestdict:
-            db.portalorigdestdict[self.name] = {}
-        if self.name not in db.portaldestorigdict:
-            db.portaldestorigdict[self.name] = {}
-        # this order is deliberate
-        for place in self.places:
-            place.unravel()
-        for portal in self.portals:
-            portal.unravel()
-        for journey in self.journeys:
-            journey.unravel()
-        for schedule in self.schedules:
-            schedule.unravel()
-        for thing in self.things:
-            thing.unravel()
-
-    def get_tabdict(self):
-        path_steps = []
-        pathed_steps = set()
-        for p in self.paths:
-            path = list(p)
-            try:
-                desti = path[0]
-                origi = path.pop()
-                before = origi
-                after = path.pop()
-            except IndexError:
-                continue
-            i = 0
-            while path != []:
-                pt = (self.name, origi, desti, i, after)
-                if pt in pathed_steps:
-                    after = path.pop()
-                    continue
-                pathed_steps.add(pt)
-                path_steps.append(
-                    {
-                        "dimension": self.name,
-                        "origin": origi,
-                        "destination": desti,
-                        "i": i,
-                        "to_place": after})
-                before = after
-                after = path.pop()
-                i += 1
-        return {"paths": path_steps}
-
-    def index_places(self, places):
-        for place in places:
-            self.index_place(place)
-
-    def index_place(self, place):
-        if (
-                place.i+1 > len(self.vs) or "name" not in
-                self.vs[place.i].attributes() or
-                self.vs[place.i]["name"] != str(place)):
-            self.graph.add_vertices(1)
-            place.i = len(self.vs) - 1
-            self.graph.vs[place.i]["name"] = str(place)
-            self.db.placeidxdict[self.name][place.i] = place
-
-    def index_portals(self, portals):
-        for portal in portals:
-            self.index_portal(portal)
-
-    def index_portal(self, portal):
-        self.index_places([portal.orig, portal.dest])
-        if (
-                len(self.es) == 0 or
-                portal.i+1 > len(self.es) or
-                "name" not in self.es[portal.i].attributes() or
-                self.es[portal.i]["name"] != str(portal)):
-            self.graph.add_edges([(portal.orig.i, portal.dest.i)])
-            portal.i = len(self.es) - 1
-            self.graph.es[portal.i]["name"] = str(portal)
-            self.db.portalidxdict[self.name][portal.i] = portal
-
-    def shortest_path(self, orig, dest):
-        # TODO hinting
-        origi = orig.i
-        desti = dest.i
-        if desti not in self.pathdestorigdict:
-            self.pathdestorigdict[desti] = {}
-        if origi not in self.pathdestorigdict[desti]:
-            paths = self.graph.get_shortest_paths(desti)
-            for path in paths:
-                if path == []:
-                    continue
-                path_origi = path[-1]
-                logger.debug("hinting path from %d to %d",
-                             path_origi, desti)
-                self.pathdestorigdict[desti][path_origi] = path
-        if origi in self.pathdestorigdict[desti]:
-            return self.pathdestorigdict[desti][origi]
-        else:
-            return None
-
+ 
     def get_igraph_layout(self, layout_type):
         """Return a Graph layout, of the kind that igraph uses, representing
 this dimension, and laid out nicely."""
@@ -242,64 +72,104 @@ this dimension, and laid out nicely."""
     def save(self):
         for place in self.places:
             place.save()
-        for portal in self.portals:
-            portal.save()
+        for port in self.portals:
+            port.save()
         for thing in self.things:
             thing.save()
         self.coresave()
 
+    def get_shortest_path(self, orig, dest, branch=None, tick=None):
+        origi = int(orig)
+        desti = int(dest)
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch in self.paths:
+            for (tick_from, (pathdict, tick_to)) in self.paths[branch].iteritems():
+                if tick_from <= tick and (tick_to is None or tick < tick_to):
+                    if origi in pathdict and desti in pathdict[origi]:
+                        return pathdict[origi][desti]
+        else:
+            self.paths[branch] = {}
+        if tick not in self.paths[branch]:
+            self.paths[branch][tick] = ({}, None)
+        for path in self.graph.get_shortest_paths(desti):
+            ifrom = path[-1]
+            if ifrom not in self.paths[branch][tick][0]:
+                self.paths[branch][tick][0][ifrom] = {}
+            self.paths[branch][tick][0][ifrom][desti] = path
+        return self.paths[branch][tick][0][origi][desti]
 
-PATH_DIMENSION_QRYFMT = (
-    "SELECT {0} FROM paths WHERE dimension IN ({1})".format(
-        ", ".join(Dimension.colns), "{0}"))
+    def expire_shortest_path(self, orig, dest, branch, tick_from, tick_to=None):
+        origi = int(orig)
+        desti = int(dest)
+        if tick_to is None:
+            tick_to = self.db.tick
+        self.paths[branch][tick_from][1] = tick_to
 
-
-def read_paths_in_dimensions(db, names):
-    qryfmt = PATH_DIMENSION_QRYFMT
-    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    qrytup = tuple(names)
-    for name in names:
-        if name not in db.pathdestorigdict:
-            db.pathdestorigdict[name] = {}
-    db.c.execute(qrystr, qrytup)
-    for row in db.c:
-        rowdict = dictify_row(row, Dimension.colns)
-        pdod = db.pathdestorigdict[rowdict["dimension"]]
-        orig = rowdict["origin"]
-        dest = rowdict["destination"]
-        topl = rowdict["to_place"]
-        i = rowdict["i"]
-        if dest not in pdod:
-            pdod[dest] = {}
-        if orig not in pdod[dest]:
-            pdod[dest][orig] = []
-        while len(pdod[dest][orig]) <= i:
-            pdod[dest][orig].append(None)
-        pdod[dest][orig][i] = topl
-
-
-def read_dimensions(db, names):
-    """Read in from disk the dimensions of the given names and everything
-in them.
-
-Objects will be instantiated to represent the lot, and a dictionary
-thereof will be returned, but the objects won't be unraveled yet.
-
-    """
-    read_things_in_dimensions(db, names)
-    read_places_in_dimensions(db, names)
-    read_portals_in_dimensions(db, names)
-    read_schedules_in_dimensions(db, names)
-    read_journeys_in_dimensions(db, names)
-    read_paths_in_dimensions(db, names)
-    r = {}
-    for name in names:
-        r[name] = Dimension(db, name)
-    return r
-
-
-def load_dimensions(db, names):
-    r = read_dimensions(db, names)
-    for dim in r.itervalues():
-        dim.unravel()
-    return r
+    def load(self, branches=None, tick_from=None, tick_to=None):
+        branchexpr = ""
+        tickfromexpr = ""
+        ticktoexpr = ""
+        if branches is not None:
+            branchexpr = " AND branch IN ({0})".format(", ".join(["?"] * len(branches)))
+        if tick_from is not None:
+            tickfromexpr = " AND tick_from>=?"
+        if tick_to is not None:
+            ticktoexpr = " AND tick_to<=?"
+        extrastr = "".join((branchexpr, tickfromexpr, ticktoexpr))
+        qrystr = self.thing_loc_qry_start + extrastr
+        valtup = tuple([str(self)] + [b for b in (branches, tickfrom, tick_to) if b is not None])
+        self.db.c.execute(qrystr, valtup)
+        for row in self.db.c:
+            (thingn, branch, tick_from, tick_to, locn) = row
+            if thingn not in self.things_by_name:
+                self.things_by_name[thingn] = Thing(self, thingn)
+            if locn not in self.place_by_name:
+                pl = Place(self, locn)
+                self.place_by_name[locn] = pl
+                self.places.append(pl)
+            self.things_by_name[thingn].set_location(
+                self.place_by_name[locn], branch, tick_from, tick_to)
+        qrystr = self.thing_speed_qry_start + extrastr
+        self.db.c.execute(qrystr, valtup)
+        for row in self.db.c:
+            (thingn, branch, tick_from, tick_to, spd) = row
+            if thingn not in self.things_by_name:
+                # well, it isn't HERE, so it can't well go anywhere at any speed, can it
+                continue
+            self.things_by_name[thingn].set_speed(spd, branch, tick_from, tick_to)
+        qrystr = self.port_qry_start + extrastr
+        self.db.c.execute(qrystr, valtup)
+        for row in self.db.c:
+            (orign, destn, branch, tick_from, tick_to) = row
+            if orign not in self.place_by_name:
+                opl = Place(self, orign)
+                self.place_by_name[orign] = opl
+                self.places.append(opl)
+            if destn not in self.place_by_name:
+                dpl = Place(self, destn)
+                self.place_by_name[destn] = dpl
+                self.places.append(dpl)
+            if orign not in self.portal_by_orign_destn:
+                self.portal_by_orign_destn[orign] = {}
+            po = Portal(self, opl, dpl)
+            self.portal_by_orign_destn[orign][destn] = po
+            self.portals.append(po)
+        i = 0
+        for place in self.places:
+            place.i = i
+            i += 1
+        # Contrary to the tutorial, the graph starts out with vertex 0
+        # already in it.
+        self.graph.add_vertices(i)
+        self.graph.vs["place"] = self.places
+        i = 0
+        edges = []
+        for portal in self.portals:
+            portal.i = i
+            edges.append((portal.orig.i, portal.dest.i))
+            i += 1
+        self.graph.add_edges(edges)
+        self.graph.es["portal"] = self.portals

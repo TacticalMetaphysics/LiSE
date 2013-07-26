@@ -76,13 +76,20 @@ success that strains a person terribly and causes them injury.
         ("event",
          {"name": "text not null",
           "text": "text not null",
-          "commence_effects": "text",
-          "proceed_effects": "text",
-          "conclude_effects": "text"},
-         ("name", "branch", "tick_from"),
-         {"commence_effects": ("effect_deck", "name"),
-          "proceed_effects": ("effect_deck", "name"),
-          "conclude_effects": ("effect_deck", "name")},
+          "commence_effect_deck": "text",
+          "proceed_effect_deck": "text",
+          "conclude_effect_deck": "text"},
+         ("name",),
+         {"commence_effect_deck": ("effect_deck", "name"),
+          "proceed_effect_deck": ("effect_deck", "name"),
+          "conclude_effect_deck": ("effect_deck", "name")},
+         []),
+        ("scheduled_event",
+         {"event": "text not null",
+          "tick_from": "integer not null",
+          "tick_to": "integer not null"},
+         ("event", "tick_from"),
+         {"event": ("event", "name")},
          [])]
 
     def __init__(self, db, name,
@@ -121,18 +128,22 @@ the three given effect decks. Register with db.eventdict.
                 return None
             else:
                 return self.db.effectdeckdict[self._conclude_effects]
+        elif attrn == "start":
+            return self.db.get_event_start(str(self))
+        elif attrn == "end":
+            return self.db.get_event_end(str(self))
         else:
             raise AttributeError("Event has no such attribute")
 
     def __repr__(self):
         if hasattr(self, 'start') and hasattr(self, 'length'):
             return "{0}[{1}->{2}]".format(
-                self.name,
+                str(self),
                 self.start,
-                self.start + self.length)
+                self.end)
 
     def __len__(self):
-        return self.tick_to - self.tick_from
+        return self.end - self.start
 
     def get_tabdict(self):
         return {
@@ -142,10 +153,6 @@ the three given effect decks. Register with db.eventdict.
             "commence_effects": self.commence_effects.name,
             "proceed_effects": self.proceed_effects.name,
             "conclude_effects": self.conclude_effects.name}
-
-    def delete(self):
-        self.db.remove_event(self)
-        self.erase()
 
     def unravel(self):
         """Dereference the effect decks.
@@ -158,41 +165,6 @@ value in the db.
                      self.conclude_effects):
             if deck is not None:
                 deck.unravel()
-
-    def cmpcheck(self, other):
-        """Check if this event is comparable to the other. Raise TypeError if
-not."""
-        if not hasattr(self, 'start') or not hasattr(other, 'start'):
-            raise Exception("Events are only comparable when they have "
-                            "start times.")
-        elif not isinstance(other, Event):
-            raise TypeError("Events may only be compared to other Events.")
-
-    def __eq__(self, other):
-        self.cmpcheck(other)
-        return self.start == other.start
-
-    def __gt__(self, other):
-        self.cmpcheck(other)
-        return self.start > other.start
-
-    def __lt__(self, other):
-        self.cmpcheck(other)
-        return self.start < other.start
-
-    def __ge__(self, other):
-        self.cmpcheck(other)
-        return self.start >= other.start
-
-    def __le__(self, other):
-        self.cmpcheck(other)
-        return self.start <= other.start
-
-    def __hash__(self):
-        if hasattr(self, 'start') and hasattr(self, 'length'):
-            return hash((self.start, self.length, self.name))
-        else:
-            return hash(self.name)
 
     def commence(self):
         """Perform all commence effects, and set self.ongoing to True."""
@@ -210,13 +182,6 @@ not."""
         if self.conclude_effects is not None:
             self.conclude_effects.do(self)
         self.ongoing = False
-
-    def display_str(self):
-        """Get the text to be shown in this event's calendar cell, and return
-it."""
-        # Sooner or later gonna get it so you can put arbitrary
-        # strings in some other table and this refers to that
-        return self.name
 
     def get_tabdict(self):
         return {

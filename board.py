@@ -20,36 +20,37 @@ class Board:
     """A widget notionally representing the game board on which the rest
 of the game pieces lie.
 
-Each board represents exactly one dimension in the world model. It has
-a width and height in pixels, which do not necessarily match the width
-or height of the window it's displayed in--a board may be scrolled
-horizontally or vertically. Every board has a static background image,
-and may have menus. The menus' positions are relative to the window
-rather than the board, but they are linked to the board anyhow, on the
-assumption that each board will be open in at most one window at a
-time.
+Each board represents exactly one dimension in the world model, but
+you can have more than one board to a dimension. It has a width and
+height in pixels, which do not necessarily match the width or height
+of the window it's displayed in--a board may be scrolled horizontally
+or vertically. Every board has a static background image, and may have
+menus. The menus' positions are relative to the window rather than the
+board, but they are linked to the board anyhow, on the assumption that
+each board will be open in at most one window at a time.
 
-"""
+    """
     tables = [
         ("board",
-         {"name": "text not null DEFAULT 'default_board'",
+         {"dimension": "text not null default 'Physical'",
+          "i": "integer not null default 0",
           "wallpaper": "text not null default 'default_wallpaper'",
           "width": "integer not null default 4000",
           "height": "integer not null default 3000",
           "view_left": "integer not null default 0",
           "view_bot": "integer not null default 0"},
-         ("name",),
+         ("dimension", "i"),
          {"wallpaper": ("image", "name")},
          ["view_left>=0", "view_bot>=0", "view_left<width",
-          "view_bot<height"])
+          "view_bot<height"]),
     ]
 
-    def __init__(self, db, name, width, height, view_left, view_bot,
+    def __init__(self, db, i, width, height, view_left, view_bot,
                  wallpaper)
         """Return a board representing the given dimension.
 
         """
-        self.name = name
+        self.i = i
         self.db = db
         self.db.boarddict[self.name] = self
         self.width = width
@@ -113,8 +114,8 @@ dimension's hash.
         """
         return hash(self.dimension)
 
-    def __str__(self):
-        return self._dimension
+    def __int__(self):
+        return self.i
 
     def get_spot_at(self, x, y):
         for spot in self.spots:
