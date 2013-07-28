@@ -11,18 +11,10 @@ SQL. That's in util.py, the class SaveableMetaclass.
 import sqlite3
 import re
 import igraph
+from dimension import Dimension
 from collections import OrderedDict
-from board import load_boards
-from style import read_colors, read_styles
-from spot import Spot
-from pawn import Pawn
-from card import load_cards
-from place import Place
-from portal import Portal
-from thing import Thing, Schedule, Journey
-from dimension import Dimension, load_dimensions
-from util import dictify_row, keyify_dict
 from logging import getLogger
+from util import dictify_row
 
 
 logger = getLogger(__name__)
@@ -42,7 +34,6 @@ MAKE_PORTAL_ARG_RE = re.compile(
     "([a-zA-Z0-9]+)\.([a-zA-Z0-9]+)")
 MAKE_THING_ARG_RE = re.compile(
     "([a-zA-Z0-9]+)\.([a-zA-Z0-9]+)@([a-zA-Z0-9]+)")
-THING_INTO_PORTAL_ARG_RE = re.compile("(.*)\.(.*)->Portal\((.*)->(.*)\)")
 
 
 class RumorMill(object):
@@ -68,8 +59,8 @@ before RumorMill will work. For that, run mkdb.py.
     """
 
     def __init__(self, dbfilen, xfuncs={},
-                 front_board="default_board", front_branch=0 seed=0, tick=0,
-                 hi_branch=0, hi_place=0, hi_portal=0):
+                 front_board="default_board", front_branch=0, seed=0, tick=0,
+                 hi_branch=0, hi_place=0, hi_portal=0, lang="eng"):
         """Return a database wrapper around the SQLite database file by the
 given name.
 
@@ -104,6 +95,7 @@ arguments.
         self.arrowdict = {}
         self.eventdict = {}
         self.itemdict = {}
+        self.lang = lang
         # "scheduled" dictionaries have a key that includes a branch
         # and a tick. Their values may be either another tick, or else
         # a pair containing some time-sensitive data as the 0th item
@@ -116,7 +108,6 @@ arguments.
         self.char_skill_scheduled = {}
         self.char_item_scheduled = {}
         self.hand_card_scheduled = {}
-        
 
         placeholder = (noop, ITEM_ARG_RE)
         self.func = {
@@ -140,12 +131,6 @@ arguments.
             (self.hide_other_menus_in_board, ONE_ARG_RE),
             'hide_other_calendars_in_board':
             (self.hide_other_calendars_in_board, ONE_ARG_RE),
-            'thing_into_portal':
-            (self.thing_into_portal, THING_INTO_PORTAL_ARG_RE),
-            'thing_along_portal':
-            (self.thing_along_portal, ITEM_ARG_RE),
-            'thing_out_of_portal':
-            (self.thing_out_of_portal, ITEM_ARG_RE),
             'start_new_map': placeholder,
             'open_map': placeholder,
             'save_map': placeholder,
@@ -154,14 +139,6 @@ arguments.
             'editor_copy': placeholder,
             'editor_paste': placeholder,
             'editor_delete': placeholder,
-            'create_place':
-            (self.make_place, ITEM_ARG_RE),
-            'create_generic_place':
-            (self.make_generic_place, ONE_ARG_RE),
-            'create_thing':
-            (self.make_thing, ITEM_ARG_RE),
-            'create_portal':
-            (self.make_portal, MAKE_PORTAL_ARG_RE),
             'mi_create_place':
             (self.mi_create_place, ONE_ARG_RE),
             'mi_create_thing':
@@ -265,51 +242,11 @@ the function.
         else:
             self.func[name] = func
 
-    def load_dimensions(self, dimname):
-        """Load all dimensions with names in the given list.
-
-Return a list of them.
-
-"""
-        return load_dimensions(self, dimname)
-
-    def load_dimension(self, dimname):
-        """Load and return the dimension with the given name."""
-        return self.load_dimensions([dimname])[0]
-
-    def load_boards(self, dimname):
-        """Load the boards representing the named dimensions. Return them in a
-list.
-
-        """
-        return load_boards(self, dimname)
-
-    def load_board(self, dimname):
-        """Load and return the board representing the named dimension."""
-        return self.load_boards([dimname])[dimname]
-
-    def load_colors(self, colornames):
-        """Load the colors by the given names."""
-        # being that colors are just fancy tuples fulla integers,
-        # there's nothing to unravel. just read them.
-        return read_colors(self, colornames)
-
-    def load_color(self, colorname):
-        """Load the color by the given name."""
-        return self.load_colors((colorname,))
-
     def pawns_on_spot(self, spot):
         """Return a list of pawns on the given spot."""
         return [thing.pawn for thing in
                 spot.place.contents
                 if thing.name in self.pawndict[spot.dimension]]
-
-    def make_board(self, name, width, height, view_left, view_bot, wallpaper,
-                   effect=None, deck=None, event=None):
-        bord = Board(self, name, width, height, view_left, view_bot, wallpaper)
-        bord.unravel()
-        bord.save()
-        return bord
 
     def toggle_menu(self, menuitem, menu,
                     effect=None, deck=None, event=None):
@@ -392,32 +329,6 @@ This is game-world time. It doesn't always go forwards.
         """Get the string of the given name in the language set at startup."""
         return self.stringdict[strname][self.lang]
 
-    def load_strings(self):
-        """Load all the named strings and keep them in a dictionary.
-
-Please use self.get_text() to lookup these strings later."""
-        self.c.execute("SELECT * FROM strings;")
-        for row in self.c:
-            (stringn, lang, string) = row
-            if stringn not in self.stringdict:
-                self.stringdict[stringn] = {}
-            self.stringdict[stringn][lang] = string
-
-    def load_game(self, lang):
-        """Load the metadata, the strings, and the main board for the game in
-this database.
-
-Spell the lang argument the same way it's spelled in the strings table.
-
-        """
-        self.c.execute("SELECT * FROM game;")
-        self.game = dictify_row(
-            self.c.fetchone(),
-            ("front_board", "age", "seed", "hi_place", "hi_portal"))
-        self.lang = lang
-        self.load_strings()
-        self.load_board(self.game["front_board"])
-
     def mi_create_place(self, menuitem, arg):
         return menuitem.gw.create_place()
 
@@ -427,25 +338,11 @@ Spell the lang argument the same way it's spelled in the strings table.
     def mi_create_portal(self, menuitem, arg):
         return menuitem.gw.create_portal()
 
-    def load_cards(self, names):
-        load_cards(self, names)
-
-    def load_card(self, name):
-        self.load_cards([name])
-
     def get_card_base(self, name):
         """Return the CardBase named thus, loading it first if necessary."""
         if name not in self.carddict:
             self.load_card(name)
         return self.carddict[name]
-
-    def load_styles(self, names):
-        """Load all styles with names in the given iterable."""
-        read_styles(self, names)
-
-    def load_style(self, name):
-        """Load the style by the given name."""
-        read_styles(self, [name])
 
     def get_style(self, name):
         """Return the Style by the given name, loading it first if
@@ -487,8 +384,9 @@ necessary."""
     # branch. These functions may not be the most appropriate *place*
     # to handle that.
 
-    def schedule_something(self, scheddict, dictkeytup,
-                           val=None, branch=None, tick_from=None, tick_to=None):
+    def schedule_something(
+            self, scheddict, dictkeytup,
+            val=None, branch=None, tick_from=None, tick_to=None):
         if branch is None:
             branch = self.branch
         if tick_from is None:
@@ -515,17 +413,21 @@ necessary."""
             branch = self.branch
         if tick is None:
             tick = self.tick
-        
 
     def event_is_concluding(self, name, branch=None, tick=None):
         if branch is None:
             branch = self.branch
         if tick is None:
             tick = self.tick
-        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+        if (
+                name not in self.event_scheduled or
+                branch not in self.event_scheduled[name]):
             return False
         for prevstart in self.event_scheduled[name][branch]:
-            if prevstart < tick and self.event_scheduled[name][branch][prevstart] == tick:
+            if (
+                    prevstart < tick and
+                    self.event_scheduled[
+                        name][branch][prevstart] == tick):
                 return True
         return False
 
@@ -534,10 +436,15 @@ necessary."""
             branch = self.branch
         if tick is None:
             tick = self.tick
-        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+        if (
+                name not in self.event_scheduled or
+                branch not in self.event_scheduled[name]):
             return False
         for prevstart in self.event_scheduled[name][branch]:
-            if prevstart < tick and self.event_scheduled[name][branch][prevstart] > tick:
+            if (
+                    prevstart < tick and
+                    self.event_scheduled[
+                        name][branch][prevstart] > tick):
                 return True
         return False
 
@@ -546,12 +453,17 @@ necessary."""
             branch = self.branch
         if tick is None:
             tick = self.tick
-        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+        if (
+                name not in self.event_scheduled or
+                branch not in self.event_scheduled[name]):
             return False
         for prevstart in self.event_scheduled[name][branch]:
             if prevstart == tick:
                 return True
-            elif prevstart < tick and self.event_scheduled[name][branch][prevstart] > tick:
+            elif (
+                    prevstart < tick and
+                    self.event_scheduled[
+                        name][branch][prevstart] > tick):
                 return True
         return False
 
@@ -560,7 +472,9 @@ necessary."""
             branch = self.branch
         if tick is None:
             tick = self.tick
-        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+        if (
+                name not in self.event_scheduled or
+                branch not in self.event_scheduled[name]):
             return False
         for prevstart in self.event_scheduled[name][branch]:
             if prevstart < tick:
@@ -573,7 +487,9 @@ necessary."""
             branch = self.branch
         if tick is None:
             tick = self.tick
-        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+        if (
+                name not in self.event_scheduled or
+                branch not in self.event_scheduled[name]):
             return False
         for prevstart in self.event_scheduled[name][branch]:
             if prevstart == tick:
@@ -588,9 +504,12 @@ necessary."""
             branch = self.branch
         if tick is None:
             tick = self.tick
-        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+        if (
+                name not in self.event_scheduled or
+                branch not in self.event_scheduled[name]):
             return None
-        for (tick_from, tick_to) in self.event_scheduled[name][branch].iteritems():
+        for (tick_from, tick_to) in (
+                self.event_scheduled[name][branch].iteritems()):
             if tick_from <= tick and tick <= tick_to:
                 return tick_from
         return None
@@ -600,9 +519,12 @@ necessary."""
             branch = self.branch
         if tick is None:
             tick = self.tick
-        if name not in self.event_scheduled or branch not in self.event_scheduled[name]:
+        if (
+                name not in self.event_scheduled or
+                branch not in self.event_scheduled[name]):
             return None
-        for (tick_from, tick_to) in self.event_scheduled[name][branch].iteritems():
+        for (tick_from, tick_to) in (
+                self.event_scheduled[name][branch].iteritems()):
             if tick_from <= tick and tick <= tick_to:
                 return tick_to
         return None
@@ -610,7 +532,8 @@ necessary."""
     def schedule_effect_deck(self, name, cards,
                              branch=None, tick_from=None, tick_to=None):
         self.schedule_something(
-            self.effect_deck_scheduled, (name,), cards, branch, tick_from, tick_to)
+            self.effect_deck_scheduled,
+            (name,), cards, branch, tick_from, tick_to)
 
     def get_effect_deck_card_names(self, name, branch=None, tick=None):
         if branch is None:
@@ -626,7 +549,8 @@ necessary."""
     def schedule_char_att(self, char_s, att_s, val,
                           branch=None, tick_from=None, tick_to=None):
         self.schedule_something(
-            self.char_att_scheduled, (char_s, att_s), val, branch, tick_from, tick_to)
+            self.char_att_scheduled,
+            (char_s, att_s), val, branch, tick_from, tick_to)
 
     def get_char_att_val(self, char_s, att_s, branch=None, tick=None):
         if branch is None:
@@ -645,13 +569,14 @@ necessary."""
             self.char_skill_scheduled, (char_s, skill_s), effect_deck_s,
             branch, tick_from, tick_to)
 
-    def get_char_skill_deck_name(self, char_s, skill_s, branch=None, tick=None):
+    def get_char_skill_deck_name(
+            self, char_s, skill_s, branch=None, tick=None):
         if branch is None:
             branch = self.branch
         if tick is None:
             tick = self.tick
         for (commencement, (deck, conclusion)) in self.char_skill_scheduled[
-                char_s][skill_s][branch_s].iteritems():
+                char_s][skill_s][branch].iteritems():
             if commencement <= tick and conclusion >= tick:
                 return deck
         return ''
@@ -668,7 +593,9 @@ necessary."""
             branch = self.branch
         if tick is None:
             tick = self.tick
-        for (commencement, conclusion) in self.char_item_scheduled[char_s][dimension_s][item_s][branch]:
+        for (commencement, conclusion) in (
+                self.char_item_scheduled[
+                    char_s][dimension_s][item_s][branch]):
             if commencement <= tick and conclusion >= tick:
                 return True
         return False
@@ -690,12 +617,29 @@ necessary."""
                 return n
         return 0
 
+    def load_game(self):
+        self.c.execute(
+            "SELECT front_board, age, seed, "
+            "hi_place, hi_portal FROM game")
+        for row in self.c:
+            self.game = dictify_row(row, self.game.keys())
 
-def load_game(dbfilen, language):
-    """Load the game in the database file by the given name. Load strings
-for the given language. Return a RumorMill object.
+    def load_strings(self):
+        self.c.execute("SELECT stringname, language, string FROM strings")
+        for row in self.c:
+            rowd = dictify_row(row, ("stringname", "language", "string"))
+            if rowd["stringname"] not in self.stringdict:
+                self.stringdict[rowd["stringname"]] = {}
+            self.stringdict[rowd["stringname"]][rowd["language"]] = rowd["string"]
 
-    """
-    db = RumorMill(dbfilen)
-    db.load_game(language)
+    def get_dimension(self, dimn):
+        if dimn not in self.dimensiondict:
+            self.dimensiondict[dimn] = Dimension(self, dimn)
+            self.dimensiondict[dimn].load()
+        return self.dimensiondict[dimn]
+
+def load_game(dbfn, lang="eng"):
+    db = RumorMill(dbfn, lang=lang)
+    db.load_game()
+    db.load_strings()
     return db

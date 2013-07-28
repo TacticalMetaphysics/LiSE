@@ -1,17 +1,21 @@
-from util import stringlike
 from math import hypot
 
 
 class Arrow:
     margin = 20
     w = 10
-    def __init__(self, gw, portal):
-        self.gw = gw
-        self._portal = str(portal)
-        self.vertices = ((None,None),(None,None),(None,None))
+
+    def __init__(self, board, portal):
+        self.board = board
+        self.gw = self.board.gw
+        self.db = self.board.db
+        self.portal = portal
+        self.orig = self.portal.orig.spot
+        self.dest = self.portal.dest.spot
+        self.vertices = ((None, None), (None, None), (None, None))
         self.oldstate = None
-        self.order = gw.edge_order
-        gw.edge_order += 1
+        self.order = self.gw.edge_order
+        self.gw.edge_order += 1
         self.selectable = True
         self.overlap_hints = {}
         self.y_at_hints = {}
@@ -26,23 +30,10 @@ class Arrow:
         return hypot(self.run, self.rise)
 
     def __getattr__(self, attrn):
-        if attrn == "dimension":
-            return self.gw.board.dimension
-        elif attrn == "_dimension":
-            return self.gw.board._dimension
-        elif attrn == "db":
-            return self.gw.db
-        elif attrn == "portal":
-            return self.db.itemdict[
-                self._dimension][self._portal]
-        elif attrn == 'orig':
-            return self.portal.orig.spot
-        elif attrn == 'ox':
+        if attrn == 'ox':
             return self.orig.x
         elif attrn == 'oy':
             return self.orig.y
-        elif attrn == 'dest':
-            return self.portal.dest.spot
         elif attrn == 'dx':
             return self.dest.x
         elif attrn == 'dy':

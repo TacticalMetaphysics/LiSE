@@ -1,6 +1,5 @@
 import pyglet
-from util import SaveableMetaclass, PatternHolder, dictify_row, phi
-from style import read_styles
+from util import SaveableMetaclass, PatternHolder, phi
 
 """Rectangle shaped widget with picture on top and words on bottom."""
 
@@ -26,20 +25,15 @@ class Card:
         self.db = db
         self.name = name
         self._display_name = display_name
-        self._img = image
+        self.img = image
         self._text = text
-        self._style = style
+        self.style = style
         self.widget = None
         self.db.carddict[str(self)] = self
 
     def __getattr__(self, attrn):
         if attrn == 'base':
             return self
-        elif attrn == 'img':
-            if self._img == '':
-                return None
-            else:
-                return self.db.imgdict[self._img]
         elif attrn == 'text':
             if self._text[0] == '@':
                 return self.db.get_text(self._text[1:])
@@ -50,8 +44,6 @@ class Card:
                 return self.db.get_text(self._display_name[1:])
             else:
                 return self._display_name
-        elif attrn == 'style':
-            return self.db.styledict[self._style]
         elif hasattr(self.widget, attrn):
             return getattr(self.widget, attrn)
         else:
@@ -301,57 +293,39 @@ class HandIterator:
 class Hand:
     __metaclass__ = SaveableMetaclass
     tables = [
-        (
-            "hand_card",
-            {
-                "hand": "text not null",
-                "idx": "integer not null",
-                "branch": "integer not null default 0",
-                "tick_from": "integer not null default 0",
-                "tick_to": "integer default null",
-                "card": "text not null"},
-            ("hand", "idx", "branch", "tick_from"),
-            {"card": ("card", "name")},
-            ("idx>=0",)
-        ),
-        (
-            "hand_board",
-            {
-                "hand": "text not null",
-                "board": "text not null",
-                "visible": "boolean default 1",
-                "interactive": "boolean default 1",
-                "style": "text not null default 'SmallLight'",
-                "left": "float default 0.3",
-                "right": "float default 0.6",
-                "bot": "float default 0.0",
-                "top": "float default 0.3"},
-            ("hand", "board"),
-            {
-                "hand": ("hand_card", "hand"),
-                "board": ("board", "name"),
-                "style": ("style", "name")},
-            ("left>=0.0", "left<=1.0", "right>=0.0", "right<=1.0",
-             "bot>=0.0", "bot<=1.0", "top>=0.0", "top<=1.0",
-             "right>left", "top>bot"))]
+        ("hand_card",
+         {"hand": "text not null",
+          "idx": "integer not null",
+          "branch": "integer not null default 0",
+          "tick_from": "integer not null default 0",
+          "tick_to": "integer default null",
+          "card": "text not null"},
+         ("hand", "idx", "branch", "tick_from"),
+         {"card": ("card", "name")},
+         ("idx>=0",)),
+        ("hand_widget",
+         {"window": "text not null default 'Main'",
+          "hand": "text not null",
+          "left": "float not null",
+          "right": "float not null",
+          "top": "float not null",
+          "bot": "float not null",
+          "style": "text not null default 'BigLight'"},
+         ("window", "hand"),
+         {"hand": ("hand_card", "hand"),
+          "window": ("window", "name"),
+          "style": ("style", "name")},
+         [])]
 
-    def __init__(
-            self, db, name, board, visible, interactive,
-            style, left, right, bot, top):
-        self.db = db
-        self.name = name
-        self._board = str(board)
-        self._visible = visible
-        self._interactive = interactive
-        self._style = str(style)
-        self._left = left
-        self._right = right
-        self._bot = bot
-        self._top = top
-        self.db.handdict[self.name] = self
-        if str(self.board) not in self.db.boardhanddict:
-            self.db.boardhanddict[str(self.board)] = {}
-        self.db.boardhanddict[self._board][self.name] = self
+    def __init__(self, window, hand, left, right, top, bot, style):
+        self.window = window
+        self.db = window.db
+        self.hand = hand
+        self.left_prop = left
+        self.right_prop = right
+        self.top_prop = top
+        self.bot_prop = bot
+        self.style = style
         self.oldstate = None
 
     def __hash__(self):
@@ -402,9 +376,6 @@ class Hand:
         else:
             raise AttributeError(
                 "Hand has no attribute named {0}".format(attrn))
-
-    def __getitem__(self, i):
-        
 
     def __len__(self):
         return len(self.db.handcarddict[str(self)])
@@ -482,11 +453,11 @@ class Hand:
 
     def get_tabdict(self):
         return {
-            "hand_card": [ 
+            "hand_card": [
                 {
                     "hand": self.name,
                     "idx": idx,
-                    "card": str(card)} 
+                    "card": str(card)}
                 for (idx, card) in
                 self.db.handcarddict[self.name].iteritems()],
             "hand_board": {
@@ -510,94 +481,3 @@ class Hand:
             "hand_board": {
                 "hand": self.name,
                 "board": self._board}}
-
-    def delete(self):
-        del self.db.handcarddict[self.name]
-        del self.db.boardhanddict[self._board][self.name]
-        del self.db.handdict[self.name]
-        self.erase()
-
-
-cards_qryfmt = (
-    """SELECT {0} FROM card WHERE name IN ({1})""".format(
-        ", ".join(Card.colns), "{0}"))
-
-
-def read_cards(db, names):
-    qryfmt = cards_qryfmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, tuple(names))
-    r = {}
-    styles = set()
-    for row in db.c:
-        rowdict = dictify_row(row, Card.colns)
-        rowdict["db"] = db
-        r[rowdict["name"]] = Card(**rowdict)
-        styles.add(rowdict["style"])
-    read_styles(db, tuple(styles))
-    return r
-
-
-def load_cards(db, names):
-    r = read_cards(db, names)
-    for card in r.itervalues():
-        card.unravel()
-    return r
-
-hand_card_qryfmt = (
-    """SELECT {0} FROM hand_card JOIN card WHERE hand IN ({1})""".format(
-        "hand, idx, card, " + ", ".join(Card.valns), "{0}"))
-
-hand_card_colns = ["hand", "idx", "card"] + Card.valns
-
-
-def read_cards_in_hands(db, handnames):
-    qryfmt = hand_card_qryfmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(handnames)))
-    db.c.execute(qrystr, tuple(handnames))
-    r = {}
-    cards = set()
-    for handname in handnames:
-        r[handname] = []
-    for row in db.c:
-        rowdict = dictify_row(row, hand_card_colns)
-        rowdict["db"] = db
-        handn = rowdict["hand"]
-        cardn = rowdict["card"]
-        idx = rowdict["idx"]
-        while len(r[handn]) <= idx:
-            r[handn].append(None)
-        r[handn][idx] = cardn
-        cards.add(cardn)
-    read_cards(db, tuple(cards))
-    for (handn, cardl) in r.iteritems():
-        db.handcarddict[handn] = cardl
-    return r
-
-hands_qryfmt = (
-    """SELECT {0} FROM hand_board WHERE board IN ({1})""".format(
-        ", ".join(Hand.colnames["hand_board"]), "{0}"))
-
-
-def read_hands_in_boards(db, boardnames):
-    qryfmt = hands_qryfmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(boardnames)))
-    db.c.execute(qrystr, tuple(boardnames))
-    r = {}
-    handns = set()
-    stylens = set()
-    for boardname in boardnames:
-        r[boardname] = {}
-    for row in db.c:
-        rowdict = dictify_row(row, Hand.colnames["hand_board"])
-        rowdict["db"] = db
-        boardname = rowdict["board"]
-        handname = rowdict["hand"]
-        handns.add(handname)
-        rowdict["name"] = handname
-        del rowdict["hand"]
-        stylens.add(rowdict["style"])
-        r[boardname][handname] = Hand(**rowdict)
-    read_cards_in_hands(db, tuple(handns))
-    read_styles(db, stylens)
-    return r

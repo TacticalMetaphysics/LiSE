@@ -1,6 +1,5 @@
-from util import SaveableMetaclass, stringlike, dictify_row
+from util import SaveableMetaclass, stringlike
 from pyglet.image import SolidColorImagePattern as color_pattern
-from collections import OrderedDict
 
 """User's view on a given item's schedule.
 
@@ -17,6 +16,7 @@ Uses information from the CalendarCol it's in and the Event it
 represents to calculate its dimensions and coordinates.
 
     """
+    visible = True
 
     def __init__(self, col, event):
         self.col = col
@@ -34,8 +34,6 @@ represents to calculate its dimensions and coordinates.
         self.old_inactive_image = None
         self.sprite = None
         self.label = None
-        self._visible = True
-        self._interactive = True
         self.tweaks = 0
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
         if event is None:
@@ -62,7 +60,7 @@ represents to calculate its dimensions and coordinates.
 
     def __getattr__(self, attrn):
         if attrn == 'interactive':
-            return self._interactive
+            return self.col.cal.interactive
         elif attrn == 'window':
             return self.col.cal.board.gw.window
         elif attrn == 'start':
@@ -126,44 +124,13 @@ between any two states that should appear different on-screen."""
 
 
 class CalendarCol:
-    """A single-column visual representation of a schedule.
-
-As schedules are uniquely associated with Item objects, so are the
-calendar-columns representing those schedules. They are drawn by
-fetching events in the time period that's on screen, instantiating
-CalendarCells for those, and drawing boxes to represent those
-cells.
-
-    """
-    __metaclass__ = SaveableMetaclass
-    tables = [
-        ("calendar_col",
-         {"calendar": "text not null default 'default_calendar'",
-          "dimension": "text not null DEFAULT 'Physical'",
-          "item": "text not null",
-          "visible": "boolean not null DEFAULT 1",
-          "interactive": "boolean not null DEFAULT 1",
-          "style": "text not null DEFAULT 'BigLight'",
-          "cel_style": "text not null DEFAULT 'SmallDark'"},
-         ("calendar", "dimension", "item"),
-         {"dimension, item": ("item", "dimension, name"),
-          "calendar": ("calendar", "name"),
-          "style": ("style", "name"),
-          "cel_style": ("style", "name")},
-         []
-         )]
-
-    def __init__(self, db, calendar, dimension, item,
+    def __init__(self, calendar, item,
                  visible, interactive, style, cel_style):
-        self.db = db
-        self._calendar = str(calendar)
-        self._dimension = str(dimension)
-        self._item = str(item)
-        self._visible = bool(visible)
-        self.tweaks = 0
-        self._interactive = interactive
-        self._style = str(style)
-        self._cel_style = str(cel_style)
+        self.calendar = calendar
+        self.db = self.calendar.db
+        self.item = item
+        self.visible = visible
+        self.interactive = interactive
         self.oldstate = None
         self.old_width = None
         self.old_image = None
@@ -177,12 +144,6 @@ cells.
 
     def __iter__(self):
         return self.celldict.itervalues()
-
-    def __eq__(self, other):
-        return (
-            other._calendar = self._calendar and
-            other._dimension == self._dimension and
-            other._item == self._item)
 
     def __getattr__(self, attrn):
         if attrn == 'dimension':
@@ -312,50 +273,46 @@ schedule, possibly several.
 
 """
     __metaclass__ = SaveableMetaclass
-    scroll_factor = 4
     tables = [
         (
             "calendar",
-            {"name": "text not null",
-             "window_relative": "boolean not null default 1",
+            {"window": "text not null default 'Main'",
+             "i": "integer not null default 0",
              "left": "float not null default 0.8",
              "right": "float not null default 1.0",
              "top": "float not null default 1.0",
              "bot": "float not null default 0.0",
-             "visible": "boolean not null default 1",
+             "style": "text not null default 'default_style'",
              "interactive": "boolean not null default 1",
              "rows_shown": "integer not null default 240",
-             "scrolled_to": "integer default null"},
-            ("name",),
-            {},
-            ["rows_shown>0", "left>=0.0", "right<=1.0", "top<=1.0", "bot>=0.0"]),
-        (
-            "cal_board",
-            {"calendar": "text not null",
-             "board": "text not null"},
-            ("calendar", "board"),
-            {"calendar": ("calendar", "name"),
-             "board": ("board", "name")},
-            [])]
- 
+             "scrolled_to": "integer default null",
+             "scroll_factor": "integer not null default 4"},
+            ("window", "i"),
+            {"window": ("window", "name"),
+             "style": ("style", "name")},
+            ["rows_shown>0", "left>=0.0", "right<=1.0",
+             "top<=1.0", "bot>=0.0"])]
+    visible = True
+
     def __init__(
-            self, name, board, left, right, top, bot, visible, interactive,
-            rows_on_screen, scrolled_to):
-        self.name = name
-        self.db = board.db
-        self._dimension = str(board)
+            self, window, i, left, right, top, bot, style, interactive,
+            rows_shown, scrolled_to, scroll_factor):
+        self.window = window
+        self.i = i
+        self.board = self.window.board
+        self.db = self.board.db
         self.left_prop = left
         self.right_prop = right
         self.top_prop = top
         self.bot_prop = bot
-        self._visible = visible
-        self._interactive = interactive
-        self.rows_on_screen = rows_on_screen
-        self.scrolled_to = scrolled_to
+        self.interactive = interactive
+        self.rows_shown = rows_shown
+        if scrolled_to is None:
+            scrolled_to = self.db.tick
+        self.scroll_factor = scroll_factor
         self.oldstate = None
         self.sprite = None
         self.tweaks = 0
-        self.db.caldict[self._dimension] = self
         self.cols = []
 
     def __iter__(self):
@@ -433,107 +390,6 @@ between any two states that should appear different on-screen."""
             self.scrolled_to,
             self.tweaks)
 
-    def unravel(self):
-        """Dereference contained strings into Python objects.
-
-Results in self.board being a Board object, self.coldict being the
-OrderedDict containing the columns herein, and every CalendarCol in
-self.coldict being itself unraveled.
-
-        """
-        pass
-
-    def adjust(self):
-        """Create missing calendar cells. Delete those whose events are no
-longer present.
-
-        """
-        self.cols = []
-        for col in self.db.calcoldict[self._dimension].itervalues():
-            if col._visible:
-                self.cols.append(col)
-                for ev in iter(col.item.schedule):
-                    if ev.name not in col.celldict:
-                        col.celldict[ev.name] = CalendarCell(col, ev)
-                for evname in col.celldict:
-                    if evname not in col.item.schedule.events:
-                        del col.celldict[evname]
-        if len(self.cols) > 0:
-            self.col_width = self.width / len(self.cols)
-        else:
-            self.col_width = 0
-        self.row_height = self.height / self.rows_on_screen
-            
-
-    def gettop(self):
-        """Get the absolute Y value of my top edge."""
-        return self.top_abs
-
-    def getbot(self):
-        """Get the absolute Y value of my bottom edge."""
-        return self.bot_abs
-
-    def getleft(self):
-        """Get the absolute X value of my left edge."""
-        return self.left_abs
-
-    def getright(self):
-        """Get the absolute X value of my right edge."""
-        return self.right_abs
-
-    def getwidth(self):
-        """Get the width of this widget."""
-        return self.width_abs
-
-    def getheight(self):
-        """Get the height of this widget."""
-        return self.height_abs
-
-    def getstart(self):
-        """Get the number of ticks between the start of the game and the time
-displayed by this calendar."""
-        return self.scrolled_to
-
-    def getend(self):
-        """Get the last tick of game-time that this calendar displays."""
-        return self.scrolled_to + self.rows_on_screen
-
-    def add(self, col):
-        """Add a CalendarCol to be displayed.
-
-This method does not affect the CalendarCol, such as by informing it
-that it's in this calendar. You'll want to do that elsewhere, using
-the CalendarCol's set_cal() method.
-
-        """
-        if col.item.name not in self.db.calcoldict[self._dimension]:
-            self.db.calcoldict[self._dimension][col.item.name] = col
-
-    def remove(self, col):
-        """Remove a CalendarCol.
-
-This doesn't necessarily delete the CalendarCol's graphics."""
-        self.cols.remove(col)
-
-    def discard(self, col):
-        """Remove a CalendarCol if it's a member.
-
-This doesn't necessarily delete the CalendarCol's graphics."""
-        if col in self.cols:
-            self.cols.remove(col)
-
-    def index(self, col):
-        """Get the index of the CalendarCol within the order of displayed
-columns."""
-        return self.cols.index(col)
-
-    def pop(self, colname):
-        """Return and remove the CalendarCol by the given name."""
-        for col in self.cols:
-            if col.name == colname:
-                return col
-        return None
-
     def toggle_visibility(self):
         """Hide or show myself, as applicable."""
         self.visible = not self.visible
@@ -548,21 +404,3 @@ columns."""
         """Become visible."""
         if not self.visible:
             self.toggle_visibility()
-
-rcib_format = (
-    "SELECT {0} FROM calendar_col WHERE board IN ({1})".format(
-        ", ".join(CalendarCol.colns), "{0}"))
-
-
-def read_calendar_cols_in_boards(db, boardnames):
-    qryfmt = rcib_format
-    qrystr = qryfmt.format(", ".join(["?"] * len(boardnames)))
-    db.c.execute(qrystr, boardnames)
-    r = {}
-    for boardname in boardnames:
-        r[boardname] = {}
-    for row in db.c:
-        rowdict = dictify_row(row, CalendarCol.colns)
-        rowdict["db"] = db
-        r[rowdict["board"]][rowdict["item"]] = CalendarCol(**rowdict)
-    return r

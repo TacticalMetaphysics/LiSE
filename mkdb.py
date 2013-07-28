@@ -1,9 +1,8 @@
-import rumor
 import os
 from sqlite3 import OperationalError
 from rltileins import ins_rltiles
 from util import schemata
-
+import board, card, calendar, character, dimension, effect, event, gui, img, menu, pawn, portal, spot, style, thing, rumor
 
 """Make an empty database of LiSE's schema. By default it will be
 called default.sqlite and include the RLTiles (in folder
@@ -29,6 +28,15 @@ except OSError:
     pass
 
 db = rumor.RumorMill(DB_NAME)
+db.c.execute(
+    "CREATE TABLE game"
+    " (front_board TEXT DEFAULT 'Physical', age INTEGER DEFAULT 0,"
+    " seed INTEGER DEFAULT 0, hi_place INTEGER DEFAULT 0, hi_portal INTEGER"
+    " DEFAULT 0);")
+db.c.execute(
+    "CREATE TABLE strings (stringname TEXT NOT NULL, language TEXT NOT"
+    " NULL DEFAULT 'English', string TEXT NOT NULL, PRIMARY KEY(stringname,"
+    " language));")
 
 
 done = set()

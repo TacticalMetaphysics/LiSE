@@ -1,7 +1,5 @@
 from util import (
     SaveableMetaclass,
-    dictify_row,
-    stringlike,
     RowDict,
     TerminableImg,
     TerminableInteractivity,
@@ -11,10 +9,7 @@ from util import (
 """Widgets to represent places. Pawns move around on top of these."""
 
 
-__metaclass__ = SaveableMetaclass
-
-
-class Spot(TerminableImg, TerminableInteractivity, TerminableCoords):
+class Spot(object, TerminableImg, TerminableInteractivity, TerminableCoords):
     """The icon that represents a Place.
 
     The Spot is located on the Board that represents the same
@@ -22,6 +17,7 @@ class Spot(TerminableImg, TerminableInteractivity, TerminableCoords):
     relative to its Board, not necessarily the window the Board is in.
 
     """
+    __metaclass__ = SaveableMetaclass
     tables = [
         ("spot_img",
          {"dimension": "text not null default 'Physical'",
@@ -30,7 +26,7 @@ class Spot(TerminableImg, TerminableInteractivity, TerminableCoords):
           "branch": "integer not null default 0",
           "tick_from": "integer not null default 0",
           "tick_to": "integer default null",
-          "img": "text not null"},
+          "img": "text not null default 'default_spot'"},
          ("dimension", "place", "board", "branch", "tick_from"),
          {"dimension, board": ("board", "dimension, i"),
           "img": ("img", "name")},
@@ -44,7 +40,7 @@ class Spot(TerminableImg, TerminableInteractivity, TerminableCoords):
           "tick_to": "integer default null"},
          ("dimension", "place", "board", "branch", "tick_from"),
          {"dimension, board": ("board", "dimension, i")},
-         [])
+         []),
         ("spot_coords",
          {"dimension": "text not null default 'Physical'",
           "place": "text not null",
@@ -79,14 +75,9 @@ given coordinates, and visible or interactive as indicated.
         self.oldstate = None
         self.newstate = None
         self.tweaks = 0
-        dimname = str(self.dimension)
-        placename = str(self.place)
-        if dimname not in db.spotdict:
-            db.spotdict[dimname] = {}
-        db.spotdict[dimname][placename] = self
 
     def __getattr__(self, attrn):
-        if atttrn == 'dimension':
+        if attrn == 'dimension':
             return self.board.dimension
         elif attrn == 'interactive':
             return self.is_interactive()
@@ -113,7 +104,7 @@ given coordinates, and visible or interactive as indicated.
             if myimg is None:
                 return 0
             else:
-                returnn myimg.height
+                return myimg.height
         elif attrn == 'rx':
             return self.width / 2
         elif attrn == 'ry':
@@ -164,8 +155,6 @@ given coordinates, and visible or interactive as indicated.
             self.set_coords(val, self.y)
         elif attrn == "y":
             self.set_coords(self.x, val)
-        elif attrn == "coords":
-            self.set_coords(*val)
         elif attrn == "hovered":
             if val is True:
                 self.hovered()
@@ -177,7 +166,7 @@ given coordinates, and visible or interactive as indicated.
             else:
                 self.unset_pressed()
         else:
-            super(Spot, self).__setattr__(self, attrn, val)
+            super(Spot, self).__setattr__(attrn, val)
 
     def __str__(self):
         return str(self.place)
@@ -238,7 +227,8 @@ mouse."""
         boardi = int(self.board)
         spot_img_rows = set()
         for branch in self.imagery:
-            for (tick_from, (img, tick_to)) in self.imagery[branch].iteritems():
+            for (tick_from, (img, tick_to)) in (
+                    self.imagery[branch].iteritems()):
                 spot_img_rows.add(RowDict({
                     "dimension": dimn,
                     "place": placen,
@@ -257,7 +247,8 @@ mouse."""
                     "tick_to": tick_to}))
         spot_coords_rows = set()
         for branch in self.coords:
-            for (tick_from, (x, y, tick_to)) in self.coords[branch].iteritems():
+            for (tick_from, (x, y, tick_to)) in (
+                    self.coords[branch].iteritems()):
                 spot_coords_rows.add(RowDict({
                     "dimension": dimn,
                     "place": placen,

@@ -55,6 +55,7 @@ def keyify_dict(d, keytup):
             ptr[key] = {}
         ptr = ptr[key]
 
+
 def tickly_get(db, get_from, branch, tick):
     if branch is None:
         branch = db.branch
@@ -79,42 +80,7 @@ def untuple(list_o_tups):
 
 
 def dictify_row(row, colnames):
-    return dict(zip(colnames, row))
-
-
-def dictify_rows(rows, keynames, colnames):
-    # Produce a dictionary with which to look up rows--but rows that
-    # have themselves been turned into dictionaries.
-    r = {}
-    # Start this dictionary with empty dicts, deep enough to hold
-    # all the partial keys in keynames and then a value.
-    # I think this fills deeper than necessary?
-    keys = len(keynames)  # use this many fields as keys
-    for row in rows:
-        ptr = r
-        i = 0
-        while i < keys:
-            i += 1
-            try:
-                ptr = ptr[row[i]]
-            except:
-                ptr = {}
-        # Now ptr points to the dict of the last key that doesn't get
-        # a dictified row. i is one beyond that.
-        ptr[row[i]] = dictify_row(row)
-    return r
-
-
-def dicl2tupl(dicl):
-    # Converts list of dicts with one set of keys to list of tuples of
-    # *values only*, not keys. They'll be in the same order as given
-    # by dict.keys().
-    keys = dicl[0].keys()
-    r = []
-    for dic in dicl:
-        l = [dic[k] for k in keys]
-        r.append(tuple(l))
-    return r
+    return RowDict(dict(zip(colnames, row)))
 
 
 def deep_lookup(dic, keylst):
@@ -157,6 +123,7 @@ def place2idx(db, dimname, pl):
     else:
         raise ValueError("Can't convert that into a place-index")
 
+
 class TerminableImg:
     def get_img(self, branch=None, tick=None):
         if branch is None:
@@ -175,6 +142,8 @@ class TerminableImg:
             branch = self.db.branch
         if tick_from is None:
             tick_from = self.db.tick
+        if branch not in self.imagery:
+            self.imagery[branch] = {}
         if branch in self.indefinite_imagery:
             (indef_img, indef_start) = self.indefinite_imagery[branch]
             if tick_to is None:
@@ -196,7 +165,8 @@ class TerminableImg:
                     del self.indefinite_imagery[branch]
                     self.imagery[branch][tick_from] = (img, tick_to)
                 else:
-                    self.imagery[branch][indef_start] = (indef_img, tick_from-1)
+                    self.imagery[branch][indef_start] = (
+                        indef_img, tick_from-1)
                     del self.indefinite_imagery[branch]
                     self.imagery[branch][tick_from] = (img, tick_to)
         else:
@@ -225,13 +195,13 @@ class TerminableInteractivity:
             tick_from = self.db.tick
         if branch not in self.interactivity:
             self.interactivity[branch] = {}
-        if branch in self.indefinite_interactive:
-            prevstart = self.indefinite_interactive[branch]
+        if branch in self.indefinite_interactivity:
+            prevstart = self.indefinite_interactivity[branch]
             if tick_to is None:
                 # Two indefinite periods of interactivity cannot coexist.
                 # Assume that you meant to overwrite the old one.
                 del self.interactivity[branch][prevstart]
-                self.indefinite_interactive[branch] = tick_from
+                self.indefinite_interactivity[branch] = tick_from
                 self.interactivity[branch][tick_from] = None
             else:
                 if tick_from < prevstart:
@@ -245,7 +215,7 @@ class TerminableInteractivity:
                         # comply with that request is to delete the
                         # indefinite period.
                         del self.interactivity[branch][prevstart]
-                        del self.indefinite_interactive[branch]
+                        del self.indefinite_interactivity[branch]
                         self.interactivity[branch][tick_from] = tick_to
                     elif tick_to == prevstart:
                         # Putting a definite period of interactivity
@@ -322,6 +292,7 @@ class TerminableCoords:
             if tick_to is None:
                 self.indefinite_coords[branch] = (x, y, tick_from)
 
+
 class RowDict:
     """A read-only dictionary-like object representing a database
 record. It has column names in the keys and the corresponding values
@@ -339,7 +310,9 @@ in the values.
         return hash(self.colvals)
 
     def __eq__(self, other):
-        return self.colnames == other.colnames and self.colvals == other.colvals
+        return (
+            self.colnames == other.colnames and
+            self.colvals == other.colvals)
 
 
 class PatternHolder:
@@ -399,7 +372,9 @@ Thing, and it made no sense.
 
 schemata = []
 
+
 class SaveableMetaclass(type):
+# TODO make savers use sets of RowDict objs, rather than lists of regular dicts
     """Sort of an object relational mapper.
 
 Classes with this metaclass need to be declared with an attribute
@@ -447,6 +422,7 @@ and your table will be ready.
 
     """
     def __new__(metaclass, clas, parents, attrs):
+        print "metaclassing " + clas
         if clas in parents:
             return clas
         tablenames = []
@@ -548,8 +524,8 @@ and your table will be ready.
             missing_stmt_start = "SELECT %s FROM %s WHERE (%s) NOT IN " % (
                 colnamestr[tablename], tablename, pkeynamestr)
             missings[tablename] = missing_stmt_start
-            schemata.append((tablename, [fkey[0] for fkey in fkeys.itervalues()], create_stmt))
-            
+            schemata.append((tablename, [fkey[0] for fkey in
+                                         fkeys.itervalues()], create_stmt))
 
         def insert_rowdicts_table(db, rowdicts, tabname):
             sample = rowdicts[0]
@@ -560,7 +536,7 @@ and your table will be ready.
             rowsstr = ", ".join([rowstr] * len(rowdicts))
             qrystr = inserts[tabname].format(colsstr, rowsstr)
             qrylst = []
-            for rowdict in rowdicts:
+            for rowdict in iter(rowdicts):
                 for col in cols_used:
                     qrylst.append(rowdict[col])
             qrytup = tuple(qrylst)
@@ -571,7 +547,7 @@ and your table will be ready.
             keyns = keynames[tabname]
             keys = []
             wheres = []
-            for keydict in keydicts:
+            for keydict in iter(keydicts):
                 checks = []
                 for keyn in keyns:
                     checks.append(keyn + "=?")
@@ -585,7 +561,7 @@ and your table will be ready.
             keystr = keystrs[tabname]
             qrystr = detects[tabname] + ", ".join([keystr] * len(keydicts))
             qrylst = []
-            for keydict in keydicts:
+            for keydict in iter(keydicts):
                 for col in keynames[tabname]:
                     if col in keydict:
                         qrylst.append(keydict[col])
@@ -597,7 +573,7 @@ and your table will be ready.
             keystr = keystrs[tabname]
             qrystr = missings[tabname] + ", ".join([keystr] * len(keydicts))
             qrylst = []
-            for keydict in keydicts:
+            for keydict in iter(keydicts):
                 for col in keynames[tabname]:
                     if col in keydict:
                         qrylst.append(keydict[col])
@@ -608,23 +584,14 @@ and your table will be ready.
         def insert_tabdict(db, tabdict):
             for item in tabdict.iteritems():
                 (tabname, rd) = item
-                if not rd:
-                    continue
-                if isinstance(rd, dict):
-                    insert_rowdicts_table(db, [rd], tabname)
-                else:
-                    insert_rowdicts_table(db, rd, tabname)
+                insert_rowdicts_table(db, rd, tabname)
 
         def delete_tabdict(db, tabdict):
             qryfmt = "DELETE FROM {0} WHERE {1}"
             for (tabn, rows) in tabdict.iteritems():
-                if not rows:
-                    continue
                 vals = []
                 ors = []
-                if isinstance(rows, dict):
-                    rows = [rows]
-                for row in rows:
+                for row in iter(rows):
                     keyns = keynames[tabn]
                     ands = []
                     for keyn in keyns:

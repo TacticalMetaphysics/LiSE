@@ -1,4 +1,4 @@
-INSERT INTO portal (from_place, to_place) VALUES
+INSERT INTO portal_existence (origin, destination) VALUES
 ('myroom', 'guestroom'),
         ('myroom', 'mybathroom'),
         ('myroom', 'diningoffice'),
@@ -11,8 +11,8 @@ INSERT INTO portal (from_place, to_place) VALUES
         ('livingroom', 'longhall'),
         ('longhall', 'momsbathroom'),
         ('longhall', 'momsroom');
-INSERT INTO portal (to_place, from_place) SELECT from_place, to_place FROM portal;
-INSERT INTO portal (from_place, to_place) VALUES
+INSERT INTO portal_existence (destination, origin) SELECT origin, destination FROM portal_existence;
+INSERT INTO portal_existence (origin, destination) VALUES
 ('guestroom', 'outside'),
          ('diningoffice', 'outside'),
          ('momsroom', 'outside'),

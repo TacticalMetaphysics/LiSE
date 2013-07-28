@@ -1,4 +1,4 @@
-INSERT INTO thing (name, location) VALUES
+INSERT INTO thing_location (thing, location) VALUES
 ('me', 'myroom'),
 ('diningtable', 'diningoffice'),
 ('mydesk', 'myroom'),

@@ -1,4 +1,5 @@
 from util import SaveableMetaclass, dictify_row, stringlike
+from random import randrange
 
 
 class Effect:
@@ -46,10 +47,6 @@ to."""
     def do(self, deck=None, event=None):
         """Call the function with the argument."""
         return self.db.handle_effect(self, deck, event)
-
-    def delete(self):
-        del self.db.effectdict[self.name]
-        self.erase()
 
 
 class CreatePlaceEffect(Effect):
@@ -180,13 +177,13 @@ class FIFODeckIter(DeckIter):
 
 class RandomDiscardDeckIter(DeckIter):
     def _next(self):
-        idx = random.randrange(0, len(self.efd.effects))
+        idx = randrange(0, len(self.efd.effects))
         return self.efd.effects.pop(idx)
 
 
 class RandomReinsertDeckIter(DeckIter):
     def _next(self):
-        idx = random.randrange(0, len(self.efd.effects))
+        idx = randrange(0, len(self.efd.effects))
         return self.efd.effects[idx]
 
 
@@ -209,79 +206,24 @@ batch."""
          {"effect": ("effect", "name")},
          [])]
 
-    def __init__(self, db, name, effects, branch=None, tick_from=None, tick_to=None):
+    def __init__(self, db, name):
         """Return an EffectDeck with the given name, containing the effects in
 the given list.
         """
         self.name = name
         self.db = db
-        if branch is None:
-            branch = self.db.branch
-        if tick_from is None:
-            tick_from = self.db.tick
-        self.db.remember_effect_deck(self)
+        self.cardhist = {}
+        self.indefinite_cards = {}
 
     def __str__(self):
         return self.name
 
-    def __getitem__(self, i):
-        return self.effects[i]
-
-    def __setitem__(self, i, to):
-        self.effects[i] = to
-
-    def __iter__(self):
-        return self.draw_order(self, reset=self.reset, depth=self.depth)
-
-    def __contains__(self, that):
-        return that in self.effects
-
-    def __dict__(self):
-        return {
-            "name": self.name,
-            "effects": self.effects}
-
     def __getattr__(self, attrn):
-        if attrn in ("effects", "cards"):
-            return self.db.get_effects_in_deck(str(self))
+        if attrn in ("cards", "effects"):
+            return self.get_effects()
         else:
-            raise AttributeError("EffectDeck has no attribute " + attrn)
-
-    def append(self, that):
-        self.effects.append(that)
-
-    def insert(self, i, that):
-        self.effects.insert(i, that)
-
-    def remove(self, that):
-        self.effects.remove(that)
-
-    def pop(self, i=None):
-        if i is None:
-            return self.effects.pop()
-        else:
-            return self.effects.pop(i)
-
-    def get_tabdict(self):
-        rowdicts = []
-        for i in xrange(0, len(self.effects)):
-            rowdicts.append({
-                "deck": self.name,
-                "idx": i,
-                "effect": self.effects[i].name})
-        return {"effect_deck_link": rowdicts}
-
-    def unravel(self):
-        """For all the effects I contain, if the effect is actually the *name*
-of an effect, look up the real effect object. Then unravel it."""
-        i = 0
-        while i < len(self.effects):
-            eff = self.effects[i]
-            if stringlike(eff):
-                reff = self.db.effectdict[eff]
-                self.effects[i] = reff
-            eff.unravel()
-            i += 1
+            raise AttributeError(
+                "Effect instance has no attribute named " + attrn)
 
     def do(self, event=None):
         """Fire all the Effects herein, in whatever order my iterator says to.
@@ -293,9 +235,48 @@ Return a list of the effects, paired with their return values."""
             r.append((eff, eff.do(self, event)))
         return r
 
+    def set_effects(self, effects, branch=None, tick_from=None, tick_to=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick_from is None:
+            tick_from = self.db.tick
+        if branch not in self.cardhist:
+            self.cardhist[branch] = {}
+        if branch in self.indefinite_cards:
+            (icards, ito) = self.indefinite_cards[branch]
+            if tick_to is None or tick_to > ito:
+                del self.indefinite_cards[branch]
+                if tick_from > ito:
+                    self.cardhist[branch][ito] = (icards, tick_from - 1)
+                else:
+                    del self.cardhist[branch][ito]
+            elif tick_to == ito:
+                if effects == icards:
+                    self.cardhist[branch][tick_from] = (effects, None)
+                    self.indefinite_cards[branch] = (effects, tick_from)
+                    return
+                else:
+                    raise ValueError("Illegal tick_to")
+        if tick_to is None:
+            self.indefinite_cards[branch] = (effects, tick_from)
+        self.cardhist[branch][tick_from] = (effects, tick_to)
+
+    def get_effects(self, branch=None, tick=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.cardhist:
+            return []
+        for (tick_from, (cards, tick_to)) in self.cardhist[branch].iteritems():
+            if tick_from <= tick and (tick_to is None or tick <= tick_to):
+                return cards
+        return []
+
 
 class PortalEntryEffectDeck(EffectDeck):
     reset = True
+
     def __init__(self, db, item, portal):
         effect = PortalEntryEffect(db, item, portal)
         EffectDeck.__init__(self, db, effect.name, [effect])
@@ -303,6 +284,7 @@ class PortalEntryEffectDeck(EffectDeck):
 
 class PortalProgressEffectDeck(EffectDeck):
     reset = True
+
     def __init__(self, db, item):
         effect = PortalProgressEffect(db, item)
         EffectDeck.__init__(self, db, effect.name, [effect])
@@ -310,6 +292,7 @@ class PortalProgressEffectDeck(EffectDeck):
 
 class PortalExitEffectDeck(EffectDeck):
     reset = True
+
     def __init__(self, db, item):
         effect = PortalExitEffect(db, item)
         EffectDeck.__init__(self, db, effect.name, [effect])

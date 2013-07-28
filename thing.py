@@ -1,6 +1,6 @@
 from util import (
     SaveableMetaclass,
-    tickly_get)
+    LocationException)
 from logging import getLogger
 
 
@@ -8,6 +8,10 @@ __metaclass__ = SaveableMetaclass
 
 
 logger = getLogger(__name__)
+
+
+class JourneyException(Exception):
+    pass
 
 
 class Thing:
@@ -32,28 +36,16 @@ too.
          ("dimension", "thing", "branch", "tick_from"),
          {"dimension, thing": ("thing", "dimension, name"),
           "dimension, location": ("place", "dimension, name")},
-         []),
-        ("thing_speed",
-         {"dimension": "text not null default 'Physical'",
-          "thing": "text not null",
-          "branch": "integer not null default 0",
-          "tick_from": "integer not null",
-          "tick_to": "integer not null",
-          "ticks_per_span": "integer not null"},
-         ("dimension", "thing", "branch", "tick_from"),
-         {"dimension, thing": ("thing", "dimension, name")},
          [])]
-    basic_speed = 0
-
+    basic_speed = 1
 
     def __init__(self, dimension, name):
         self.name = name
         self.dimension = dimension
         self.db = self.dimension.db
-        self.speeds = {}
         self.locations = {}
         self.indefinite_locations = {}
-        self.indefinite_speeds = {}
+        self.pawns = []
 
     def __getattr__(self, attrn):
         if attrn == 'location':
@@ -65,19 +57,21 @@ too.
         elif attrn == 'progress':
             return self.get_progress()
         else:
-            raise AttributeError("Thing instance {0} has no attribute {1}".format(
+            raise AttributeError(
+                "Thing instance {0} has no attribute {1}".format(
                 str(self), attrn))
 
     def __setattr__(self, attrn, val):
         if attrn == 'location':
             self.set_location(val)
-        elif attrn == 'speed':
-            self.set_speed(val)
         else:
-            super(Thing, self).__setattr__(self, attrn, val)
+            super(Thing, self).__setattr__(attrn, val)
 
     def __str__(self):
         return self.name
+
+    def __int__(self):
+        return self.dimension.things.index(self)
 
     def assert_can_enter(self, it):
         """If I can't enter the given location, raise a LocationException.
@@ -97,7 +91,16 @@ LocationException."""
     def get_location(self, branch=None, tick=None):
         """Return my current location by default, or where I was at the given
 tick in the given branch."""
-        return tickly_get(self.db, self.locations, branch, tick)
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.locations:
+            return None
+        for (tick_from, (loc, tick_to)) in self.locations[branch].iteritems():
+            if tick_from <= tick and (tick_to is None or tick <= tick_to):
+                return loc
+        return None
 
     def set_location(self, loc, branch=None, tick_from=None, tick_to=None):
         """Declare that I'm in the given Place, Portal, or Thing.
@@ -121,48 +124,16 @@ else to do.
         if branch in self.indefinite_locations:
             indef_tick_from = self.indefinite_locations[branch]
             indef_loc = self.locations[branch][indef_tick_from][0]
-            self.locations[branch][indef_tick_from] = (indef_loc, tick_from - 1)
+            self.locations[branch][indef_tick_from] = (
+                indef_loc, tick_from - 1)
             del self.indefinite_locations[branch]
         if tick_to is None:
             self.indefinite_locations[branch] = tick_from
 
     def get_speed(self, branch=None, tick=None):
-        if branch is None:
-            branch = self.db.branch
-        if tick is None:
-            tick = self.db.tick
-        if branch not in self.speeds:
-            return 0.0
-        for (tick_from, (speed, tick_to)) in self.speeds[branch].iteritems():
-            if tick_from <= tick <= tick_to:
-                return speed
-        return 0.0
-
-    def set_speed(self, ticks_per_span, branch=None, tick_from=None, tick_to=None):
-        """Declare that, during the given timespan, I will move at the given speed.
-
-This is binding--if circumstances change how fast I can move, I must
-set my speed again with this method.
-
-Speed is measured in ticks-per-span, where a tick is an arbitrary unit
-of time and a span is an arbitrary unit of distance.
-
-        """
-        if branch is None:
-            branch = self.db.branch
-        if tick_from is None:
-            tick = self.db.tick
-        if branch not in self.speeds:
-            self.speeds[branch] = {}
-        self.speeds[tick_from] = (ticks_per_span, tick_to)
-        # clean up after a previous set_speed
-        if branch in self.indefinite_speeds:
-            indef_tick_from = self.indefinite_speeds[branch]
-            indef_loc = self.locations[branch][indef_tick_from][0]
-            self.locations[branch][indef_tick_from] = (indef_loc, tick_from - 1)
-            del self.indefinite_speeds[branch]
-        if tick_to is None:
-            self.indefinite_speeds[branch] = tick_from
+        lo = self.get_location(branch, tick)
+        ticks = self.get_ticks_thru(lo)
+        return float(len(lo)) / float(ticks)
 
     def get_ticks_thru(self, po):
         """How many ticks would it take to get through that portal?"""
@@ -177,20 +148,7 @@ I've gone.
 Presupposes that I'm in a portal.
 
         """
-        if branch is None:
-            branch = self.db.branch
-        if tick is None:
-            tick = self.db.tick
-        if branch not in self.locations:
-            return 0.0
-        lasttick = max([
-            tick_from for tick_from in self.locations[branch].iterkeys()
-            if tick_from <= tick])
-        if nexttick is None:
-            return 0.0
-        speed = self.get_speed(branch, tick)
-        travel_ticks_past = float(tick - lasttick)
-        return 1.0 / (speed / travel_ticks_past)
+        return NotImplemented
 
     def get_progress(self, branch=None, tick=None):
         """Return a float representing the proportion of the portal I have
@@ -199,7 +157,19 @@ passed through.
 Presupposes that I'm in a portal.
 
         """
-        return self.get_distance(branch, tick) / len(self.get_location(branch, tick))
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.locations:
+            raise LocationException("I am nowhere in that branch")
+        for (tick_from, (loc, tick_to)) in self.locations[branch].iteritems():
+            if tick_to is None:
+                continue
+            if tick_from <= tick and tick <= tick_to:
+                assert(hasattr(loc, 'orig') and hasattr(loc, 'dest'))
+                return float(tick - tick_from) / float(tick_to - tick_from)
+        raise LocationException("I am nowhere at that time")
 
     def free_time(self, n, branch=None, tick=None):
         """Return the first tick after the one given, and after which there
@@ -236,4 +206,43 @@ ready.
         nticks = self.get_ticks_thru(port)
         # find a time
         starttime = self.free_time(nticks, branch, tick)
-        self.set_location(port, branch, tick, tick + nticks)
+        self.set_location(port, branch, starttime, starttime + nticks)
+
+    def schedule_journey(self, dest, branch=None, tick=None):
+        """Plan a series of travels, through a series of portals, resulting in
+my being located at the place given."""
+        # TODO: Notify each Place that I go through
+        #
+        # if I'm already in a portal, wait til I'm out of it before
+        # going on this new journey
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.locations:
+            raise LocationException(
+                "I don't exist in the given branch, so I can't go anywhere.")
+        for (tick_from, (loc, tick_to)) in self.locations[branch].iteritems():
+            if tick_from <= tick and (tick_to is None or tick <= tick_to):
+                orig = loc
+                if hasattr(orig, 'dest'):
+                    starttick = tick_to
+                else:
+                    starttick = tick
+                    self.locations[branch][tick_from] = (loc, tick)
+                    if tick_to is None:
+                        del self.indefinite_locations[branch]
+                p = self.dimension.get_shortest_path(orig, dest, branch, tick)
+                lasti = orig.i
+                lasttick = starttick + 1
+                while p != []:
+                    nexti = p.pop()
+                    if nexti == orig.i or nexti == dest.i:
+                        continue
+                    port = self.dimension.graph[lasti, nexti]["portal"]
+                    ticks = self.get_ticks_thru(port)
+                    self.set_location(port, branch, lasttick, lasttick + ticks)
+                    lasttick += ticks + 1
+                    lasti = nexti
+                self.set_location(dest, branch, lasttick, None)
+        raise JourneyException("Couldn't schedule the journey")

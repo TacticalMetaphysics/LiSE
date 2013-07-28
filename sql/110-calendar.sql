@@ -1,3 +1,1 @@
-INSERT INTO calendar_col (item) VALUES 
-('me'),
-('mom');
+INSERT INTO calendar DEFAULT VALUES;

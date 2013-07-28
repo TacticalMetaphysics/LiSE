@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, PatternHolder, dictify_row, stringlike
+from util import SaveableMetaclass, RowDict, dictify_row
 import pyglet
 
 
@@ -31,12 +31,11 @@ you that.
           "blue between 0 and 255",
           "alpha between 0 and 255"])]
 
-    def __init__(self, db, name, red, green, blue, alpha):
+    def __init__(self, name, red, green, blue, alpha):
         """Return a color with the given name, and the given values for red,
 green, blue, and alpha. Register in db.colordict.
 
         """
-        self.db = db
         self.name = name
         self.red = red
         self.green = green
@@ -44,7 +43,6 @@ green, blue, and alpha. Register in db.colordict.
         self.alpha = alpha
         self.tup = (self.red, self.green, self.blue, self.alpha)
         self.pattern = pyglet.image.SolidColorImagePattern(self.tup)
-        self.db.colordict[self.name] = self
 
     def __str__(self):
         return self.name
@@ -68,13 +66,15 @@ green, blue, and alpha. Register in db.colordict.
         return "(" + ", ".join(self.tup) + ")"
 
     def get_tabdict(self):
+        colorset = set()
+        colorset.add(RowDict({
+            "name": self.name,
+            "red": self.red,
+            "green": self.green,
+            "blue": self.blue,
+            "alpha": self.alpha}))
         return {
-            "color": {
-                "name": self.name,
-                "red": self.red,
-                "green": self.green,
-                "blue": self.blue,
-                "alpha": self.alpha}}
+            "color": colorset}
 
     def delete(self):
         del self.db.colordict[self.name]
@@ -89,20 +89,22 @@ that contain text."""
          {"name": "text not null",
           "fontface": "text not null",
           "fontsize": "integer not null",
+          "textcolor": "text not null",
           "spacing": "integer default 6",
           "bg_inactive": "text not null",
           "bg_active": "text not null",
           "fg_inactive": "text not null",
           "fg_active": "text not null"},
          ("name",),
-         {"bg_inactive": ("color", "name"),
+         {"textcolor": ("color", "name"),
+          "bg_inactive": ("color", "name"),
           "bg_active": ("color", "name"),
           "fg_inactive": ("color", "name"),
           "fg_active": ("color", "name")},
          [])]
     color_cols = ["bg_inactive", "bg_active", "fg_inactive", "fg_active"]
 
-    def __init__(self, db, name, fontface, fontsize, spacing,
+    def __init__(self, name, fontface, fontsize, textcolor, spacing,
                  bg_inactive, bg_active, fg_inactive, fg_active):
         """Return a style by the given name, with the given face, font size,
 spacing, and four colors: active and inactive variants for each of the
@@ -114,28 +116,15 @@ With db, register in its styledict.
         self.name = name
         self.fontface = fontface
         self.fontsize = fontsize
+        self.textcolor = textcolor
         self.spacing = spacing
-        self._bg_inactive = str(bg_inactive)
-        self._bg_active = str(bg_active)
-        self._fg_inactive = str(fg_inactive)
-        self._fg_active = str(fg_active)
-        db.styledict[self.name] = self
-        self.db = db
+        self.bg_inactive = bg_inactive
+        self.bg_active = bg_active
+        self.fg_inactive = fg_inactive
+        self.fg_active = fg_active
 
     def __str__(self):
         return self.name
-
-    def __getattr__(self, attrn):
-        if attrn == 'bg_inactive':
-            return self.db.colordict[self._bg_inactive]
-        elif attrn == 'bg_active':
-            return self.db.colordict[self._bg_active]
-        elif attrn == 'fg_inactive':
-            return self.db.colordict[self._fg_inactive]
-        elif attrn == 'fg_active':
-            return self.db.colordict[self._fg_active]
-        else:
-            raise AttributeError("Style instance has no such attribute")
 
     def __eq__(self, other):
         """Check we're both Style instances and we have the same name"""
@@ -154,16 +143,18 @@ spacing"""
         pass
 
     def get_tabdict(self):
+        styleset = set()
+        styleset.add(RowDict({
+            "name": self.name,
+            "fontface": self.fontface,
+            "fontsize": self.fontsize,
+            "spacing": self.spacing,
+            "bg_inactive": self.bg_inactive,
+            "bg_active": self.bg_active,
+            "fg_inactive": self.fg_inactive,
+            "fg_active": self.fg_active}))
         return {
-            "style": {
-                "name": self.name,
-                "fontface": self.fontface,
-                "fontsize": self.fontsize,
-                "spacing": self.spacing,
-                "bg_inactive": self.bg_inactive,
-                "bg_active": self.bg_active,
-                "fg_inactive": self.fg_inactive,
-                "fg_active": self.fg_active}}
+            "style": set()}
 
     def delete(self):
         del self.db.styledict[self.name]

@@ -10,9 +10,8 @@ Events get passed to the effect decks, which may or may not use them
 for anything in particular.
 
 """
-from util import SaveableMetaclass, dictify_row, stringlike
+from util import SaveableMetaclass, stringlike, RowDict
 from effect import (
-    read_effect_decks,
     PortalEntryEffectDeck,
     PortalProgressEffectDeck,
     PortalExitEffectDeck)
@@ -86,9 +85,10 @@ success that strains a person terribly and causes them injury.
          []),
         ("scheduled_event",
          {"event": "text not null",
+          "branch": "integer not null default 0",
           "tick_from": "integer not null",
           "tick_to": "integer not null"},
-         ("event", "tick_from"),
+         ("event", "branch", "tick_from"),
          {"event": ("event", "name")},
          [])]
 
@@ -101,11 +101,11 @@ the three given effect decks. Register with db.eventdict.
         """
         self.name = name
         self._text = text
-        self._commence_effects = str(commence_effects)
-        self._proceed_effects = str(proceed_effects)
-        self._conclude_effects = str(conclude_effects)
+        self.commence_effects = commence_effects
+        self.proceed_effects = proceed_effects
+        self.conclude_effects = conclude_effects
+        self.occurrences = {}
         self.db = db
-        self.db.eventdict[self.name] = self
 
     def __getattr__(self, attrn):
         if attrn == "text":
@@ -113,25 +113,6 @@ the three given effect decks. Register with db.eventdict.
                 return self.db.get_text[self._text[1:]]
             else:
                 return self._text
-        elif attrn == "commence_effects":
-            if self._commence_effects == 'None':
-                return None
-            else:
-                return self.db.effectdeckdict[self._commence_effects]
-        elif attrn == "proceed_effects":
-            if self._proceed_effects == 'None':
-                return None
-            else:
-                return self.db.effectdeckdict[self._proceed_effects]
-        elif attrn == "conclude_effects":
-            if self._conclude_effects == 'None':
-                return None
-            else:
-                return self.db.effectdeckdict[self._conclude_effects]
-        elif attrn == "start":
-            return self.db.get_event_start(str(self))
-        elif attrn == "end":
-            return self.db.get_event_end(str(self))
         else:
             raise AttributeError("Event has no such attribute")
 
@@ -146,13 +127,24 @@ the three given effect decks. Register with db.eventdict.
         return self.end - self.start
 
     def get_tabdict(self):
+        evrows = set()
+        evrows.add(RowDict({
+            "name": str(self),
+            "text": self._text,
+            "commence_effect_deck": str(self.commence_effect_deck),
+            "proceed_effect_deck": str(self.proceed_effect_deck),
+            "conclude_effect_deck": str(self.conclude_effect_deck)}))
+        occur_rows = set()
+        for branch in self.occurrences:
+            for (tick_from, tick_to) in self.occurrences[branch].iteritems():
+                occur_rows.add(RowDict({
+                    "event": str(self),
+                    "branch": branch,
+                    "tick_from": tick_from,
+                    "tick_to": tick_to}))
         return {
-            "name": self.name,
-            "text": self.text,
-            "ongoing": self.ongoing,
-            "commence_effects": self.commence_effects.name,
-            "proceed_effects": self.proceed_effects.name,
-            "conclude_effects": self.conclude_effects.name}
+            "event": evrows,
+            "scheduled_event": occur_rows}
 
     def unravel(self):
         """Dereference the effect decks.
@@ -166,11 +158,57 @@ value in the db.
             if deck is not None:
                 deck.unravel()
 
+    def schedule(self, branch, tick_from, tick_to):
+        if branch not in self.occurrences:
+            self.occurrences[branch] = {}
+        self.occurrences[tick_from] = tick_to
+
+    def is_happening(self, branch=None, tick=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.occurrences:
+            return False
+        for (tick_from, tick_to) in self.occurrences.iteritems():
+            if tick_from <= tick and tick <= tick_to:
+                return True
+        return False
+
+    def is_commencing(self, branch=None, tick=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.occurrences:
+            return False
+        return tick in self.occurrences[branch]
+
+    def is_proceeding(self, branch=None, tick=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.occurrences:
+            return False
+        for (tick_from, tick_to) in self.occurrences[branch].iteritems():
+            if tick_from < tick and tick < tick_to:
+                return True
+        return False
+
+    def is_concluding(self, branch=None, tick=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.occurrences:
+            return False
+        return tick in self.occurrences[branch].values()
+
     def commence(self):
         """Perform all commence effects, and set self.ongoing to True."""
         if self.commence_effects is not None:
             self.commence_effects.do(self)
-        self.ongoing = True
 
     def proceed(self):
         """Perform all proceed effects."""
@@ -181,16 +219,6 @@ value in the db.
         """Perform all conclude effects, and set self.ongoing to False."""
         if self.conclude_effects is not None:
             self.conclude_effects.do(self)
-        self.ongoing = False
-
-    def get_tabdict(self):
-        return {
-            "event": {
-                "name": self.name,
-                "ongoing": self.ongoing,
-                "commence_effects": self._commence_effects,
-                "proceed_effects": self._proceed_effects,
-                "conclude_effects": self._conclude_effects}}
 
 
 class PortalTravelEvent(Event):
@@ -248,124 +276,3 @@ events. Register with db.eventdeckdict.
         for i in xrange(0, len(self.events)):
             if stringlike(self.events[i]):
                 self.events[i] = self.db.eventdict[self.events[i]]
-
-
-evdl_qcol = ["event_deck_link." + coln for coln in EventDeck.colns]
-ev_qval = ["event." + valn for valn in Event.valns]
-red_qcol = evdl_qcol + ev_qval
-red_col = EventDeck.colns + Event.valns
-read_event_decks_qryfmt = (
-    "SELECT {0} FROM event_deck_link, event "
-    "WHERE event_deck_link.event=event.name "
-    "AND event_deck_link.deck IN ({1})".format(
-        ", ".join(red_qcol), "{0}"))
-
-
-def load_event_decks(db, names):
-    """Load the event decks by the given names, including all effects
-therein.
-
-Return a dictionary, keyed by the event deck name."""
-    qryfmt = read_event_decks_qryfmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, names)
-    r = {}
-    effect_deck_names = set()
-    for name in names:
-        r[name] = []
-    for row in db.c:
-        rowdict = dictify_row(row, red_col)
-        decklist = r[rowdict["name"]]
-        while len(decklist) < rowdict["idx"]:
-            decklist.append(None)
-        rowdict["db"] = db
-        effect_deck_names.add(rowdict["commence_effects"])
-        effect_deck_names.add(rowdict["proceed_effects"])
-        effect_deck_names.add(rowdict["conclude_effects"])
-        decklist[rowdict["idx"]] = Event(**rowdict)
-    for item in r.iteritems():
-        (name, l) = item
-        r[name] = EventDeck(name, l, db)
-    load_effect_decks(db, list(effect_deck_names))
-    for val in r.itervalues():
-        val.unravel()
-    return r
-
-
-def lookup_between(startdict, start, end):
-    """Given a dictionary with integer keys, return a subdictionary with
-those keys falling between these bounds."""
-    r = {}
-    tohash = []
-    for i in xrange(start, end):
-        if i in startdict:
-            r[i] = startdict[i]
-            tohash.append(i)
-            tohash.extend(iter(startdict[i]))
-    r["hash"] = hash(tuple(tohash))
-    return r
-
-
-def get_all_starting_between(db, start, end):
-    """Look through all the events yet loaded by the database, and return
-a dictionary of those that start in the given range."""
-    r = {}
-    for item in db.startevdict.itervalues():
-        r.update(lookup_between(item, start, end))
-    return r
-
-
-def get_all_ongoing_between(db, start, end):
-    """Look through all the events yet loaded by the database, and return
-a dictionary of those that occur (but perhaps not start or end) in
-the given range."""
-    r = {}
-    for item in db.contevdict.itervalues():
-        r.update(lookup_between(item, start, end))
-    return r
-
-
-def get_all_ending_between(db, start, end):
-    """Look through all the events yet loaded by the database, and return
-a dictionary of those that end in the given range.
-
-    """
-    r = {}
-    for item in db.endevdict.itervalues():
-        r.update(lookup_between(item, start, end))
-    return r
-
-
-def get_all_starting_ongoing_ending(db, start, end):
-    """Return a tuple of events from the db that (start, continue, end) in
-the given range."""
-    return (get_all_starting_between(db, start, end),
-            get_all_ongoing_between(db, start, end),
-            get_all_ending_between(db, start, end))
-
-EVENTS_QRYFMT = """SELECT {0} FROM event WHERE name IN ({1})""".format(
-    ", ".join(Event.colns), "{0}")
-
-def read_events(db, names):
-    """Read, instantiate, but don't unravel events by the given names."""
-    qryfmt = EVENTS_QRYFMT
-    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, tuple(names))
-    r = {}
-    effect_decks = set()
-    for row in db.c:
-        rowdict = dictify_row(row, Event.colns)
-        rowdict["db"] = db
-        for deckname in (rowdict["commence_effects"],
-            rowdict["proceed_effects"],
-            rowdict["conclude_effects"]):
-            effect_decks.add(deckname)
-        r[rowdict["name"]] = Event(**rowdict)
-    read_effect_decks(db, effect_decks)
-    return r
-
-def load_events(db, names):
-    r = read_events(db, names)
-    for ev in r.itervalues():
-        ev.unravel()
-    return r

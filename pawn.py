@@ -1,5 +1,8 @@
-from util import SaveableMetaclass, dictify_row, stringlike, RowDict, TerminableWidget
-from calendar import CalendarCol
+from util import (
+    SaveableMetaclass,
+    RowDict,
+    TerminableImg,
+    TerminableInteractivity)
 from logging import getLogger
 
 
@@ -9,20 +12,18 @@ logger = getLogger(__name__)
 """Widget representing things that move about from place to place."""
 
 
-__metaclass__ = SaveableMetaclass
-
-
-class Pawn(TerminableImg, TerminableInteractivity):
+class Pawn(object, TerminableImg, TerminableInteractivity):
     """A token to represent something that moves about between places."""
-
+    __metaclass__ = SaveableMetaclass
     tables = [
         ("pawn_img",
          {"dimension": "text not null default 'Physical'",
           "board": "integer not null default 0",
           "thing": "text not null",
+          "branch": "integer not null default 0",
           "tick_from": "integer not null default 0",
           "tick_to": "integer default null",
-          "img": "text not null default 'default_pawn_img'"},
+          "img": "text not null default 'default_pawn'"},
          ("dimension", "board", "thing", "tick_from"),
          {"dimension, board": ("board", "dimension, i"),
           "dimension, thing": ("thing_location", "dimension, name"),
@@ -32,6 +33,7 @@ class Pawn(TerminableImg, TerminableInteractivity):
          {"dimension": "text not null default 'Physical'",
           "board": "integer not null default 0",
           "thing": "text not null",
+          "branch": "integer not null default 0",
           "tick_from": "integer not null default 0",
           "tick_to": "integer default null"},
          ("dimension", "board", "thing", "tick_from"),
@@ -62,9 +64,6 @@ With db, register in db's pawndict.
         self.drag_offset_y = 0
         self.selectable = True
         self.box_edges = (None, None, None, None)
-        if self._dimension not in self.db.pawndict:
-            self.db.pawndict[self._dimension] = {}
-        self.db.pawndict[self._dimension][self._thing] = self
 
     def __str__(self):
         return str(self.thing)
@@ -126,12 +125,11 @@ With db, register in db's pawndict.
         elif attrn == "interactive":
             self.set_interactive(val)
         else:
-            super(Pawn, self).__setattr__(self, attrn, val)
+            super(Pawn, self).__setattr__(attrn, val)
 
     def __eq__(self, other):
         """Essentially, compare the state tuples of the two pawns."""
         return self.state == other.state
-
 
     def get_state_tup(self, branch=None, tick=None):
         """Return a tuple containing everything you might need to draw me."""
@@ -179,7 +177,7 @@ With db, register in db's pawndict.
         boardi = int(self.board)
         pawn_img_rows = set()
         for branch in self.imagery:
-            for (tick_from, (img, tick_to)) in self.imagery[branch].iteritems():
+            for (tick_from, (img, tick_to)) in self.imagery.iteritems():
                 pawn_img_rows.add(RowDict({
                     "dimension": dimn,
                     "thing": thingn,
@@ -192,7 +190,7 @@ With db, register in db's pawndict.
             for (tick_from, tick_to) in self.interactivity[branch].iteritems():
                 pawn_interactive_rows.add(RowDict({
                     "dimension": dimn,
-                    "thing": placen,
+                    "thing": thingn,
                     "board": boardi,
                     "tick_from": tick_from,
                     "tick_to": tick_to}))

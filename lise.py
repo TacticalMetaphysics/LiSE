@@ -1,8 +1,8 @@
 import pyglet
 import logging
 from gui import GameWindow
-from rumor import load_game
 from state import GameState
+from rumor import load_game
 from sys import argv
 from sqlite3 import connect, DatabaseError
 
@@ -32,7 +32,7 @@ for arg in argv:
 
 db = load_game(dbfn, lang)
 s = GameState(db)
-gw = GameWindow(s, "Physical")
+gw = GameWindow(s, "Main")
 pyglet.clock.schedule_interval(s.update, 1/30., 1/30.)
 pyglet.app.run()
 

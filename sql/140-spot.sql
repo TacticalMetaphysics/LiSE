@@ -1,4 +1,4 @@
-INSERT INTO spot (place, x, y) VALUES
+INSERT INTO spot_coords (place, x, y) VALUES
 ('myroom', 400, 100),
 ('mybathroom', 450, 150),
 ('guestroom', 400, 200),
@@ -9,3 +9,5 @@ INSERT INTO spot (place, x, y) VALUES
 ('momsroom', 250, 100),
 ('momsbathroom', 250, 200),
 ('outside', 300, 100);
+INSERT INTO spot_interactive (place) SELECT place FROM spot_coords;
+INSERT INTO spot_img (place) SELECT place FROM spot_coords;

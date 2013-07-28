@@ -1,15 +1,11 @@
-from util import (
-    dictify_row,
-    DictValues2DIterator,
-    SaveableMetaclass)
-from item import Item
+from util import SaveableMetaclass, RowDict
 from logging import getLogger
 
 
 logger = getLogger(__name__)
 
 
-class Portal(Item):
+class Portal:
     __metaclass__ = SaveableMetaclass
     tables = [
         ("portal_existence",
@@ -19,7 +15,8 @@ class Portal(Item):
           "branch": "integer not null default 0",
           "tick_from": "integer not null default 0",
           "tick_to": "integer default null"},
-         ("dimension", "from_place", "to_place", "branch", "tick_from"),
+         ("dimension", "origin", "destination", "branch", "tick_from"),
+         {},
          # This schema relies on a trigger to create an appropriate
          # item record.
          [])]
@@ -30,19 +27,16 @@ class Portal(Item):
         self.dest = dest
         self.db = self.dimension.db
         self.existence = {}
-        self.exist()
-        
 
     def __str__(self):
         return "Portal({0}->{1})".format(str(self.orig), str(self.dest))
 
     def __int__(self):
-        # assigned by self.dimension
-        return self.i
+        return self.dimension.portals.index(self)
 
-    def __getattr__(self, attrn):
-        else:
-            raise AttributeError("Portal has no such attribute")
+    def __len__(self):
+        # eventually this will represent something like actual physical length
+        return 1
 
     def extant(self, branch=None, tick=None):
         if branch is None:
@@ -82,16 +76,16 @@ length. Does nothing by default."""
         pass
 
     def get_tabdict(self):
-        rows = []
+        rows = set()
         for branch in self.existence:
             for (tick_from, tick_to) in self.existence.branch:
-                rows.append({
+                rows.add(RowDict({
                     "dimension": str(self.dimension),
                     "origin": str(self.orig),
                     "destination": str(self.dest),
                     "branch": branch,
                     "tick_from": tick_from,
-                    "tick_to": tick_to})
+                    "tick_to": tick_to}))
         return {
             "portal_existence": rows}
             

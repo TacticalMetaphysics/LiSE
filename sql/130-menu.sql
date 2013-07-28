@@ -1,5 +1,5 @@
-INSERT INTO menu (name, bottom, left, right, top, main_for_window, style, visible) VALUES
-('Main', 0.12, 0.0, 0.1, 1.0, 1, 'BigLight', 1);
+INSERT INTO menu (name, bottom, left, right, top, style) VALUES
+('Main', 0.12, 0.0, 0.1, 1.0, 'BigLight');
 INSERT INTO menu (name) VALUES ('Game'), ('Editor');
 INSERT INTO menu_item (idx, menu, closer, on_click, text) VALUES
 (0, 'Game', 1, 'start_new_map()', '@new_map'),

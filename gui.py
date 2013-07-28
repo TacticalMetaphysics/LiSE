@@ -2,8 +2,14 @@ import pyglet
 import ctypes
 import math
 import logging
+from style import Color, Style
+from util import SaveableMetaclass
 from math import atan, pi, sin, cos, hypot
 from arrow import Arrow
+from collections import OrderedDict
+from card import Hand
+from menu import Menu
+from calendar import Calendar
 
 logger = logging.getLogger(__name__)
 
@@ -157,15 +163,106 @@ class TransparencyOrderedGroup(
 
 class GameWindow:
     """Instantiates a Pyglet window and displays the given board in it."""
-    arrowhead_size = 10
-    arrow_width = 1.4
-    edge_order = 1
+    __metaclass__ = SaveableMetaclass
+    tables = [
+        ("window",
+         {"name": "text not null default 'Main'",
+          "width": "integer not null default 1280",
+          "height": "integer not null default 800",
+          "dimension": "text not null default 'Physical'",
+          "board": "integer not null default 0",
+          "arrowhead_size": "integer not null default 10",
+          "arrow_width": "float not null default 1.4",
+          "view_left": "integer not null default 0",
+          "view_bot": "integer not null default 0",
+          "main_menu": "text not null default 'Game'"},
+         ("name",),
+         {"dimension, board": ("board", "dimension, i"),
+          "main_menu": ("menu", "name")},
+         ["view_left>=0", "view_bot>=0"])]
 
-    def __init__(self, gamestate, boardname):
-        self.arrow_girth = self.arrow_width * 2
-        self.squareoff = self.arrowhead_size * math.sin(fortyfive)
+    def __init__(self, gamestate, windowname):
+        self.name = windowname
         self.db = gamestate.db
         self.gamestate = gamestate
+        self.gamestate.window_by_name[self.name] = self
+        # Going with a monolithic loader for now because it's
+        # comprehensible and I want to get things running again asap.
+        self.db.c.execute(
+            "SELECT width, height, dimension, board, arrowhead_size, "
+            "arrow_width, view_left, view_bot FROM window WHERE name=?",
+            (windowname,))
+        for row in self.db.c:
+            (self.width, self.height, dimn, boardi, self.arrowhead_size,
+             self.arrow_width, self.view_left, self.view_bot) = row
+            self.dimension = self.db.get_dimension(dimn)
+            self.board = self.dimension.load_board(self, boardi)
+        self.arrow_girth = self.arrow_width * 2
+        self.squareoff = self.arrowhead_size * math.sin(fortyfive)
+        stylenames = set()
+        self.db.c.execute(
+            "SELECT name, left, bottom, top, right, style FROM menu "
+            "WHERE window=?",
+            (self.name,))
+        menu_rows = self.db.c.fetchall()
+        for row in menu_rows:
+            stylenames.add(row[5])
+        self.db.c.execute(
+            "SELECT i, left, right, top, bot, style, interactive, "
+            "rows_shown, scrolled_to, scroll_factor FROM calendar "
+            "WHERE window=?",
+            (self.name,))
+        cal_rows = self.db.c.fetchall()
+        for row in cal_rows:
+            stylenames.add(row[5])
+        self.db.c.execute(
+            "SELECT hand, left, right, top, bot, style FROM hand_widget "
+            "WHERE window=?",
+            (self.name,))
+        hand_rows = self.db.c.fetchall()
+        for row in hand_rows:
+            stylenames.add(row[5])
+        self.db.c.execute(
+            "SELECT name, fontface, fontsize, textcolor, spacing, "
+            "bg_inactive, bg_active, fg_inactive, fg_active "
+            "FROM style WHERE name IN ({0})".format(
+                ", ".join(["?"] * len(stylenames))), tuple(stylenames))
+        stylerows = self.db.c.fetchall()
+        colori = (3, 5, 6, 7, 8)
+        colors = set()
+        for row in stylerows:
+            for i in colori:
+                colors.add(row[i])
+        self.db.c.execute(
+            "SELECT name, red, green, blue, alpha "
+            "FROM color WHERE name IN ({0})".format(
+                ", ".join(["?"] * len(colors))), tuple(colors))
+        for row in self.db.c:
+            self.db.colordict[row[0]] = Color(*row)
+        for row in stylerows:
+            self.db.styledict[row[0]] = Style(
+                row[0], row[1], row[2],
+                self.db.colordict[row[3]],
+                row[4],
+                self.db.colordict[row[5]],
+                self.db.colordict[row[6]],
+                self.db.colordict[row[7]],
+                self.db.colordict[row[8]])
+        self.hand_by_name = OrderedDict()
+        for row in hand_rows:
+            self.hand_by_name[row[0]] = Hand(
+                self, row[0], row[1], row[2], row[3], row[4],
+                self.db.styledict[row[5]])
+        self.calendars = [
+            Calendar(self, row[0], row[1], row[2], row[3], row[4],
+                     self.db.styledict[row[5]], row[6], row[7], row[8],
+                     row[9])
+            for row in cal_rows]
+        self.menu_by_name = OrderedDict()
+        for row in menu_rows:
+            self.menu_by_name[row[0]] = Menu(
+                self, row[0], row[1], row[2], row[3], row[4],
+                self.db.styledict[row[5]])
 
         self.biggroup = pyglet.graphics.Group()
         self.boardgroup = pyglet.graphics.OrderedGroup(0, self.biggroup)
@@ -200,10 +297,6 @@ class GameWindow:
         self.window = window
         self.batch = pyglet.graphics.Batch()
 
-        self.board = self.db.boarddict[boardname]
-        self.board.set_gw(self)
-        self.calendar = self.board.calendar
-        self.calendar.adjust()
         self.drawn_board = None
         self.drawn_edges = None
         self.timeline = None
@@ -212,7 +305,7 @@ class GameWindow:
         self.last_age = -1
         self.last_timeline_y = -1
 
-        orbimg = self.db.imgdict['default_spot']
+        orbimg = self.db.get_img('default_spot')
         rx = orbimg.width / 2
         ry = orbimg.height / 2
         self.create_place_cursor = (
@@ -762,7 +855,9 @@ still over it when pressed, it's been half-way clicked; remember this."""
                         return
                 for edge in self.board.arrows:
                     if edge.touching(x, y):
-                        if self.pressed is None or edge.order > self.pressed.order:
+                        if (
+                                self.pressed is None or
+                                edge.order > self.pressed.order):
                             self.pressed = edge
             else:
                 self.pressed = self.hovered
@@ -803,7 +898,8 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                                         edge.delete()
                                     except:
                                         pass
-                        self.portal_triple = ((None, None), (None, None), (None, None))
+                        self.portal_triple = (
+                            (None, None), (None, None), (None, None))
 
                 else:
                     if (
@@ -824,7 +920,8 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                                 edge.delete()
                             except:
                                 pass
-                    self.portal_triple = ((None,None),(None,None),(None,None))
+                    self.portal_triple = (
+                        (None, None), (None, None), (None, None))
             elif self.grabbed is not None:
                 if hasattr(self.grabbed, 'dropped'):
                     self.grabbed.dropped(x, y, button, modifiers)
@@ -961,14 +1058,14 @@ move_with_mouse method, use it.
     def connect_arrow(
             self, ox, oy, dx, dy,
             order,
-            old_triple=((None,None),(None,None),(None,None)),
+            old_triple=((None, None), (None, None), (None, None)),
             center_shrink=0,
             highlight=False):
         supergroup = pyglet.graphics.OrderedGroup(order, self.edgegroup)
         bggroup = SmoothBoldLineOrderedGroup(
-                0, supergroup, self.arrow_girth)
+            0, supergroup, self.arrow_girth)
         fggroup = BoldLineOrderedGroup(
-                1, supergroup, self.arrow_width)
+            1, supergroup, self.arrow_width)
         # xs and ys should be integers.
         #
         # results will be called l, c, r for left tail, center, right tail
@@ -1010,7 +1107,7 @@ move_with_mouse method, use it.
             fgcolor = (0, 0, 0, 0)
         else:
             bgcolor = (64, 64, 64, 64)
-            fgcolor = (255,255,255,0)
+            fgcolor = (255, 255, 255, 0)
         lpoints = (x1, y1, endx, endy)
         cpoints = (ox, oy, endx, endy)
         rpoints = (x2, y2, endx, endy)
@@ -1026,7 +1123,7 @@ move_with_mouse method, use it.
             rpoints, fgcolor, fggroup, old_triple[2][1])
         cfg = self.draw_line(
             cpoints, fgcolor, fggroup, old_triple[1][1])
-        return ((lbg,lfg), (cbg,cfg), (rbg,rfg))
+        return ((lbg, lfg), (cbg, cfg), (rbg, rfg))
 
     def draw_line(self, points, color, group, verts=None):
         colors = color * 2
