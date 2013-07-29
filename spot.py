@@ -1,9 +1,9 @@
 from util import (
     SaveableMetaclass,
-    RowDict,
     TerminableImg,
     TerminableInteractivity,
-    TerminableCoords)
+    TerminableCoords,
+    dictify_row)
 
 
 """Widgets to represent places. Pawns move around on top of these."""
@@ -61,11 +61,12 @@ representing the given place with the given image. It will be at the
 given coordinates, and visible or interactive as indicated.
         """
         self.board = board
-        self.db = board.db
+        self.db = self.board.db
+        self.window = self.board.window
         self.place = place
         self.interactivity = {}
         self.imagery = {}
-        self.coords = {}
+        self.coord_dict = {}
         self.indefinite_imagery = {}
         self.indefinite_coords = {}
         self.indefinite_interactivity = {}
@@ -83,16 +84,18 @@ given coordinates, and visible or interactive as indicated.
             return self.is_interactive()
         elif attrn == 'img':
             return self.get_img()
-        elif attrn == 'gw':
-            return self.board.gw
         elif attrn == 'hovered':
-            return self.gw.hovered is self
+            return self.window.hovered is self
         elif attrn == 'pressed':
-            return self.gw.pressed is self
+            return self.window.pressed is self
         elif attrn == 'grabbed':
-            return self.gw.grabbed is self
-        elif attrn == 'window':
-            return self.gw.window
+            return self.window.grabbed is self
+        elif attrn == 'coords':
+            return self.get_coords()
+        elif attrn == 'x':
+            return self.coords[0]
+        elif attrn == 'y':
+            return self.coords[1]
         elif attrn == 'width':
             myimg = self.img
             if myimg is None:
@@ -101,6 +104,7 @@ given coordinates, and visible or interactive as indicated.
                 return myimg.width
         elif attrn == 'height':
             myimg = self.img
+            assert(hasattr(myimg, 'tex'))
             if myimg is None:
                 return 0
             else:
@@ -123,17 +127,17 @@ given coordinates, and visible or interactive as indicated.
         elif attrn == 'right':
             return self.x + self.rx
         elif attrn == 'window_x':
-            return self.x + self.board.offset_x
+            return self.x + self.window.offset_x
         elif attrn == 'window_y':
-            return self.y + self.board.offset_y
+            return self.y + self.window.offset_y
         elif attrn == 'window_left':
-            return self.left + self.board.offset_x
+            return self.left + self.window.offset_x
         elif attrn == 'window_bot':
-            return self.bot + self.board.offset_y
+            return self.bot + self.window.offset_y
         elif attrn == 'window_top':
-            return self.top + self.board.offset_y
+            return self.top + self.window.offset_y
         elif attrn == 'window_right':
-            return self.right + self.board.offset_x
+            return self.right + self.window.offset_x
         elif attrn == 'in_window':
             return (self.window_top > 0 and
                     self.window_right > 0) or (
@@ -226,38 +230,81 @@ mouse."""
         placen = str(self.place)
         boardi = int(self.board)
         spot_img_rows = set()
+        spot_img_cols = (
+            "dimension",
+            "place",
+            "board",
+            "branch",
+            "tick_from",
+            "tick_to",
+            "img")
         for branch in self.imagery:
             for (tick_from, (img, tick_to)) in (
                     self.imagery[branch].iteritems()):
-                spot_img_rows.add(RowDict({
-                    "dimension": dimn,
-                    "place": placen,
-                    "board": boardi,
-                    "tick_from": tick_from,
-                    "tick_to": tick_to,
-                    "img": str(img)}))
+                spot_img_rows.add((
+                    dimn,
+                    placen,
+                    boardi,
+                    branch,
+                    tick_from,
+                    tick_to,
+                    str(img)))
         spot_interactive_rows = set()
+        spot_interactive_cols = (
+            "dimension",
+            "place",
+            "board",
+            "branch",
+            "tick_from",
+            "tick_to")
         for branch in self.interactivity:
             for (tick_from, tick_to) in self.interactivity[branch].iteritems():
-                spot_interactive_rows.add(RowDict({
-                    "dimension": dimn,
-                    "place": placen,
-                    "board": boardi,
-                    "tick_from": tick_from,
-                    "tick_to": tick_to}))
+                spot_interactive_rows.add((
+                    dimn,
+                    placen,
+                    boardi,
+                    branch,
+                    tick_from,
+                    tick_to))
         spot_coords_rows = set()
-        for branch in self.coords:
+        spot_coords_cols = (
+            "dimension",
+            "place",
+            "board",
+            "branch",
+            "tick_from",
+            "tick_to",
+            "x",
+            "y")
+        for branch in self.coord_dict:
             for (tick_from, (x, y, tick_to)) in (
-                    self.coords[branch].iteritems()):
-                spot_coords_rows.add(RowDict({
-                    "dimension": dimn,
-                    "place": placen,
-                    "board": boardi,
-                    "tick_from": tick_from,
-                    "tick_to": tick_to,
-                    "x": x,
-                    "y": y}))
+                    self.coord_dict[branch].iteritems()):
+                spot_coords_rows.add((
+                    dimn,
+                    placen,
+                    boardi,
+                    branch,
+                    tick_from,
+                    tick_to,
+                    x,
+                    y))
         return {
-            "spot_img": spot_img_rows,
-            "spot_interactive": spot_interactive_rows,
-            "spot_coords": spot_coords_rows}
+            "spot_img": [
+                dictify_row(row, spot_img_cols) for row in iter(spot_img_rows)],
+            "spot_interactive": [
+                dictify_row(row, spot_interactive_cols) for row in iter(spot_interactive_rows)],
+            "spot_coords": [
+                dictify_row(row, spot_coords_cols) for row in iter(spot_coords_rows)]}
+
+    def get_state_tup(self):
+        return (
+            str(self.board.dimension),
+            int(self.board),
+            str(self.place),
+            str(self.img),
+            self.hovered,
+            self.pressed,
+            self.grabbed,
+            self.window_x,
+            self.window_y,
+            self.in_window)

@@ -33,7 +33,10 @@ provided."""
         self.name = name
         self.path = path
         self.rltile = rltile
-        self.tex = None
+        if rltile:
+            self.tex = load_rltile(path)
+        else:
+            self.tex = load_regular_img(path)
         db.imgdict[name] = self
         self.db = db
 
@@ -83,7 +86,7 @@ transparent.
         return self.tex
 
 
-def load_rltile(db, name, path):
+def load_rltile(path):
     """Load a Windows bitmap, and replace ffGll -> 00Gll and ff. -> 00."""
     badimg = image(path)
     badimgd = badimg.get_image_data()
@@ -95,7 +98,7 @@ def load_rltile(db, name, path):
     return rtex
 
 
-def load_regular_img(db, name, path):
+def load_regular_img(path):
     """Load an ordinary PNG image."""
     tex = image(path).get_image_data().get_texture()
     return tex

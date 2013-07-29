@@ -1,7 +1,8 @@
 import pyglet
-from util import SaveableMetaclass, PatternHolder, phi
+from util import SaveableMetaclass, PatternHolder, phi, dictify_row
 
-"""Rectangle shaped widget with picture on top and words on bottom."""
+"""Views on Effects and EffectDecks that look like cards--you know,
+rectangles with letters and pictures on them."""
 
 
 class Card:
@@ -10,32 +11,32 @@ class Card:
         (
             "card",
             {
-                "name": "text not null",
+                "effect": "text not null",
                 "display_name": "text not null",
                 "image": "text",
                 "text": "text",
-                "style": "text"},
-            ("name",),
+                "style": "text not null default 'BigLight'"},
+            ("effect",),
             {
                 "image": ("img", "name"),
-                "style": ("style", "name")},
+                "style": ("style", "name"),
+                "effect": ("effect", "name")},
             [])]
 
-    def __init__(self, db, name, display_name, image, text, style):
+    def __init__(self, db, effect, display_name, image, text, style):
         self.db = db
-        self.name = name
         self._display_name = display_name
+        self._effect = str(effect)
         self.img = image
         self._text = text
         self.style = style
-        self.widget = None
         self.db.carddict[str(self)] = self
 
     def __getattr__(self, attrn):
-        if attrn == 'base':
-            return self
-        elif attrn == 'text':
-            if self._text[0] == '@':
+        if attrn == 'text':
+            if self._text is None:
+                return ''
+            elif self._text[0] == '@':
                 return self.db.get_text(self._text[1:])
             else:
                 return self._text
@@ -44,25 +45,28 @@ class Card:
                 return self.db.get_text(self._display_name[1:])
             else:
                 return self._display_name
-        elif hasattr(self.widget, attrn):
-            return getattr(self.widget, attrn)
+        elif attrn == 'effect':
+            return self.db.effectdict[self._effect]
+        elif attrn in ('width', 'height', 'x', 'y'):
+            if not hasattr(self, 'widget'):
+                return 0
+            else:
+                return getattr(self.widget, attrn)
         else:
             raise AttributeError("Card has no attribute {0}".format(attrn))
 
     def __str__(self):
-        return self.name
-
-    def unravel(self):
-        self.style.unravel()
+        return self._effect
 
     def get_tabdict(self):
         return {
             "card": {
                 "name": self.name,
                 "display_name": self._display_name,
-                "img": self._img,
+                "effect": str(self.effect),
+                "img": str(self.img),
                 "text": self._text,
-                "style": self._style}
+                "style": str(self.style)}
         }
 
     def get_keydict(self):
@@ -72,7 +76,23 @@ class Card:
 
     def mkwidget(self, x, y):
         self.widget = CardWidget(self, x, y)
-        self.widget.unravel()
+
+
+load_cards_qryfmt = "SELECT {0} FROM card WHERE effect IN ({1})".format(
+    ", ".join(Card.colns), "{0}")
+
+
+def load_cards(db, names):
+    r = {}
+    qryfmt = load_cards_qryfmt
+    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
+    db.c.execute(qrystr, tuple(names))
+    for row in db.c:
+        rowdict = dictify_row(row, Card.colns)
+        effn = rowdict["effect"]
+        rowdict["db"] = db
+        r[effn] = Card(**rowdict)
+    return r
 
 
 class TextHolder:
@@ -119,14 +139,12 @@ class TextHolder:
 
 
 class CardWidget:
-    def __init__(self, base, x, y):
-        self._base = str(base)
-        self.x = x
-        self.y = y
+    def __init__(self, base, hand):
+        self.base = base
+        self.hand = hand
         self.db = self.base.db
+        self.window = self.hand.window
         self.grabpoint = None
-        self.oldx = x
-        self.oldy = y
         self.visible = True
         self.interactive = True
         self.hovered = False
@@ -138,11 +156,14 @@ class CardWidget:
         self.textholder = TextHolder(self)
         self.imgsprite = None
 
+    def __int__(self):
+        return self.hand.deck.index(self.base.effect)
+
     def __getattr__(self, attrn):
-        if attrn == 'gw':
-            return self.hand.gw
-        elif attrn == 'base':
-            return self.db.get_card(self._base)
+        if attrn == 'x':
+            return self.hand.window_left + self.width * int(self)
+        elif attrn == 'y':
+            return self.hand.window_bot
         elif attrn == 'hovered':
             return self.gw.hovered is self
         elif attrn == 'pressed':
@@ -186,11 +207,6 @@ class CardWidget:
 
     def __hash__(self):
         return hash(self.get_state_tup())
-
-    def unravel(self):
-        self.base.unravel()
-        if self.pats is None:
-            self.pats = PatternHolder(self.base.style)
 
     def save(self):
         self.base.save()
@@ -274,53 +290,43 @@ class CardWidget:
 
 class HandIterator:
     def __init__(self, hand):
-        self.i = 0
+        self.db = hand.db
         self.hand = hand
+        self.deckiter = iter(hand.deck.effects)
 
     def __iter__(self):
         return self
 
     def next(self):
-        try:
-            cardn = str(self.hand.db.handcarddict[str(self.hand)][self.i])
-            card = self.hand.db.carddict[cardn]
-            self.i += 1
-            return card
-        except IndexError:
-            raise StopIteration
-
+        effect = self.deckiter.next()
+        card = self.db.carddict[str(effect)]
+        if not hasattr(card, 'widget'):
+            card.widget = CardWidget(card, self.hand)
+        return card.widget
 
 class Hand:
+    """A view onto an EffectDeck that shows every card in it, in the same order."""
     __metaclass__ = SaveableMetaclass
     tables = [
-        ("hand_card",
-         {"hand": "text not null",
-          "idx": "integer not null",
-          "branch": "integer not null default 0",
-          "tick_from": "integer not null default 0",
-          "tick_to": "integer default null",
-          "card": "text not null"},
-         ("hand", "idx", "branch", "tick_from"),
-         {"card": ("card", "name")},
-         ("idx>=0",)),
-        ("hand_widget",
+        ("hand",
          {"window": "text not null default 'Main'",
-          "hand": "text not null",
+          "effect_deck": "text not null",
           "left": "float not null",
           "right": "float not null",
           "top": "float not null",
           "bot": "float not null",
           "style": "text not null default 'BigLight'"},
-         ("window", "hand"),
-         {"hand": ("hand_card", "hand"),
-          "window": ("window", "name"),
+         ("window", "effect_deck"),
+         {"window": ("window", "name"),
+          "effect_deck": ("effect_deck", "deck"),
           "style": ("style", "name")},
          [])]
+    visible = False
 
-    def __init__(self, window, hand, left, right, top, bot, style):
+    def __init__(self, window, deck, left, right, top, bot, style):
         self.window = window
         self.db = window.db
-        self.hand = hand
+        self.deck = deck
         self.left_prop = left
         self.right_prop = right
         self.top_prop = top
@@ -343,10 +349,6 @@ class Hand:
             return self.board.gw
         elif attrn == "hovered":
             return self.gw.hovered is self
-        elif attrn == "visible":
-            return self._visible and hasattr(self.board, 'gw')
-        elif attrn == "interactive":
-            return self._interactive
         elif attrn == "window":
             # may raise AttributeError if the board has been loaded
             # but not yet assigned to any game window
@@ -371,6 +373,12 @@ class Hand:
                 return int(self._top * self.window.height)
             except AttributeError:
                 return 0
+        elif attrn == "on_screen":
+            return (
+                self.window_right > 0 and
+                self.window_left < self.window.width and
+                self.window_top > 0 and
+                self.window_bot < self.window.height)
         elif attrn == 'cards':
             return self.db.handcarddict[str(self)]
         else:
@@ -425,7 +433,7 @@ class Hand:
             self.remove(card)
 
     def index(self, card):
-        return self.db.handcarddict[str(self)].index(str(card))
+        return self.deck.index(card.effect)
 
     def pop(self, i=-1):
         r = self.db.handcarddict[str(self)].pop(i)

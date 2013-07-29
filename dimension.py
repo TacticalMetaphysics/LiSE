@@ -161,42 +161,19 @@ this dimension, and laid out nicely."""
             self.boards.append(None)
         # basic information for this board
         self.db.c.execute(self.board_qry_start, (str(self), i))
-        for row in self.db.c:  # there is only one
-            (wallpaper, width, height) = row
-            b = Board(gw, self, i, width, height, wallpaper)
-            self.boards[i] = b
-        # spots in this board
-        self.db.c.execute(self.spot_board_qry_start, (str(self), i))
-        for row in self.db.c:
-            (placen, branch, tick_from, tick_to, x, y) = row
-            place = self.places_by_name[placen]  # i hope you loaded *me* first
-            if not hasattr(place, 'spots'):
-                place.spots = []
-            while len(place.spots) <= i:
-                place.spots.append(None)
-            place.spots[i] = Spot(b, place)
-            place.spots[i].set_coords(x, y, branch, tick_from, tick_to)
-        # images for the spots
         imgs = set()
+        walln = None
+        width = None
+        height = None
+        for row in self.db.c:  # there is only one
+            (walln, width, height) = row
+        imgs.add(walln)
+        # images for the spots
         self.db.c.execute(self.spot_img_qry_start, (str(self), i))
         spot_rows = self.db.c.fetchall()
         for row in spot_rows:
             imgs.add(row[4])
-        # interactivity for the spots
-        self.db.c.execute(self.spot_inter_qry_start, (str(self), i))
-        for row in self.db.c:
-            (placen, branch, tick_from, tick_to) = row
-            place = self.places_by_name[placen]
-            place.spots[i].set_interactive(branch, tick_from, tick_to)
-        # arrows in this board
-        for portal in self.portals:
-            if i in portal.orig.spots and i in portal.dest.spots:
-                if not hasattr(portal, 'arrows'):
-                    portal.arrows = []
-                while len(portal.arrows) <= i:
-                    portal.arrows.append(None)
-                portal.arrows[i] = Arrow(b, portal)
-        # pawns in this board, and their images
+        # images for the pawns
         self.db.c.execute(self.pawn_img_qry_start, (str(self), i))
         pawn_rows = self.db.c.fetchall()
         for row in pawn_rows:
@@ -208,6 +185,9 @@ this dimension, and laid out nicely."""
         for row in self.db.c:
             (name, path, rltile) = row
             Img(self.db, name, path, rltile)
+        self.boards[i] = Board(
+            gw, self, i, width, height, self.db.imgdict[walln])
+        # actually assign images instead of just collecting the names
         for row in pawn_rows:
             (thingn, branch, tick_from, tick_to, imgn) = row
             thing = self.things_by_name[thingn]
@@ -215,16 +195,47 @@ this dimension, and laid out nicely."""
                 thing.pawns = []
             while len(thing.pawns) <= i:
                 thing.pawns.append(None)
-            thing.pawns[i] = Pawn(b, thing)
+            thing.pawns[i] = Pawn(self.boards[i], thing)
             thing.pawns[i].set_img(self.db.imgdict[imgn], branch, tick_from, tick_to)
-        for row in spot_rows:
-            (placen, branch, tick_from, tick_to, imgn) = row
-            place = self.places_by_name[placen]
-            # assume spots got assigned to places already
-            place.spots[i].set_img(self.db.imgdict[imgn], branch, tick_from, tick_to)
         # interactivity for the pawns
         self.db.c.execute(self.pawn_inter_qry_start, (str(self), i))
         for row in self.db.c:
             (thingn, branch, tick_from, tick_to) = row
             thing = self.things_by_name[thingn]
             thing.pawns[i].set_interactive(branch, tick_from, tick_to)
+        # spots in this board
+        spotted_places = set()
+        self.db.c.execute(self.spot_board_qry_start, (str(self), i))
+        for row in self.db.c:
+            (placen, branch, tick_from, tick_to, x, y) = row
+            place = self.places_by_name[placen]  # i hope you loaded *me* first
+            if not hasattr(place, 'spots'):
+                place.spots = []
+            while len(place.spots) <= i:
+                place.spots.append(None)
+            place.spots[i] = Spot(self.boards[i], place)
+            place.spots[i].set_coords(x, y, branch, tick_from, tick_to)
+            spotted_places.add(place)
+        #their images
+        for row in spot_rows:
+            (placen, branch, tick_from, tick_to, imgn) = row
+            place = self.places_by_name[placen]
+            place.spots[i].set_img(self.db.imgdict[imgn], branch, tick_from, tick_to)
+        # interactivity for the spots
+        self.db.c.execute(self.spot_inter_qry_start, (str(self), i))
+        for row in self.db.c:
+            (placen, branch, tick_from, tick_to) = row
+            place = self.places_by_name[placen]
+            place.spots[i].set_interactive(branch, tick_from, tick_to)
+        # arrows in this board
+        arrowed_portals = set()
+        for place in iter(spotted_places):
+            for portal in place.portals:
+                if portal not in arrowed_portals:
+                    if not hasattr(portal, 'arrows'):
+                        portal.arrows = []
+                    while len(portal.arrows) <= i:
+                        portal.arrows.append(None)
+                    portal.arrows[i] = Arrow(self.boards[i], portal)
+                    arrowed_portals.add(portal)
+        return self.boards[i]

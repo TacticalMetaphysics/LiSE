@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, RowDict
+from util import SaveableMetaclass
 from logging import getLogger
 
 
@@ -77,15 +77,19 @@ length. Does nothing by default."""
 
     def get_tabdict(self):
         rows = set()
+        cols = ("dimension", "origin", "destination", "branch", "tick_from", "tick_to")
         for branch in self.existence:
             for (tick_from, tick_to) in self.existence.branch:
-                rows.add(RowDict({
-                    "dimension": str(self.dimension),
-                    "origin": str(self.orig),
-                    "destination": str(self.dest),
-                    "branch": branch,
-                    "tick_from": tick_from,
-                    "tick_to": tick_to}))
+                rows.add((
+                    str(self.dimension),
+                    str(self.orig),
+                    str(self.dest),
+                    branch,
+                    tick_from,
+                    tick_to))
         return {
-            "portal_existence": rows}
-            
+            "portal_existence": [
+                dictify_row(row, cols) for row in iter(rows)]}
+
+    def save(self):
+        pass

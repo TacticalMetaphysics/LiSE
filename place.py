@@ -21,9 +21,21 @@ thing located there.
     def __str__(self):
         return self.name
 
+    def __getattr__(self, attrn):
+        if attrn == 'portals':
+            if str(self) in self.dimension.portals_by_orign_destn:
+                return self.dimension.portals_by_orign_destn[str(self)].itervalues()
+            else:
+                return iter([])
+        else:
+            raise AttributeError("Place has no attribute named " + attrn)
+
     def update_contents(self):
         for thing in self.dimension.things:
             if thing.location == self:
                 self.contents.add(thing)
             else:
                 self.contents.discard(thing)
+
+    def save(self):
+        pass

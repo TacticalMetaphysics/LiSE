@@ -1,5 +1,6 @@
-from util import SaveableMetaclass, dictify_row, RowDict
+from util import SaveableMetaclass, dictify_row
 import re
+import pyglet
 
 
 """Simple menu widgets"""
@@ -27,7 +28,7 @@ class MenuItem:
     visible = True
     interactive = True
 
-    def __init__(self, board, menu, idx, text, on_click, closer):
+    def __init__(self, menu, idx, text, closer, on_click_fun, on_click_arg_str, on_click_arg_re):
         """Return a menu item in the given board, the given menu; at the given
 index in that menu; with the given text; which executes the given
 effect deck when clicked; closes or doesn't when clicked; starts
@@ -36,11 +37,18 @@ visible or doesn't; and starts interactive or doesn't.
 With db, register in db's menuitemdict.
 
         """
-        self.board = board
-        self.db = board.db
+        self.db = menu.db
         self.menu = menu
+        self.window = self.menu.window
         self.idx = idx
         self._text = text
+        try:
+            on_click_arg_tup = re.match(on_click_arg_re, on_click_arg_str).groups()
+        except:
+            on_click_arg_tup = tuple()
+        def on_click(self):
+            t = (self,) + on_click_arg_tup
+            return on_click_fun(*t)
         self.on_click = on_click
         self.closer = closer
         self.grabpoint = None
@@ -59,12 +67,10 @@ With db, register in db's menuitemdict.
                 return self.db.get_text(self._text[1:])
             else:
                 return self._text
-        elif attrn == 'gw':
-            return self.board.gw
         elif attrn == 'hovered':
-            return self.gw.hovered is self
+            return self.window.hovered is self
         elif attrn == 'pressed':
-            return self.gw.pressed is self
+            return self.window.pressed is self
         elif attrn == 'window_left':
             return self.menu.window_left + self.menu.style.spacing
         elif attrn == 'window_right':
@@ -145,7 +151,7 @@ the same."""
         """Return a tuple containing everything that's relevant to deciding
 just how to display this widget"""
         return (
-            self._menu,
+            hash(self.menu.get_state_tup()),
             self.idx,
             self.text,
             self.visible,
@@ -156,13 +162,14 @@ just how to display this widget"""
 
     def get_tabdict(self):
         return {
-            "menu_item": set(RowDict({
+            "menu_item": [{
                 "board": str(self.board),
                 "menu": str(self.menu),
                 "idx": self.idx,
                 "text": self._text,
                 "on_click": self.on_click,
-                "closer": self.closer}))}
+                "closer": self.closer}]
+        }
 
     def delete(self):
         del self.db.menuitemdict[self._board][self._menu][self.idx]
@@ -207,8 +214,7 @@ class Menu:
          [])]
     interactive = True
 
-    def __init__(self, window, name, left, bottom, top, right, style,
-                 main_for_window):
+    def __init__(self, window, name, left, bottom, top, right, style):
         """Return a menu in the given board, with the given name, bounds,
 style, and flags main_for_window and visible.
 
@@ -231,8 +237,13 @@ With db, register with db's menudict.
         self.top_prop = top
         self.right_prop = right
         self.style = style
-        self.main_for_window = main_for_window
+        self.active_pattern = pyglet.image.SolidColorImagePattern(
+            self.style.bg_active.tup)
+        self.inactive_pattern = pyglet.image.SolidColorImagePattern(
+            self.style.bg_inactive.tup)
+        self.rowheight = self.style.fontsize + self.style.spacing
         self.items = []
+        self.visible = False
         self.grabpoint = None
         self.sprite = None
         self.oldstate = None
@@ -245,48 +256,41 @@ With db, register with db's menudict.
         return self.name
 
     def __getattr__(self, attrn):
-        if attrn == 'gw':
-            if not hasattr(self.board, 'gw'):
-                return None
-            else:
-                return self.board.gw
-        elif attrn == 'window':
-            return self.gw.window
-        elif attrn == 'hovered':
-            return self.gw.hovered is self
+        if attrn == 'hovered':
+            return self.window.hovered is self
         elif attrn == 'window_left':
-            if self.gw is None:
+            if self.window is None:
                 return 0
             else:
-                return int(self.gw.width * self.left_prop)
+                return int(self.window.width * self.left_prop)
         elif attrn == 'window_bot':
-            if self.gw is None:
+            if self.window is None:
                 return 0
             else:
-                return int(self.gw.height * self.bot_prop)
+                return int(self.window.height * self.bot_prop)
         elif attrn == 'window_top':
-            if self.gw is None:
+            if self.window is None:
                 return 0
             else:
-                return int(self.gw.height * self.top_prop)
+                return int(self.window.height * self.top_prop)
         elif attrn == 'window_right':
-            if self.gw is None:
+            if self.window is None:
                 return 0
             else:
-                return int(self.gw.width * self.right_prop)
+                return int(self.window.width * self.right_prop)
         elif attrn == 'width':
             return self.window_right - self.window_left
         elif attrn == 'height':
             return self.window_top - self.window_bot
         elif attrn == 'rx':
             return int(
-                (self.gw.width * self.right_prop -
-                 self.gw.width * self.left_prop)
+                (self.window.width * self.right_prop -
+                 self.window.width * self.left_prop)
                 / 2)
         elif attrn == 'ry':
             return int(
-                (self.gw.height * self.top_prop -
-                 self.gw.height * self.bot_prop)
+                (self.window.height * self.top_prop -
+                 self.window.height * self.bot_prop)
                 / 2)
         elif attrn == 'r':
             if self.rx > self.ry:
@@ -338,21 +342,6 @@ With db, register with db's menudict.
             item.window_bot = item.window_top - self.rowheight
             i += 1
 
-    def toggle_visibility(self):
-        """Make myself visible if hidden, invisible if shown."""
-        self.visible = not self.visible
-        self.tweaks += 1
-
-    def show(self):
-        """Show myself if I am hidden"""
-        if not self.visible:
-            self.toggle_visibility()
-
-    def hide(self):
-        """Hide myself if I am visible"""
-        if self.visible:
-            self.toggle_visibility()
-
     def get_state_tup(self):
         """Return a tuple containing everything you need to decide how to draw
 me"""
@@ -363,7 +352,6 @@ me"""
             self.window_top,
             self.window_right,
             self.style,
-            self.main_for_window,
             self.visible,
             self.grabpoint,
             self.pressed,
@@ -371,7 +359,7 @@ me"""
 
     def get_tabdict(self):
         return {
-            "menu": set(RowDict({
+            "menu": [{
                 "board": str(self.board),
                 "name": str(self),
                 "left": self.left_prop,
@@ -379,7 +367,7 @@ me"""
                 "top": self.top_prop,
                 "right": self.right_prop,
                 "style": str(self.style),
-                "main_for_window": self.main_for_window}))
+                "main_for_window": self.main_for_window}]
         }
 
     def save(self):

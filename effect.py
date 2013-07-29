@@ -1,10 +1,11 @@
 from util import SaveableMetaclass, dictify_row, stringlike
+from card import load_cards
 from random import randrange
 
 
 class Effect:
     __metaclass__ = SaveableMetaclass
-    """Curry a function name and a string argument.
+    """A function name and a string argument.
 
 An effect is a function with a preselected string argument. These are
 stored together under a name describing the both of them. The effect
@@ -32,17 +33,21 @@ called with the given argument. Register in db.effectdict."""
     def __str__(self):
         return self.name
 
+    def __getattr__(self, attrn):
+        if attrn == 'card':
+            if str(self) in self.db.carddict:
+                return self.db.carddict[str(self)]
+            else:
+                return None
+        else:
+            raise AttributeError("Effect instance has no attribute named " + attrn)
+
     def get_tabdict(self):
         return {
             "effect": {
                 "name": self.name,
                 "func": self._func,
                 "arg": self.arg}}
-
-    def unravel(self):
-        """If the function was supplied as a string, look up what it refers
-to."""
-        pass
 
     def do(self, deck=None, event=None):
         """Call the function with the argument."""
@@ -131,71 +136,15 @@ in the RumorMill.
         return r
 
 
-class DeckIter:
-    """Abstract class for iterators over EffectDecks.
-
-With reset=True, the deck will be put back in its original state when
-the iteration ends.
-
-depth controls the maximum number of Effects to iterate over. It
-defaults to None, iterating over all the Effects in the deck. Set it
-to some positive integer to eg. limit iteration over infinitely long
-decks.
-
-    """
-    def __init__(self, efd, reset=False, depth=None):
-        self.efd = efd
-        self.reset = reset
-        self.depth = depth
-        self.i = 0
-        self.effects_backup = list(self.efd.effects)
-
-    def __iter__(self):
-        return self
-
-    def next(self):
-        try:
-            self.i += 1
-            if self.depth is not None and self.i >= self.depth:
-                raise IndexError
-            return self._next()
-        except IndexError:
-            if self.reset:
-                self.efd.effects = self.effects_backup
-            raise StopIteration
-
-
-class FILODeckIter(DeckIter):
-    def _next(self):
-        return self.efd.effects.pop()
-
-
-class FIFODeckIter(DeckIter):
-    def _next(self):
-        return self.efd.effects.pop(0)
-
-
-class RandomDiscardDeckIter(DeckIter):
-    def _next(self):
-        idx = randrange(0, len(self.efd.effects))
-        return self.efd.effects.pop(idx)
-
-
-class RandomReinsertDeckIter(DeckIter):
-    def _next(self):
-        idx = randrange(0, len(self.efd.effects))
-        return self.efd.effects[idx]
-
-
 class EffectDeck:
     """An ordered collection of Effects that may be executed in a
 batch."""
     __metaclass__ = SaveableMetaclass
-    draw_order = FILODeckIter
+    draw_order = "FILO"
     reset = False
     depth = None
     tables = [
-        ("effect_deck_link",
+        ("effect_deck",
          {"deck": "text not null",
           "idx": "integer not null",
           "branch": "integer not null default 0",
@@ -273,6 +222,9 @@ Return a list of the effects, paired with their return values."""
                 return cards
         return []
 
+    def index(self, that):
+        return self.get_effects().index(that)
+
 
 class PortalEntryEffectDeck(EffectDeck):
     reset = True
@@ -303,9 +255,9 @@ load_effect_qryfmt = (
         ", ".join(Effect.colnames["effect"]), "{0}"))
 
 
-def read_effects(db, names):
+def load_effects(db, names):
     """Read the effects of the given names from disk and construct their
-Effect objects, but don't unravel them just yet.
+Effect objects.
 
 Return a dictionary keyed by name.
 
@@ -322,83 +274,46 @@ Return a dictionary keyed by name.
     return r
 
 
-def load_effects(db, names):
-    r = read_effects(db, names)
-    for effect in r.itervalues():
-        effect.unravel()
-    return r
-
-
 effect_join_colns = [
-    "effect_deck_link." + coln for coln in
-    EffectDeck.colnames["effect_deck_link"]]
+    "effect_deck." + coln for coln in
+    EffectDeck.colnames["effect_deck"]]
 effect_join_colns += [
     "effect." + coln for coln in
     Effect.valnames["effect"]]
 effect_join_cols = (
-    EffectDeck.colnames["effect_deck_link"] +
+    EffectDeck.colnames["effect_deck"] +
     Effect.valnames["effect"])
 
 efjoincolstr = ", ".join(effect_join_colns)
 
 load_deck_qryfmt = (
-    "SELECT {0} FROM effect, effect_deck_link WHERE "
-    "effect.name=effect_deck_link.effect AND "
-    "effect_deck_link.deck IN ({1})".format(efjoincolstr, "{0}"))
-
-
-def read_effect_decks(db, names):
-    """Read the effect decks by the given names, including all effects
-therein, but don't unravel anything just yet.
-
-Return a dictionary of EffectDeck keyed by name.
-
-    """
-    names = tuple(names)
-    qryfmt = load_deck_qryfmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, tuple(names))
-    r = {}
-    effectnames = set()
-    for row in db.c:
-        rowdict = dictify_row(row, effect_join_cols)
-        rowdict["db"] = db
-        effectnames.add(rowdict["effect"])
-        if rowdict["deck"] not in r:
-            r[rowdict["deck"]] = []
-        short = rowdict["idx"] + 1 - len(r[rowdict["deck"]])
-        if short > 0:
-            nothing = [None] * short
-            r[rowdict["deck"]].extend(nothing)
-        r[rowdict["deck"]][rowdict["idx"]] = rowdict["effect"]
-    efs = load_effects(db, list(effectnames))
-    for effect_deck in r.iteritems():
-        (deckname, effects) = effect_deck
-        i = 0
-        while i < len(effects):
-            effects[i] = efs[effects[i]]
-            i += 1
-        r[deckname] = EffectDeck(db, deckname, effects)
-    return r
-
-
-def unravel_effect_decks(db, efd):
-    """Unravel the EffectDeck in the dictionary returned by
-read_effect_decks.
-
-This incidentally unravels all Effect therein.
-
-    """
-    for deck in efd.itervalues():
-        deck.unravel()
-    return efd
+    "SELECT {0} FROM effect, effect_deck WHERE "
+    "effect.name=effect_deck.effect AND "
+    "effect_deck.deck IN ({1})".format(efjoincolstr, "{0}"))
 
 
 def load_effect_decks(db, names):
-    """Load all EffectDeck by the given names from disk.
-
-Return a dictionary of EffectDeck, keyed by name."""
-    return unravel_effect_decks(db, read_effect_decks(db, names))
+    db.c.execute(load_deck_qryfmt.format(
+        efjoincolstr, ", ".join(["?"] * len(names))))
+    effects2load = set()
+    deckrows = db.c.fetchall()
+    for row in deckrows:
+        rowdict = dictify_row(row, effect_join_cols)
+        effects2load.add(rowdict["effect"])
+    loaded_effects = load_effects(db, effects2load)
+    deckdict = {}
+    for row in deckrows:
+        rowdict = dictify_row(row, EffectDeck.colns)
+        if rowdict["deck"] not in deckdict:
+            deckdict[rowdict["deck"]] = []
+        while len(deckdict[rowdict["deck"]]) <= rowdict["idx"]:
+            deckdict[rowdict["deck"]].append(None)
+        deckdict[rowdict["deck"]][rowdict["idx"]] = loaded_effects[rowdict["effect"]]
+    r = {}
+    for (name, contents) in deckdict.iteritems():
+        r[name] = EffectDeck(db, name)
+        r[name].set_effects(contents)
+    return r
 
 
 def make_toggle_menu_effect(db, board, menu):

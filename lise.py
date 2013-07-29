@@ -33,7 +33,6 @@ for arg in argv:
 db = load_game(dbfn, lang)
 s = GameState(db)
 gw = GameWindow(s, "Main")
-pyglet.clock.schedule_interval(s.update, 1/30., 1/30.)
 pyglet.app.run()
 
 print "Saving..."

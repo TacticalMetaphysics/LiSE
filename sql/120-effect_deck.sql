@@ -1,2 +1,1 @@
-INSERT INTO effect_deck_link (deck, idx, effect)
-SELECT name, 0, name FROM effect;
+INSERT INTO effect_deck (deck, idx, effect) VALUES ('test_deck', 0, 'one'), ('test_deck', 1, 'two');

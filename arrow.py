@@ -7,21 +7,19 @@ class Arrow:
 
     def __init__(self, board, portal):
         self.board = board
-        self.gw = self.board.gw
+        self.window = board.window
         self.db = self.board.db
         self.portal = portal
-        self.orig = self.portal.orig.spot
-        self.dest = self.portal.dest.spot
+        self.orig = self.portal.orig.spots[int(self.board)]
+        self.dest = self.portal.dest.spots[int(self.board)]
         self.vertices = ((None, None), (None, None), (None, None))
         self.oldstate = None
-        self.order = self.gw.edge_order
-        self.gw.edge_order += 1
+        self.order = self.window.edge_order
+        self.window.edge_order += 1
         self.selectable = True
         self.overlap_hints = {}
         self.y_at_hints = {}
         self.tweaks = 0
-        dimname = self.gw.board._dimension
-        self.db.arrowdict[dimname][self._portal] = self
 
     def __str__(self):
         return str(self.portal)
@@ -87,7 +85,7 @@ class Arrow:
             y_numerator = denominator * self.oy
             return ((y_numerator - x_numerator), denominator)
         elif attrn == 'highlit':
-            return self in self.gw.selected
+            return self in self.window.selected
         else:
             raise AttributeError(
                 "Edge instance has no attribute {0}".format(attrn))
@@ -153,7 +151,7 @@ clicked.
         except KeyError:
             return None
         except AttributeError:
-            port.edge = Edge(self.gw, port)
+            port.edge = Edge(self.window, port)
 
     def delete(self):
         for pair in self.vertices:

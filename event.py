@@ -10,7 +10,7 @@ Events get passed to the effect decks, which may or may not use them
 for anything in particular.
 
 """
-from util import SaveableMetaclass, stringlike, RowDict
+from util import SaveableMetaclass, stringlike
 from effect import (
     PortalEntryEffectDeck,
     PortalProgressEffectDeck,
@@ -127,24 +127,27 @@ the three given effect decks. Register with db.eventdict.
         return self.end - self.start
 
     def get_tabdict(self):
-        evrows = set()
-        evrows.add(RowDict({
-            "name": str(self),
-            "text": self._text,
-            "commence_effect_deck": str(self.commence_effect_deck),
-            "proceed_effect_deck": str(self.proceed_effect_deck),
-            "conclude_effect_deck": str(self.conclude_effect_deck)}))
         occur_rows = set()
+        occorder = (
+            "event",
+            "branch",
+            "tick_from",
+            "tick_to")
         for branch in self.occurrences:
             for (tick_from, tick_to) in self.occurrences[branch].iteritems():
-                occur_rows.add(RowDict({
-                    "event": str(self),
-                    "branch": branch,
-                    "tick_from": tick_from,
-                    "tick_to": tick_to}))
+                occur_rows.add((
+                    str(self),
+                    branch,
+                    tick_from,
+                    tick_to))
         return {
-            "event": evrows,
-            "scheduled_event": occur_rows}
+            "event": [{"name": str(self),
+                       "text": self._text,
+                       "commence_effect_deck": str(self.commence_effect_deck),
+                       "proceed_effect_deck": str(self.proceed_effect_deck),
+                       "conclude_effect_deck": str(self.conclude_effect_deck)}],
+            "scheduled_event": [dictify_row(row, occorder)
+                                for row in iter(occur_rows)]}
 
     def unravel(self):
         """Dereference the effect decks.

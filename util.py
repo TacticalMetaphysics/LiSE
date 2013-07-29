@@ -80,7 +80,7 @@ def untuple(list_o_tups):
 
 
 def dictify_row(row, colnames):
-    return RowDict(dict(zip(colnames, row)))
+    return dict(zip(colnames, row))
 
 
 def deep_lookup(dic, keylst):
@@ -134,10 +134,12 @@ class TerminableImg:
             return None
         for (tick_from, (img, tick_to)) in self.imagery[branch].iteritems():
             if tick_from <= tick and (tick_to is None or tick <= tick_to):
+                assert(hasattr(img, 'tex'))
                 return img
         return None
 
     def set_img(self, img, branch=None, tick_from=None, tick_to=None):
+        assert(hasattr(img, 'tex'))
         if branch is None:
             branch = self.db.branch
         if tick_from is None:
@@ -250,9 +252,9 @@ class TerminableCoords:
             branch = self.db.branch
         if tick is None:
             tick = self.db.tick
-        if branch not in self.coords:
+        if branch not in self.coord_dict:
             return None
-        for (tick_from, (x, y, tick_to)) in self.coords[branch].iteritems():
+        for (tick_from, (x, y, tick_to)) in self.coord_dict[branch].iteritems():
             if tick_from <= tick and (tick_to is None or tick <= tick_to):
                 return (x, y)
         return None
@@ -262,57 +264,35 @@ class TerminableCoords:
             branch = self.db.branch
         if tick_from is None:
             tick_from = self.db.tick
-        if branch not in self.coords:
-            self.coords[branch] = {}
+        if branch not in self.coord_dict:
+            self.coord_dict[branch] = {}
         if branch in self.indefinite_coords:
             if tick_to is None:
                 self.indefinite_coords[branch] = (x, y, tick_from)
-                self.coords[branch][tick_from] = (x, y, None)
+                self.coord_dict[branch][tick_from] = (x, y, None)
             else:
                 (ix, iy, istart) = self.indefinite_coords[branch]
                 if tick_from < istart:
                     if tick_to < istart:
-                        self.coords[branch][tick_from] = (x, y, tick_to)
+                        self.coord_dict[branch][tick_from] = (x, y, tick_to)
                     elif tick_to == istart:
                         self.indefinite_coords[branch] = (x, y, tick_from)
-                        self.coords[branch][tick_from] = (x, y, None)
+                        self.coord_dict[branch][tick_from] = (x, y, None)
                     else:
                         del self.indefinite_coords[branch]
-                        del self.coords[branch][istart]
-                        self.coords[branch][tick_from] = (x, y, tick_to)
+                        del self.coord_dict[branch][istart]
+                        self.coord_dict[branch][tick_from] = (x, y, tick_to)
                 elif tick_from == istart:
                     del self.indefinite_coords[branch]
-                    self.coords[branch][tick_from] = (x, y, tick_to)
+                    self.coord_dict[branch][tick_from] = (x, y, tick_to)
                 else:
-                    self.coords[branch][istart] = (ix, iy, tick_from - 1)
+                    self.coord_dict[branch][istart] = (ix, iy, tick_from - 1)
                     del self.indefinite_coords[branch]
-                    self.coords[branch][tick_from] = (x, y, tick_to)
+                    self.coord_dict[branch][tick_from] = (x, y, tick_to)
         else:
-            self.coords[branch][tick_from] = (x, y, tick_to)
+            self.coord_dict[branch][tick_from] = (x, y, tick_to)
             if tick_to is None:
                 self.indefinite_coords[branch] = (x, y, tick_from)
-
-
-class RowDict:
-    """A read-only dictionary-like object representing a database
-record. It has column names in the keys and the corresponding values
-in the values.
-
-    """
-    def __init__(self, d):
-        self.colnames = tuple(d.keys())
-        self.colvals = tuple([d[key] for key in self.colnames])
-
-    def __getitem__(self, key):
-        return self.colvals[self.colnames.index(key)]
-
-    def __hash__(self):
-        return hash(self.colvals)
-
-    def __eq__(self, other):
-        return (
-            self.colnames == other.colnames and
-            self.colvals == other.colvals)
 
 
 class PatternHolder:
@@ -422,7 +402,6 @@ and your table will be ready.
 
     """
     def __new__(metaclass, clas, parents, attrs):
-        print "metaclassing " + clas
         if clas in parents:
             return clas
         tablenames = []

@@ -1,6 +1,5 @@
 from util import (
     SaveableMetaclass,
-    RowDict,
     TerminableImg,
     TerminableInteractivity)
 from logging import getLogger
@@ -175,25 +174,29 @@ With db, register in db's pawndict.
         dimn = str(self.dimension)
         thingn = str(self.thing)
         boardi = int(self.board)
+        pawncols = ("dimension", "thing", "board", "tick_from", "tick_to", "img")
         pawn_img_rows = set()
         for branch in self.imagery:
             for (tick_from, (img, tick_to)) in self.imagery.iteritems():
-                pawn_img_rows.add(RowDict({
-                    "dimension": dimn,
-                    "thing": thingn,
-                    "board": boardi,
-                    "tick_from": tick_from,
-                    "tick_to": tick_to,
-                    "img": str(img)}))
+                pawn_img_rows.add((
+                    dimn,
+                    thingn,
+                    boardi,
+                    tick_from,
+                    tick_to,
+                    str(img)))
+        intercols = ("dimension", "thing", "board", "tick_from", "tick_to")
         pawn_interactive_rows = set()
         for branch in self.interactivity:
             for (tick_from, tick_to) in self.interactivity[branch].iteritems():
-                pawn_interactive_rows.add(RowDict({
-                    "dimension": dimn,
-                    "thing": thingn,
-                    "board": boardi,
-                    "tick_from": tick_from,
-                    "tick_to": tick_to}))
+                pawn_interactive_rows.add((
+                    dimn,
+                    thingn,
+                    boardi,
+                    tick_from,
+                    tick_to))
         return {
-            "pawn_img": pawn_img_rows,
-            "pawn_interactive": pawn_interactive_rows}
+            "pawn_img": [dictify_row(row, pawncols)
+                         for row in iter(pawn_img_rows)],
+            "pawn_interactive": [dictify_row(row, intercols)
+                                 for row in iter(pawn_interactive_rows)]}

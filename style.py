@@ -1,4 +1,4 @@
-from util import SaveableMetaclass, RowDict, dictify_row
+from util import SaveableMetaclass, dictify_row
 import pyglet
 
 
@@ -67,14 +67,15 @@ green, blue, and alpha. Register in db.colordict.
 
     def get_tabdict(self):
         colorset = set()
-        colorset.add(RowDict({
-            "name": self.name,
-            "red": self.red,
-            "green": self.green,
-            "blue": self.blue,
-            "alpha": self.alpha}))
+        colorcols = ("name", "red", "green", "blue", "alpha")
+        colorset.add((
+            self.name,
+            self.red,
+            self.green,
+            self.blue,
+            self.alpha))
         return {
-            "color": colorset}
+            "color": [dictify_row(row, colorcols) for row in iter(colorset)]}
 
     def delete(self):
         del self.db.colordict[self.name]
@@ -144,17 +145,19 @@ spacing"""
 
     def get_tabdict(self):
         styleset = set()
-        styleset.add(RowDict({
-            "name": self.name,
-            "fontface": self.fontface,
-            "fontsize": self.fontsize,
-            "spacing": self.spacing,
-            "bg_inactive": self.bg_inactive,
-            "bg_active": self.bg_active,
-            "fg_inactive": self.fg_inactive,
-            "fg_active": self.fg_active}))
+        stylecols = ("name", "fontface", "fontsize", "spacing", "bg_inactive", "bg_active",
+                     "fg_inactive", "fg_active")
+        styleset.add((
+            self.name,
+            self.fontface,
+            self.fontsize,
+            self.spacing,
+            self.bg_inactive,
+            self.bg_active,
+            self.fg_inactive,
+            self.fg_active))
         return {
-            "style": set()}
+            "style": [dictify_row(row, stylecols) for row in iter(styleset)]}
 
     def delete(self):
         del self.db.styledict[self.name]
@@ -174,7 +177,6 @@ yet. Returns dict keyed with color names."""
     r = {}
     for row in db.c:
         rowdict = dictify_row(row, Color.colns)
-        rowdict["db"] = db
         r[rowdict["name"]] = Color(**rowdict)
     return r
 
@@ -189,15 +191,20 @@ just yet. Return a dict keyed by style name."""
     qryfmt = read_styles_fmt
     qrystr = qryfmt.format(", ".join(["?"] * len(stylenames)))
     db.c.execute(qrystr, tuple(stylenames))
-    r = {}
+    style_rows = db.c.fetchall()
     colornames = set()
-    for row in db.c:
+    colorcols = ("textcolor", "fg_inactive", "fg_active", "bg_inactive", "bg_active")
+    for row in style_rows:
         rowdict = dictify_row(row, Style.colns)
-        for colorcol in Style.color_cols:
+        for colorcol in colorcols:
             colornames.add(rowdict[colorcol])
-        rowdict["db"] = db
+    colors = read_colors(db, tuple(colornames))
+    r = {}
+    for row in style_rows:
+        rowdict = dictify_row(row, Style.colns)
+        for colorcol in colorcols:
+            rowdict[colorcol] = colors[rowdict[colorcol]]
         r[rowdict["name"]] = Style(**rowdict)
-    read_colors(db, list(colornames))
     return r
 
 

@@ -12,6 +12,9 @@ import sqlite3
 import re
 import igraph
 from dimension import Dimension
+from place import Place
+from portal import Portal
+from spot import Spot
 from collections import OrderedDict
 from logging import getLogger
 from util import dictify_row
@@ -80,6 +83,8 @@ arguments.
         self.carddict = {}
         self.colordict = {}
         self.dimensiondict = {}
+        self.effectdict = {}
+        self.effectdeckdict = {}
         self.imgdict = {}
         self.menudict = {}
         self.menuitemdict = {}
@@ -111,26 +116,16 @@ arguments.
 
         placeholder = (noop, ITEM_ARG_RE)
         self.func = {
+            'one': placeholder,
+            'two': placeholder,
             'toggle_menu':
-            (self.toggle_menu, ITEM_ARG_RE),
-            'toggle_calendar':
-            (self.toggle_calendar, ITEM_ARG_RE),
+            (self.toggle_menu, ONE_ARG_RE),
             'hide_menu':
-            (self.hide_menu, ITEM_ARG_RE),
-            'hide_calendar':
-            (self.hide_calendar, ITEM_ARG_RE),
+            (self.hide_menu, ONE_ARG_RE),
             'show_menu':
-            (self.show_menu, ITEM_ARG_RE),
-            'show_calendar':
-            (self.show_calendar, ITEM_ARG_RE),
-            'hide_menus_in_board':
-            (self.hide_menus_in_board, ONE_ARG_RE),
-            'hide_calendars_in_board':
-            (self.hide_calendars_in_board, ONE_ARG_RE),
-            'hide_other_menus_in_board':
-            (self.hide_other_menus_in_board, ONE_ARG_RE),
-            'hide_other_calendars_in_board':
-            (self.hide_other_calendars_in_board, ONE_ARG_RE),
+            (self.show_menu, ONE_ARG_RE),
+            'make_generic_place':
+            (self.make_generic_place, ONE_ARG_RE),
             'start_new_map': placeholder,
             'open_map': placeholder,
             'save_map': placeholder,
@@ -164,6 +159,8 @@ arguments.
             return self.game["seed"]
         elif attrn == "tick":
             return self.game["tick"]
+        elif attrn == "hi_branch":
+            return self.game["hi_branch"]
         elif attrn == "hi_place":
             return self.game["hi_place"]
         elif attrn == "hi_portal":
@@ -248,73 +245,26 @@ the function.
                 spot.place.contents
                 if thing.name in self.pawndict[spot.dimension]]
 
-    def toggle_menu(self, menuitem, menu,
+    def toggle_menu(self, menuitem, menuname,
                     effect=None, deck=None, event=None):
-        boardname = str(menuitem.board)
-        menuname = str(menu)
-        self.hide_other_menus_in_board(boardname, menuname)
-        self.menudict[boardname][menuname].toggle_visibility()
-
-    def toggle_calendar(self, menuitem, cal,
-                        effect=None, deck=None, event=None):
-        boardname = str(menuitem.board)
-        calname = str(cal)
-        self.hide_other_calendars_in_board(boardname, calname)
-        self.calendardict[boardname][calname].toggle_visibility()
+        window = menuitem.menu.window
+        menu = window.menus_by_name[menuname]
+        menu.visible = not menu.visible
+        menu.tweaks += 1
 
     def hide_menu(self, menuitem, menuname,
                   effect=None, deck=None, event=None):
-        """A callback for MenuItem. Hide the menu of the given name, in the
-same board as the caller."""
-        boardname = str(menuitem.board)
-        self.menudict[boardname][menuname].hide()
-
-    def hide_calendar(self, menuitem, calname,
-                      effect=None, deck=None, event=None):
-        boardname = str(menuitem.board)
-        self.calendardict[boardname][calname].hide()
+        window = menuitem.menu.window
+        menu = window.menus_by_name[menuname]
+        menu.visible = False
+        menu.tweaks += 1
 
     def show_menu(self, menuitem, menuname,
                   effect=None, deck=None, event=None):
-        """A callback for MenuItem. Show the menu of the given name, in the
-same board as the caller."""
-        boardname = str(menuitem.board)
-        self.menudict[boardname][menuname].show()
-
-    def show_calendar(self, menuitem, calname,
-                      effect=None, deck=None, event=None):
-        boardname = str(menuitem.board)
-        self.calendardict[boardname][calname].show()
-
-    def hide_menus_in_board(self, board,
-                            effect=None, deck=None, event=None):
-        boardn = str(board)
-        for menu in self.menudict[boardn].itervalues():
-            if not menu.main_for_window:
-                menu.hide()
-
-    def hide_other_menus_in_board(self, board, menu,
-                                  effect=None, deck=None, event=None):
-        boardn = str(board)
-        menun = str(menu)
-        for menu in self.menudict[boardn].itervalues():
-            if not menu.main_for_window and menu.name != menun:
-                menu.hide()
-
-    def hide_calendars_in_board(self, board,
-                                effect=None, deck=None, event=None):
-        boardn = str(board)
-        for calendar in self.calendardict[boardn].itervalues():
-            calendar.hide()
-
-    def hide_other_calendars_in_board(self, board, calendar,
-                                      effect=None, deck=None, event=None):
-        boardn = str(board)
-        itn = str(calendar)
-        for calendar in self.calendardict[boardn].iteritems():
-            (itname, cal) = calendar
-            if itname != itn:
-                cal.hide()
+        window = menuitem.menu.window
+        menu = window.menus_by_name[menuname]
+        menu.visible = True
+        menu.tweaks += 1
 
     def get_age(self):
         """Get the number of ticks since the start of the game. Persists
@@ -329,14 +279,14 @@ This is game-world time. It doesn't always go forwards.
         """Get the string of the given name in the language set at startup."""
         return self.stringdict[strname][self.lang]
 
-    def mi_create_place(self, menuitem, arg):
-        return menuitem.gw.create_place()
+    def mi_create_place(self, menuitem):
+        return menuitem.window.create_place()
 
-    def mi_create_thing(self, menuitem, arg):
-        return menuitem.gw.create_thing()
+    def mi_create_thing(self, menuitem):
+        return menuitem.window.create_thing()
 
-    def mi_create_portal(self, menuitem, arg):
-        return menuitem.gw.create_portal()
+    def mi_create_portal(self, menuitem):
+        return menuitem.window.create_portal()
 
     def get_card_base(self, name):
         """Return the CardBase named thus, loading it first if necessary."""
@@ -619,10 +569,17 @@ necessary."""
 
     def load_game(self):
         self.c.execute(
-            "SELECT front_board, age, seed, "
-            "hi_place, hi_portal FROM game")
+            "SELECT front_board, front_branch, tick, seed, "
+            "hi_branch, hi_place, hi_portal FROM game")
         for row in self.c:
-            self.game = dictify_row(row, self.game.keys())
+            self.game = {
+                "front_board": row[0],
+                "front_branch": row[1],
+                "tick": row[2],
+                "seed": row[3],
+                "hi_branch": row[4],
+                "hi_place": row[5],
+                "hi_portal": row[6]}
 
     def load_strings(self):
         self.c.execute("SELECT stringname, language, string FROM strings")
@@ -637,6 +594,34 @@ necessary."""
             self.dimensiondict[dimn] = Dimension(self, dimn)
             self.dimensiondict[dimn].load()
         return self.dimensiondict[dimn]
+
+    def make_generic_place(self, dimension):
+        placen = "generic_place_{0}".format(self.hi_place)
+        self.hi_place += 1
+        pl = Place(dimension, placen)
+        dimension.places_by_name[placen] = pl
+        dimension.places.append(pl)
+        return pl
+
+    def make_spot(self, board, place, x, y):
+        spot = Spot(board, place)
+        if not hasattr(place, 'spots'):
+            place.spots = []
+        while len(place.spots) <= int(board):
+            place.spots.append(None)
+        place.spots[int(board)] = spot
+        spot.set_img(self.imgdict['default_spot'])
+        spot.set_coords(x, y)
+
+    def make_portal(self, orig, dest):
+        dimension = orig.dimension
+        port = Portal(dimension, orig, dest)
+        port.exist()
+        if str(orig) not in dimension.portals_by_orign_destn:
+            dimension.portals_by_orign_destn[str(orig)] = {}
+        dimension.portals_by_orign_destn[str(orig)][str(dest)] = port
+        dimension.portals.append(port)
+        return port
 
 def load_game(dbfn, lang="eng"):
     db = RumorMill(dbfn, lang=lang)

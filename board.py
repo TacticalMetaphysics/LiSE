@@ -24,7 +24,7 @@ class BoardDimIter:
 
 class BoardPortIter(BoardDimIter):
     def __init__(self, board):
-        return BoardDimIter.__init__(self, board.i, board.portals, 'arrows')
+        return BoardDimIter.__init__(self, board.i, board.dimension.portals, 'arrows')
 
 
 class BoardArrowIter:
@@ -40,7 +40,7 @@ class BoardArrowIter:
 
 class BoardPlaceIter(BoardDimIter):
     def __init__(self, board):
-        return BoardDimIter.__init__(self, board.i, board.places, 'spots')
+        return BoardDimIter.__init__(self, board.i, board.dimension.places, 'spots')
 
 
 class BoardSpotIter:
@@ -56,7 +56,7 @@ class BoardSpotIter:
 
 class BoardThingIter(BoardDimIter):
     def __init__(self, board):
-        return BoardDimIter.__init__(self, board.i, board.things, 'pawns')
+        return BoardDimIter.__init__(self, board.i, board.dimension.things, 'pawns')
 
 
 class BoardPawnIter:
@@ -101,7 +101,7 @@ each board will be open in at most one window at a time.
         """Return a board representing the given dimension.
 
         """
-        self.gw = gw
+        self.window = gw
         self.dimension = dimension
         self.db = self.dimension.db
         self.i = i

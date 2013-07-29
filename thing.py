@@ -246,3 +246,6 @@ my being located at the place given."""
                     lasti = nexti
                 self.set_location(dest, branch, lasttick, None)
         raise JourneyException("Couldn't schedule the journey")
+
+    def save(self):
+        pass

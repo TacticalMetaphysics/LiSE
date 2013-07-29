@@ -124,13 +124,14 @@ between any two states that should appear different on-screen."""
 
 
 class CalendarCol:
-    def __init__(self, calendar, item,
-                 visible, interactive, style, cel_style):
+    def __init__(self, calendar, visible, interactive, style):
         self.calendar = calendar
+        self.board = self.calendar.board
         self.db = self.calendar.db
-        self.item = item
+        self.dimension = self.calendar.dimension
         self.visible = visible
         self.interactive = interactive
+        self.style = style
         self.oldstate = None
         self.old_width = None
         self.old_image = None
@@ -138,9 +139,6 @@ class CalendarCol:
         self.celldict = {}
         self.cell_cache = {}
         self.oldwidth = None
-        if self._dimension not in self.db.calcoldict:
-            self.db.calcoldict[self._dimension] = {}
-        self.db.calcoldict[self._dimension][self._item] = self
 
     def __iter__(self):
         return self.celldict.itervalues()
@@ -148,22 +146,8 @@ class CalendarCol:
     def __getattr__(self, attrn):
         if attrn == 'dimension':
             return self.db.get_dimension(self._dimension)
-        elif attrn == 'item':
-            return self.db.itemdict[self._dimension][self._item]
-        elif attrn in ('cal', 'calendar'):
-            return self.db.caldict[self._calendar]
-        elif attrn == 'board':
-            return self.calendar.board
         elif attrn == 'idx':
             return self.cal.index(self)
-        elif attrn == 'style':
-            return self.db.styledict[self._style]
-        elif attrn == 'cel_style':
-            return self.db.styledict[self._cel_style]
-        elif attrn == 'visible':
-            return self._visible and self in self.cal.cols
-        elif attrn == 'interactive':
-            return self._interactive
         elif attrn == 'window_top':
             return self.cal.window_top
         elif attrn == 'window_bot':
@@ -180,17 +164,6 @@ class CalendarCol:
             raise AttributeError(
                 "CalendarCol instance has no such attribute: " +
                 attrn)
-
-    def get_tabdict(self):
-        return {
-            "calendar_col": {
-                "calendar": self._calendar,
-                "dimension": self._dimension,
-                "item": self._item,
-                "visible": self._visible,
-                "interactive": self._interactive,
-                "style": self._style,
-                "cel_style": self._cel_style}}
 
     def delete(self):
         del self.db.calcoldict[self._dimension][self._item]
@@ -314,6 +287,7 @@ schedule, possibly several.
         self.sprite = None
         self.tweaks = 0
         self.cols = []
+        self.timeline = None
 
     def __iter__(self):
         return iter(self.cols)
@@ -368,6 +342,9 @@ schedule, possibly several.
     def __contains__(self, col):
         return col in self.cols
 
+    def __int__(self):
+        return self.i
+
     def colhash(self):
         hashes = [
             hash(col.get_state_tup())
@@ -378,7 +355,7 @@ schedule, possibly several.
         """Return a tuple containing information enough to tell the difference
 between any two states that should appear different on-screen."""
         return (
-            self._dimension,
+            self.i,
             self.colhash(),
             self.window_left,
             self.window_right,
