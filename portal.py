@@ -1,4 +1,4 @@
-from util import SaveableMetaclass
+from util import SaveableMetaclass, dictify_row
 from logging import getLogger
 
 
@@ -79,7 +79,7 @@ length. Does nothing by default."""
         rows = set()
         cols = ("dimension", "origin", "destination", "branch", "tick_from", "tick_to")
         for branch in self.existence:
-            for (tick_from, tick_to) in self.existence.branch:
+            for (tick_from, tick_to) in self.existence[branch].iteritems():
                 rows.add((
                     str(self.dimension),
                     str(self.orig),
@@ -90,6 +90,3 @@ length. Does nothing by default."""
         return {
             "portal_existence": [
                 dictify_row(row, cols) for row in iter(rows)]}
-
-    def save(self):
-        pass

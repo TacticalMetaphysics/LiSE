@@ -507,6 +507,8 @@ and your table will be ready.
                                          fkeys.itervalues()], create_stmt))
 
         def insert_rowdicts_table(db, rowdicts, tabname):
+            if rowdicts == []:
+                return []
             sample = rowdicts[0]
             cols_used = [col for col in colnames[tabname] if col in sample]
             colsstr = ", ".join(cols_used)
@@ -568,6 +570,8 @@ and your table will be ready.
         def delete_tabdict(db, tabdict):
             qryfmt = "DELETE FROM {0} WHERE {1}"
             for (tabn, rows) in tabdict.iteritems():
+                if rows == []:
+                    continue
                 vals = []
                 ors = []
                 for row in iter(rows):
