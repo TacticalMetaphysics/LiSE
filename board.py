@@ -121,3 +121,19 @@ each board will be open in at most one window at a time.
                     spot.window_bot < y < spot.window_top):
                 return spot
         return None
+
+    def get_tabdict(self):
+        return {
+            "board": [
+                {"dimension": str(self.dimension),
+                 "i": int(self),
+                 "wallpaper": str(self.wallpaper),
+                 "width": self.width,
+                 "height": self.height}]}
+
+    def save(self):
+        for pawn in self.pawns:
+            pawn.save()
+        for spot in self.spots:
+            spot.save()
+        self.coresave()

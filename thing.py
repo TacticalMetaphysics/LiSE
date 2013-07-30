@@ -139,6 +139,7 @@ else to do.
             tick = self.db.tick
         prevstep = path.pop()
         prevtick = tick
+        step = None
         while path != []:
             step = path.pop()
             port = self.dimension.portals_by_orign_destn[str(prevstep)][str(step)]
@@ -146,7 +147,8 @@ else to do.
             self.set_location(port, branch, prevtick, tick_out)
             prevstep = step
             prevtick = tick_out
-        self.set_location(step, branch, prevtick)
+        if step is not None:
+            self.set_location(step, branch, prevtick)
 
     def add_journey(self, journey, branch=None, tick=None):
         if branch is None:

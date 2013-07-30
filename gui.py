@@ -215,19 +215,12 @@ class GameWindow(pyglet.window.Window):
                 self, row[0], row[1], row[2], row[3], row[4],
                 self.db.styledict[row[5]])
         for row in menu_item_rows:
-            oncl = row[3]
-            (funname, argstr) = re.match("(.+)\((.*)\)", oncl).groups()
-            while len(self.menus_by_name[row[0]].items) <= row[1]:
-                self.menus_by_name[row[0]].items.append(None)
-            (fun, argre) = self.db.func[funname]
             self.menus_by_name[row[0]].items[row[1]] = MenuItem(
                 self.menus_by_name[row[0]],
                 row[1],
                 row[2],
                 row[4],
-                fun,
-                argstr,
-                argre)
+                row[3])
         self.hands_by_name = OrderedDict()
         for row in hand_rows:
             self.hands_by_name[row[0]] = Hand(
@@ -1138,3 +1131,33 @@ and highlight it.
                     menu_item.label.delete()
                 except (AttributeError, AssertionError):
                     pass
+
+    def on_close(self):
+        self.dimension.save()
+        self.board.save()
+        for hand in self.hands_by_name.itervalues():
+            hand.save()
+        for cal in self.calendars:
+            cal.save()
+        for menu in self.menus_by_name.itervalues():
+            menu.save()
+        self.db.c.execute(
+            "DELETE FROM window WHERE name=?", (str(self),))
+        save_these = (
+            str(self),
+            self.min_width,
+            self.min_height,
+            str(self.dimension),
+            int(self.board),
+            self.arrowhead_size,
+            self.arrow_width,
+            self.view_left,
+            self.view_bot,
+            self.main_menu_name)
+        self.db.c.execute(
+            "INSERT INTO window VALUES ({0})".format(
+                ", ".join(["?"] * len(save_these))),
+            save_these)
+        self.db.conn.commit()
+        self.db.conn.close()
+        super(GameWindow, self).on_close()

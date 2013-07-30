@@ -179,6 +179,8 @@ class TerminableImg:
 
 class BranchTicksIter:
     def __init__(self, d):
+        print "BranchTicksIter constructed for:"
+        print d
         self.branchiter = d.iteritems()
         self.branch = None
         self.tickfromiter = None
@@ -189,6 +191,9 @@ class BranchTicksIter:
     def next(self):
         try:
             (tick_from, vtup) = self.tickfromiter.next()
+            print "Iterating over: "
+            print tick_from
+            print vtup
             if isinstance(vtup, tuple):
                 tick_to = vtup[-1]
                 value = vtup[:-1]

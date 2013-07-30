@@ -233,6 +233,8 @@ mouse."""
         
 
     def get_tabdict(self):
+        print "About to make a tabdict for spot with coords:"
+        print self.coord_dict
         return {
             "spot_img": [
                 {
@@ -242,8 +244,8 @@ mouse."""
                     "branch": branch,
                     "tick_from": tick_from,
                     "tick_to": tick_to,
-                    "img": imgn}
-                for (branch, tick_from, tick_to, imgn) in
+                    "img": str(img)}
+                for (branch, tick_from, tick_to, img) in
                 BranchTicksIter(self.imagery)],
             "spot_interactive": [
                 {

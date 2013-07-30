@@ -28,7 +28,7 @@ class MenuItem:
     visible = True
     interactive = True
 
-    def __init__(self, menu, idx, text, closer, on_click_fun, on_click_arg_str, on_click_arg_re):
+    def __init__(self, menu, idx, text, closer, on_click):
         """Return a menu item in the given board, the given menu; at the given
 index in that menu; with the given text; which executes the given
 effect deck when clicked; closes or doesn't when clicked; starts
@@ -42,14 +42,20 @@ With db, register in db's menuitemdict.
         self.window = self.menu.window
         self.idx = idx
         self._text = text
+        while len(self.menu.items) <= self.idx:
+            self.menu.items.append(None)
+        self.menu.items[self.idx] = self
+        self._on_click = on_click
+        (funname, argstr) = re.match("(.+)\((.*)\)", on_click).groups()
+        (fun, argre) = self.db.func[funname]
         try:
-            on_click_arg_tup = re.match(on_click_arg_re, on_click_arg_str).groups()
+            on_click_arg_tup = re.match(argre, argstr).groups()
         except:
             on_click_arg_tup = tuple()
-        def on_click(self):
+        def on_click_fun(self):
             t = (self,) + on_click_arg_tup
-            return on_click_fun(*t)
-        self.on_click = on_click
+            return fun(*t)
+        self.on_click = on_click_fun
         self.closer = closer
         self.grabpoint = None
         self.label = None
@@ -163,11 +169,11 @@ just how to display this widget"""
     def get_tabdict(self):
         return {
             "menu_item": [{
-                "board": str(self.board),
+                "window": str(self.window),
                 "menu": str(self.menu),
                 "idx": self.idx,
                 "text": self._text,
-                "on_click": self.on_click,
+                "on_click": self._on_click,
                 "closer": self.closer}]
         }
 
@@ -339,15 +345,14 @@ me"""
     def get_tabdict(self):
         return {
             "menu": [{
-                "board": str(self.board),
+                "window": str(self.window),
                 "name": str(self),
                 "left": self.left_prop,
                 "bottom": self.bot_prop,
                 "top": self.top_prop,
                 "right": self.right_prop,
-                "style": str(self.style),
-                "main_for_window": self.main_for_window}]
-        }
+                "style": str(self.style)
+        }]}
 
     def save(self):
         for it in self.items:

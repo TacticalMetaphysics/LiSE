@@ -202,10 +202,12 @@ With db, register in db's pawndict.
             return (spot.window_x, spot.window_y)
 
     def get_tabdict(self):
+        print "About to make a tabdict for pawn with imagery:"
+        print self.imagery
         return {
             "pawn_img": [
                 {
-                    "dimension": str(self.dimension),
+                    "dimension": str(self.board.dimension),
                     "board": int(self.board),
                     "thing": str(self.thing),
                     "branch": branch,
@@ -216,7 +218,7 @@ With db, register in db's pawndict.
                 BranchTicksIter(self.imagery)],
             "pawn_interactive": [
                 {
-                    "dimension": str(self.dimension),
+                    "dimension": str(self.board.dimension),
                     "board": int(self.board),
                     "thing": str(self.thing),
                     "branch": branch,

@@ -280,8 +280,10 @@ schedule, possibly several.
         self.bot_prop = bot
         self.interactive = interactive
         self.rows_shown = rows_shown
+        self.style = style
         if scrolled_to is None:
             scrolled_to = self.db.tick
+        self.scrolled_to = scrolled_to
         self.scroll_factor = scroll_factor
         self.oldstate = None
         self.sprite = None
@@ -381,3 +383,19 @@ between any two states that should appear different on-screen."""
         """Become visible."""
         if not self.visible:
             self.toggle_visibility()
+
+    def get_tabdict(self):
+        return {
+            "calendar": [
+                {
+                    "window": str(self.window),
+                    "i": self.i,
+                    "left": self.left_prop,
+                    "right": self.right_prop,
+                    "top": self.top_prop,
+                    "bot": self.bot_prop,
+                    "style": str(self.style),
+                    "interactive": self.interactive,
+                    "rows_shown": self.rows_shown,
+                    "scrolled_to": self.scrolled_to,
+                    "scroll_factor": self.scroll_factor}]}

@@ -1,5 +1,5 @@
 import pyglet
-from util import SaveableMetaclass, PatternHolder, phi, dictify_row
+from util import SaveableMetaclass, PatternHolder, phi, dictify_row, BranchTicksIter
 
 """Views on Effects and EffectDecks that look like cards--you know,
 rectangles with letters and pictures on them."""
@@ -435,31 +435,11 @@ class Hand:
 
     def get_tabdict(self):
         return {
-            "hand_card": [
-                {
-                    "hand": self.name,
-                    "idx": idx,
-                    "card": str(card)}
-                for (idx, card) in
-                self.db.handcarddict[self.name].iteritems()],
-            "hand_board": {
-                "hand": self.name,
-                "board": self._board,
-                "visible": self._visible,
-                "interactive": self._interactive,
-                "style": self._style,
-                "left": self._left,
-                "right": self._right,
-                "bot": self._bot,
-                "top": self._top}}
-
-    def get_keydict(self):
-        return {
-            "hand_card": [
-                {
-                    "hand": self.name,
-                    "idx": idx}
-                for idx in self.db.handcarddict[self.name].iterkeys()],
-            "hand_board": {
-                "hand": self.name,
-                "board": self._board}}
+            "hand": [
+                {"window": str(self.window),
+                 "effect_deck": str(self.deck),
+                 "left": self.left_prop,
+                 "right": self.right_prop,
+                 "top": self.top_prop,
+                 "bot": self.bot_prop,
+                 "style": str(self.style)}]}
