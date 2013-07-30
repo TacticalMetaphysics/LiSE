@@ -3,16 +3,14 @@ import ctypes
 import math
 import logging
 import re
-from dimension import Dimension
-from style import Color, Style, read_styles
 from util import SaveableMetaclass, dictify_row
 from math import atan, pi, sin, cos, hypot
 from arrow import Arrow
-from collections import OrderedDict
-from card import Hand, Card
 from menu import Menu, MenuItem
+from card import Hand
 from calendar import Calendar
-from effect import load_effect_decks
+
+from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 
@@ -164,8 +162,7 @@ class TransparencyOrderedGroup(
     pass
 
 
-class GameWindow:
-    """Instantiates a Pyglet window and displays the given board in it."""
+class WindowSaver:
     __metaclass__ = SaveableMetaclass
     tables = [
         ("window",
@@ -183,99 +180,45 @@ class GameWindow:
          {"dimension, board": ("board", "dimension, i"),
           "main_menu": ("menu", "name")},
          ["view_left>=0", "view_bot>=0"])]
+    def __init__(self, win):
+        self.win = win
+
+
+class GameWindow(pyglet.window.Window):
+    """Instantiates a Pyglet window and displays the given board in it."""
     edge_order = 1
 
-    def __init__(self, gamestate, windowname):
-        self.window = pyglet.window.Window()
-        self.name = windowname
-        self.db = gamestate.db
-        self.gamestate = gamestate
-        self.gamestate.window_by_name[self.name] = self
-        # Going with a monolithic loader for now because it's
-        # comprehensible and I want to get things running again asap.
-        self.db.c.execute(
-            "SELECT min_width, min_height, dimension, board, arrowhead_size, "
-            "arrow_width, view_left, view_bot, main_menu FROM window WHERE name=?",
-            (windowname,))
-        for row in self.db.c:
-            (self.min_width, self.min_height, dimn, boardi, self.arrowhead_size,
-             self.arrow_width, self.view_left, self.view_bot, self.main_menu_name) = row
-            self.window.set_minimum_size(self.min_width, self.min_height)
-            self.dimension = Dimension(self.db, dimn)
-            self.dimension.load()
-            self.board = self.dimension.load_board(self, boardi)
-        self.arrow_girth = self.arrow_width * 2
-        self.squareoff = self.arrowhead_size * math.sin(fortyfive)
-        stylenames = set()
-        self.db.c.execute(
-            "SELECT name, left, bottom, top, right, style FROM menu "
-            "WHERE window=?",
-            (self.name,))
-        menu_rows = self.db.c.fetchall()
-        menunames = set()
-        for row in menu_rows:
-            menunames.add(row[0])
-            stylenames.add(row[5])
-        self.db.c.execute(
-            "SELECT i, left, right, top, bot, style, interactive, "
-            "rows_shown, scrolled_to, scroll_factor FROM calendar "
-            "WHERE window=? ORDER BY i",
-            (self.name,))
-        cal_rows = self.db.c.fetchall()
-        for row in cal_rows:
-            stylenames.add(row[5])
-        self.db.c.execute(
-            "SELECT effect_deck, left, right, top, bot, style FROM hand "
-            "WHERE window=?",
-            (self.name,))
-        hand_rows = self.db.c.fetchall()
-        effect_decks_needed = [row[0] for row in hand_rows]
-        effect_decks_loaded = load_effect_decks(self.db, effect_decks_needed)
-        cards_needed = set()
-        for effect_deck in effect_decks_loaded.itervalues():
-            for effect in effect_deck.get_effects():
-                cards_needed.add(str(effect))
-        self.db.c.execute("SELECT effect, display_name, image, text, style FROM card WHERE effect IN ({0})".format(", ".join(["?"] * len(cards_needed))), tuple(cards_needed))
-        card_rows = self.db.c.fetchall()
-        for row in card_rows:
-            stylenames.add(row[4])
-        styles_loaded = read_styles(self.db, stylenames)
-        cards_loaded = {}
-        for row in card_rows:
-            (effn, dispn, imgn, text, style) = row
-            if imgn is None:
-                img = None
-            else:
-                img = self.db.imgdict[imgn]
-            cards_loaded[effn] = Card(self.db,
-                self.db.effectdict[effn], dispn, text,
-                img, styles_loaded[style])
+    def __init__(self, db, name, min_width, min_height, dimension,
+                 boardnum, arrowhead_size, arrow_width, view_left, view_bot,
+                 main_menu, hand_rows, cal_rows, menu_rows, menu_item_rows):
+        """Initialize the game window, its groups, and some state tracking."""
+        super(GameWindow, self).__init__()
+        self.db = db
+        self.name = name
+        self.min_width = min_width
+        self.min_height = min_height
+        self.set_minimum_size(self.min_width, self.min_height)
+        self.dimension = dimension
         self.hands_by_name = OrderedDict()
-        for row in hand_rows:
-            self.hands_by_name[row[0]] = Hand(
-                self, effect_decks_loaded[row[0]], row[1], row[2], row[3], row[4],
-                styles_loaded[row[5]])
-        self.calendars = [
-            Calendar(self, row[0], row[1], row[2], row[3], row[4],
-                     styles_loaded[row[5]], row[6], row[7], row[8],
-                     row[9])
-            for row in cal_rows]
+        self.calendars = []
         self.menus_by_name = OrderedDict()
+        self.main_menu_name = main_menu
+        self.board = self.db.get_board(boardnum, self)
+        self.arrowhead_size = arrowhead_size
+        self.arrow_width = arrow_width
+        self.squareoff = self.arrowhead_size * math.sin(fortyfive)
+        self.view_left = view_left
+        self.view_bot = view_bot
+
         for row in menu_rows:
             self.menus_by_name[row[0]] = Menu(
                 self, row[0], row[1], row[2], row[3], row[4],
-                styles_loaded[row[5]])
-        self.db.c.execute(
-            "SELECT menu, idx, text, on_click, closer FROM menu_item WHERE window=? AND menu IN ({0})".format(", ".join(["?"] * len(menunames))), (self.name,) + tuple(menunames))
-        menu_item_rows = self.db.c.fetchall()
+                self.db.styledict[row[5]])
         for row in menu_item_rows:
             oncl = row[3]
             (funname, argstr) = re.match("(.+)\((.*)\)", oncl).groups()
-            if None in (funname, argstr):
-                raise Exception("WHAT THE FUCK")
             while len(self.menus_by_name[row[0]].items) <= row[1]:
                 self.menus_by_name[row[0]].items.append(None)
-            print "Making a menu item from " + str(row)
             (fun, argre) = self.db.func[funname]
             self.menus_by_name[row[0]].items[row[1]] = MenuItem(
                 self.menus_by_name[row[0]],
@@ -285,8 +228,20 @@ class GameWindow:
                 fun,
                 argstr,
                 argre)
-        for menu in self.menus_by_name.itervalues():
-            menu.adjust()
+        self.hands_by_name = OrderedDict()
+        for row in hand_rows:
+            self.hands_by_name[row[0]] = Hand(
+                self, self.db.effectdeckdict[row[0]], row[1], row[2], row[3], row[4],
+                self.db.styledict[row[5]])
+        self.calendars = []
+        for row in cal_rows:
+            self.calendars.append(
+                Calendar(
+                    self, row[0], row[1], row[2], row[3], row[4],
+                    self.db.styledict[row[5]], row[6], row[7], row[8],
+                    row[9]))
+
+
         self.biggroup = pyglet.graphics.Group()
         self.boardgroup = pyglet.graphics.OrderedGroup(0, self.biggroup)
         self.edgegroup = pyglet.graphics.OrderedGroup(1, self.biggroup)
@@ -338,729 +293,15 @@ class GameWindow:
         self.portal_from = None
         self.portal_triple = ((None, None), (None, None), (None, None))
 
-        @self.window.event
-        def on_draw():
-            """Draw the background image; all spots, pawns, and edges on the
-board; all visible menus; and the calendar, if it's visible."""
-            # draw the edges, representing portals
-            if self.portaling:
-                if self.portal_from is not None:
-                    for pair in self.portal_triple:
-                        for vex in pair:
-                            try:
-                                vex.delete()
-                            except:
-                                pass
-                    self.portal_triple = self.connect_arrow(
-                        self.portal_from.window_x,
-                        self.portal_from.window_y,
-                        self.last_mouse_x,
-                        self.last_mouse_y,
-                        self.portal_triple)
-                else:
-                    dx = self.dx
-                    dy = self.dy
-                    length = self.arrowhead_size * 2
-                    x = self.last_mouse_x
-                    y = self.last_mouse_y
-                    if dx == 0:
-                        if dy > 0:
-                            coords = (x, y - length, x, y)
-                        else:
-                            coords = (x, y + length, x, y)
-                    elif dy == 0:
-                        if dx > 0:
-                            coords = (x - length, y, x, y)
-                        else:
-                            coords = (x + length, y, x, y)
-                    else:
-                        xco = 1
-                        yco = 1
-                        if dx < 0:
-                            xco = -1
-                        if dy < 0:
-                            yco = -1
-                        x *= xco
-                        dx *= xco
-                        y *= yco
-                        dy *= yco
-                        theta = atan(float(dy)/float(dx))
-                        xleft = int(x - cos(theta) * length)
-                        ybot = int(y - sin(theta) * length)
-                        coords = (xleft * xco, ybot * yco, x * xco, y * yco)
-                        (x1, y1, x2, y2) = coords
-                        self.portal_triple = self.connect_arrow(
-                            x1, y1, x2, y2, 0, self.portal_triple)
-            for edge in self.board.arrows:
-                newstate = edge.get_state_tup()
-                if newstate in self.onscreen:
-                    continue
-                self.onscreen.discard(edge.oldstate)
-                self.onscreen.add(newstate)
-                edge.oldstate = newstate
-                if edge.orig.visible or edge.dest.visible:
-                    order = edge.order
-                    if edge in self.selected:
-                        order += 9000
-                        for pair in edge.vertices:
-                            for unit in pair:
-                                try:
-                                    unit.delete()
-                                except:
-                                    pass
-                        edge.vertices = (
-                            (None, None), (None, None), (None, None))
-                    edge.vertices = self.connect_arrow(
-                        edge.orig.window_x,
-                        edge.orig.window_y,
-                        edge.dest.window_x,
-                        edge.dest.window_y,
-                        order,
-                        edge.vertices,
-                        edge.dest.r,
-                        edge.highlit)
-                else:
-                    for pair in edge.vertices:
-                        for twopair in pair:
-                            try:
-                                twopair.delete()
-                            except:
-                                pass
-            # draw the spots, representing places
-            for spot in self.board.spots:
-                newstate = spot.get_state_tup()
-                if newstate in self.onscreen:
-                    continue
-                self.onscreen.discard(spot.oldstate)
-                self.onscreen.add(newstate)
-                spot.oldstate = newstate
-                if spot.visible:
-                    l = spot.window_left
-                    r = spot.window_right
-                    b = spot.window_bot
-                    t = spot.window_top
-                    if spot in self.selected:
-                        yelo = (255, 255, 0, 0)
-                        spot.box_edges = self.draw_box(
-                            l, t, r, b, yelo, self.higroup, spot.box_edges)
-                    else:
-                        for vertls in spot.box_edges:
-                            try:
-                                vertls.delete()
-                            except (AttributeError, AssertionError):
-                                pass
-                        spot.box_edges = (None, None, None, None)
-                    try:
-                        spot.sprite.x = spot.window_left
-                        spot.sprite.y = spot.window_bot
-                    except AttributeError:
-                        spot.sprite = pyglet.sprite.Sprite(
-                            spot.img.tex,
-                            spot.window_left,
-                            spot.window_bot,
-                            batch=self.batch,
-                            group=self.spotgroup)
-                else:
-                    try:
-                        spot.sprite.delete()
-                    except (AttributeError, AssertionError):
-                        pass
-            # draw the pawns, representing things
-            for pawn in self.board.pawns:
-                newstate = pawn.get_state_tup()
-                if newstate in self.onscreen:
-                    continue
-                self.onscreen.discard(pawn.oldstate)
-                self.onscreen.add(newstate)
-                pawn.oldstate = newstate
-                if pawn.visible:
-                    l = pawn.window_left
-                    r = pawn.window_right
-                    b = pawn.window_bot
-                    t = pawn.window_top
-                    try:
-                        pawn.sprite.x = pawn.window_left
-                        pawn.sprite.y = pawn.window_bot
-                    except AttributeError:
-                        pawn.sprite = pyglet.sprite.Sprite(
-                            pawn.img.tex,
-                            l, b,
-                            batch=self.batch,
-                            group=self.pawngroup)
-                    if pawn in self.selected:
-                        yelo = (255, 255, 0, 0)
-                        pawn.box_edges = self.draw_box(
-                            l, t, r, b, yelo, self.higroup, pawn.box_edges)
-                    else:
-                        for edge in pawn.box_edges:
-                            try:
-                                edge.delete()
-                            except (AttributeError, AssertionError):
-                                pass
-                        pawn.box_edges = (None, None, None, None)
-                else:
-                    try:
-                        pawn.sprite.delete()
-                    except (AttributeError, AssertionError):
-                        pass
-                    for edge in pawn.box_edges:
-                        try:
-                            edge.delete()
-                        except (AttributeError, AssertionError):
-                            pass
-
-            # draw the menus, really just their backgrounds for the moment
-            for (menuname, menu) in self.menus_by_name.iteritems():
-                menustate = menu.get_state_tup()
-                if menustate not in self.onscreen:
-                    self.onscreen.add(menustate)
-                    self.onscreen.discard(menu.oldstate)
-                    menu.oldstate = menustate
-                    if menu.visible or menuname == self.main_menu_name:
-                        image = (
-                            menu.inactive_pattern.create_image(
-                                menu.width,
-                                menu.height))
-                        menu.sprite = pyglet.sprite.Sprite(
-                            image, menu.window_left, menu.window_bot,
-                            batch=self.batch, group=self.calgroup)
-                    else:
-                        try:
-                            menu.sprite.delete()
-                        except:
-                            pass
-                for item in menu:
-                    newstate = item.get_state_tup()
-                    if newstate in self.onscreen:
-                        continue
-                    self.onscreen.add(newstate)
-                    self.onscreen.discard(item.oldstate)
-                    item.oldstate = newstate
-                    if menu.visible or menuname == self.main_menu_name:
-                        item.label = pyglet.text.Label(
-                            item.text,
-                            menu.style.fontface,
-                            menu.style.fontsize,
-                            color=menu.style.textcolor.tup,
-                            x=item.window_left,
-                            y=item.window_bot,
-                            batch=self.batch,
-                            group=self.labelgroup)
-                    else:
-                        try:
-                            item.label.delete()
-                        except:
-                            pass
-                        
-
-
-            # draw the calendar
-            for calendar in self.board.calendars:
-                newstate = calendar.get_state_tup()
-                if newstate not in self.onscreen:
-                    self.onscreen.add(newstate)
-                    self.onscreen.discard(self.calendar.oldstate)
-                    self.calendar.oldstate = newstate
-                    for calcol in calendar.cols:
-                        if calcol.width != calcol.old_width:
-                            calcol.old_image = (
-                                calcol.inactive_pattern.create_image(
-                                    calcol.width, calcol.height))
-                            calcol.old_width = calcol.width
-                            image = calcol.old_image
-                            calcol.sprite = pyglet.sprite.Sprite(
-                                image,
-                                calcol.window_left,
-                                calcol.window_bot,
-                                batch=self.batch,
-                                group=self.calgroup)
-                        for cel in calcol.celldict.itervalues():
-                            if cel.visible:
-                                if self.hovered == cel:
-                                    color = cel.style.fg_active.tup
-                                    if (
-                                            cel.old_active_image is None or
-                                            cel.old_width != cel.width or
-                                            cel.old_height != cel.height):
-                                        cel.old_active_image = (
-                                            cel.active_pattern.create_image(
-                                                cel.width, cel.height).texture)
-                                        cel.old_width = cel.width
-                                        cel.old_height = cel.height
-                                    image = cel.old_active_image
-                                else:
-                                    color = cel.style.fg_inactive.tup
-                                    if (
-                                            cel.old_inactive_image is None or
-                                            cel.old_width != cel.width or
-                                            cel.old_height != cel.height):
-                                        cel.old_inactive_image = (
-                                            cel.inactive_pattern.create_image(
-                                                cel.width, cel.height).texture)
-                                        cel.old_width = cel.width
-                                        cel.old_height = cel.height
-                                    image = cel.old_inactive_image
-                                cel.sprite = pyglet.sprite.Sprite(
-                                    image,
-                                    cel.window_left,
-                                    cel.window_bot,
-                                    batch=self.batch,
-                                    group=self.celgroup)
-                                y = cel.window_top - cel.label_height
-                                if cel.label is None:
-                                    cel.label = pyglet.text.Label(
-                                        cel.text,
-                                        cel.style.fontface,
-                                        cel.style.fontsize,
-                                        width=cel.width,
-                                        height=cel.height,
-                                        x=cel.window_left,
-                                        y=y,
-                                        multiline=True,
-                                        batch=self.batch,
-                                        group=self.labelgroup)
-                                else:
-                                    cel.label.x = cel.window_left
-                                    cel.label.y = y
-                            else:
-                                try:
-                                    cel.label.delete()
-                                except AttributeError:
-                                    pass
-                                try:
-                                    cel.sprite.delete()
-                                except AttributeError:
-                                    pass
-                                cel.label = None
-                                cel.sprite = None
-            if self.last_age != self.db.tick:
-                # draw the time line on top of the calendar
-                for calendar in self.board.calendars:
-                    try:
-                        calendar.timeline.delete()
-                    except (AttributeError, AssertionError):
-                        pass
-                    top = calendar.window_top
-                    left = calendar.window_left
-                    right = calendar.window_right
-                    starting = calendar.scrolled_to
-                    age = self.db.tick
-                    age_from_starting = age - starting
-                    age_offset = age_from_starting * calendar.row_height
-                    y = top - age_offset
-                    color = (255, 0, 0)
-                    if (
-                        calendar.visible and
-                        y > calendar.window_bot):
-                        calendar.timeline = self.batch.add(
-                            2, pyglet.graphics.GL_LINES, self.topgroup,
-                            ('v2i', (left, y, right, y)),
-                            ('c3B', color * 2))
-                self.last_age = self.db.tick
-            # draw any and all hands
-            for hand in self.hands:
-                # No state management yet because the hand itself has
-                # no graphics. The cards in it do.
-                if not (hand.visible and hand.on_screen):
-                    continue
-                for card in hand:
-                    ctxth = card.textholder
-                    redrawn = (card.bgimage is None or
-                               ctxth.bgimage is None or
-                               card.bgimage.width != card.width or
-                               card.bgimage.height != card.height)
-                    if redrawn:
-                        card.bgimage = (
-                            card.pats.bg_inactive.create_image(
-                                card.width, card.height))
-                        ctxth.bgimage = (
-                            card.pats.bg_active.create_image(
-                                ctxth.width,
-                                ctxth.height))
-                        try:
-                            card.bgsprite.delete()
-                        except (AttributeError, AssertionError):
-                            pass
-                        try:
-                            ctxth.bgsprite.delete()
-                        except (AttributeError, AssertionError):
-                            pass
-                        card.bgsprite = None
-                        ctxth.bgsprite = None
-                    if card.visible:
-                        if card.bgsprite is None:
-                            card.bgsprite = pyglet.sprite.Sprite(
-                                card.bgimage,
-                                card.window_left,
-                                card.window_bot,
-                                batch=self.batch,
-                                group=self.calgroup)
-                        else:
-                            if card.bgsprite.x != card.window_left:
-                                card.bgsprite.x = card.window_left
-                            if card.bgsprite.y != card.window_bot:
-                                card.bgsprite.y = card.window_bot
-                            if redrawn:
-                                card.bgsprite.image = card.bgimage
-                        if ctxth.bgsprite is None:
-                            ctxth.bgsprite = pyglet.sprite.Sprite(
-                                ctxth.bgimage,
-                                ctxth.window_left,
-                                ctxth.window_bot,
-                                batch=self.batch,
-                                group=self.celgroup)
-                        else:
-                            if ctxth.bgsprite.x != ctxth.window_left:
-                                ctxth.bgsprite.x = ctxth.window_left
-                            if ctxth.bgsprite.y != ctxth.window_bot:
-                                ctxth.bgsprite.y = ctxth.window_bot
-                            if redrawn:
-                                ctxth.bgsprite.image = ctxth.bgimage
-                        if ctxth.label is None:
-                            ctxth.label = pyglet.text.Label(
-                                card.text,
-                                ctxth.style.fontface,
-                                ctxth.style.fontsize,
-                                anchor_y='bottom',
-                                x=ctxth.text_left,
-                                y=ctxth.text_bot,
-                                width=ctxth.text_width,
-                                height=ctxth.text_height,
-                                multiline=True,
-                                batch=self.batch,
-                                group=self.labelgroup)
-                        else:
-                            if (
-                                    ctxth.label.x !=
-                                    ctxth.text_left):
-                                ctxth.label.x = (
-                                    ctxth.text_left)
-                            if (
-                                    ctxth.label.y !=
-                                    ctxth.text_bot):
-                                ctxth.label.y = (
-                                    ctxth.text_bot)
-                            if (
-                                    ctxth.label.width !=
-                                    ctxth.text_width):
-                                ctxth.label.width = (
-                                    ctxth.text_width)
-                            if (
-                                    ctxth.label.height !=
-                                    ctxth.text_height):
-                                ctxth.label.height = (
-                                    ctxth.text_height)
-                        if isinstance(card.img, pyglet.image.AbstractImage):
-                            x = card.window_left + card.style.spacing
-                            y = ctxth.window_top + card.style.spacing
-                            if card.imgsprite is None:
-                                card.imgsprite = pyglet.sprite.Sprite(
-                                    card.img,
-                                    x, y,
-                                    batch=self.batch,
-                                    group=self.celgroup)
-                            else:
-                                if card.imgsprite.x != x:
-                                    card.imgsprite.x = x
-                                if card.imgsprite.y != y:
-                                    card.imgsprite.y = y
-                    else:  # card not visible
-                        for dead in (
-                                card.bgsprite,
-                                card.imgsprite,
-                                ctxth.bgsprite,
-                                ctxth.label):
-                            if dead is not None:
-                                try:
-                                    dead.delete()
-                                except:
-                                    pass
-                        card.bgsprite = None
-                        card.imgsprite = None
-                        ctxth.bgsprite = None
-                        ctxth.label = None
-            # draw the background image
-            if self.drawn_board is None:
-                self.drawn_board = pyglet.sprite.Sprite(
-                    self.board.wallpaper.tex,
-                    self.offset_x,
-                    self.offset_y,
-                    batch=self.batch, group=self.boardgroup)
-            else:
-                if self.drawn_board.x != self.offset_x:
-                    self.drawn_board.x = self.offset_x
-                if self.drawn_board.y != self.offset_y:
-                    self.drawn_board.y = self.offset_y
-            # well, I lied. I was really only adding those things to the batch.
-            # NOW I'll draw them.
-            self.batch.draw()
-            self.resized = False
-
-        @self.window.event
-        def on_mouse_motion(x, y, dx, dy):
-            """Find the widget, if any, that the mouse is over, and highlight
-it."""
-            self.last_mouse_x = x
-            self.last_mouse_y = y
-            del self.dx_hist[0]
-            del self.dy_hist[0]
-            self.dx_hist.append(dx)
-            self.dy_hist.append(dy)
-            if self.hovered is None:
-                for hand in self.hands:
-                    if (
-                            hand.visible and
-                            hand.interactive and
-                            x > hand.window_left and
-                            x < hand.window_right and
-                            y > hand.window_bot and
-                            y < hand.window_top):
-                        for card in hand:
-                            if (
-                                    x > card.window_left and
-                                    x < card.window_right):
-                                self.hovered = card
-                                card.tweaks += 1
-                                return
-                for menu in self.menus:
-                    if str(menu) == self.main_menu_name or menu.visible:
-                        if (
-                                x > menu.window_left and
-                                x < menu.window_right and
-                                y > menu.window_bot and
-                                y < menu.window_top):
-                            for item in menu.items:
-                                if (
-                                        y > item.window_bot and
-                                        y < item.window_top):
-                                    self.hovered = item
-                                    item.tweaks += 1
-                                    return
-            else:
-                if not (
-                        x > self.hovered.window_left and
-                        x < self.hovered.window_right and
-                        y > self.hovered.window_bot and
-                        y < self.hovered.window_top):
-                    self.hovered.tweaks += 1
-                    self.hovered = None
-                
-
-        @self.window.event
-        def on_mouse_press(x, y, button, modifiers):
-            """If there's something already highlit, and the mouse is
-still over it when pressed, it's been half-way clicked; remember this."""
-            logger.debug("mouse pressed at %d, %d", x, y)
-            if self.placing or self.thinging:
-                return
-            elif self.hovered is None:
-                for pawn in self.board.pawns:
-                    if (
-                            pawn.visible and
-                            pawn.interactive and
-                            x > pawn.window_left and
-                            x < pawn.window_right and
-                            y > pawn.window_bot and
-                            y < pawn.window_top):
-                        self.pressed = pawn
-                        self.pressed.tweaks += 1
-                        return
-                for spot in self.board.spots:
-                    if (
-                            spot.visible and
-                            spot.interactive and
-                            x > spot.window_left and
-                            x < spot.window_right and
-                            y > spot.window_bot and
-                            y < spot.window_top):
-                        self.pressed = spot
-                        self.pressed.tweaks += 1
-                        return
-                for edge in self.board.arrows:
-                    if edge.touching(x, y):
-                        if (
-                                self.pressed is None or
-                                edge.order > self.pressed.order):
-                            self.pressed = edge
-            else:
-                self.pressed = self.hovered
-
-        @self.window.event
-        def on_mouse_release(x, y, button, modifiers):
-            """If something was being dragged, drop it. If something was being
-pressed but not dragged, it's been clicked. Otherwise do nothing."""
-            logger.debug("mouse released at %d, %d", x, y)
-            if self.placing:
-                placed = self.db.make_generic_place(self.board.dimension)
-                self.db.make_spot(
-                    self.board, placed,
-                    x + self.offset_x,
-                    y + self.offset_y)
-                self.window.set_mouse_cursor()
-                self.placing = False
-                logger.debug("made generic place: %s", str(placed))
-            elif self.thinging:
-                thung = self.db.make_generic_thing(str(self.board))
-                self.db.make_pawn(str(self.board), str(thung))
-                self.thinging = False
-                logger.debug("made generic thing: %s", str(thung))
-            elif self.portaling:
-                if self.portal_from is None:
-                    if hasattr(self.pressed, 'place'):
-                        self.portal_from = self.pressed
-                        logger.debug(
-                            "Making a portal from %s...",
-                            str(self.portal_from.place))
-                    else:
-                        self.portaling = False
-                        self.portal_from = None
-                        for line in self.portal_triple:
-                            if line is not None:
-                                for edge in line:
-                                    try:
-                                        edge.delete()
-                                    except:
-                                        pass
-                        self.portal_triple = (
-                            (None, None), (None, None), (None, None))
-
-                else:
-                    if (
-                            hasattr(self.pressed, 'place') and
-                            hasattr(self.portal_from, 'place') and
-                            self.pressed.place != self.portal_from.place):
-                        logger.debug("...to %s", str(self.pressed.place))
-                        port = self.db.make_portal(
-                            self.portal_from.place,
-                            self.pressed.place)
-                        a = Arrow(self.board, port)
-                        port.arrows = []
-                        while len(port.arrows) <= int(self.board):
-                            port.arrows.append(None)
-                        port.arrows[int(self.board)] = a
-                    self.portaling = False
-                    self.portal_from = None
-                    for line in self.portal_triple:
-                        for edge in line:
-                            try:
-                                edge.delete()
-                            except:
-                                pass
-                    self.portal_triple = (
-                        (None, None), (None, None), (None, None))
-            elif self.grabbed is not None:
-                if hasattr(self.grabbed, 'dropped'):
-                    self.grabbed.dropped(x, y, button, modifiers)
-            elif self.pressed is not None:
-                if (
-                        x > self.pressed.window_left and
-                        x < self.pressed.window_right and
-                        y > self.pressed.window_bot and
-                        y < self.pressed.window_top):
-                    logger.debug("%s clicked", str(self.pressed))
-                    if hasattr(self.pressed, 'onclick'):
-                        self.pressed.onclick()
-                    if hasattr(self.pressed, 'selectable'):
-                        logger.debug("Selecting it.")
-                        self.selected.add(self.pressed)
-                        self.pressed.tweaks += 1
-                        if hasattr(self.pressed, 'reciprocate'):
-                            reciprocal = self.pressed.reciprocate()
-                            if reciprocal is not None:
-                                self.selected.add(reciprocal)
-                                reciprocal.tweaks += 1
-                if hasattr(self.pressed, 'calcol'):
-                    self.pressed.calcol.show()
-                    self.calendar.adjust()
-            if self.pressed is None or self.pressed not in self.selected:
-                need_adjust = False
-                for sel in iter(self.selected):
-                    sel.tweaks += 1
-                    if hasattr(sel, 'calcol'):
-                        sel.calcol.hide()
-                        need_adjust = True
-                self.selected = set()
-                if need_adjust:
-                    self.calendar.adjust()
-            self.pressed = None
-            self.grabbed = None
-
-        @self.window.event
-        def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
-            """If the thing previously pressed has a
-move_with_mouse method, use it.
-
-            """
-            if self.grabbed is None:
-                if (
-                        self.pressed is not None and
-                        x > self.pressed.window_left and
-                        x < self.pressed.window_right and
-                        y > self.pressed.window_bot and
-                        y < self.pressed.window_top and
-                        hasattr(self.pressed, 'move_with_mouse')):
-                    self.grabbed = self.pressed
-                else:
-                    self.view_left -= dx
-                    if (
-                            self.view_left +
-                            self.window.width >
-                            self.board.wallpaper.width):
-                        self.view_left = (
-                            self.img.width -
-                            self.window.width)
-                    elif self.view_left < 0:
-                        self.view_left = 0
-                    self.view_bot -= dy
-                    if (
-                            self.view_bot +
-                            self.window.height >
-                            self.board.wallpaper.height):
-                        self.view_bot = (
-                            self.img.height -
-                            self.window.height)
-                    elif self.view_bot < 0:
-                        self.view_bot = 0
-                    if self.pressed is not None:
-                        self.pressed = None
-                    self.grabbed = None
-            else:
-                self.grabbed.move_with_mouse(x, y, dx, dy, buttons, modifiers)
-
-        @self.window.event
-        def on_key_press(symbol, modifiers):
-            if symbol == pyglet.window.key.DELETE:
-                self.delete_selection()
-
-        @self.window.event
-        def on_resize(w, h):
-            """Inform the on_draw function that the window's been resized."""
-            self.resized = True
-
-        @self.window.event
-        def on_mouse_scroll(x, y, scroll_x, scroll_y):
-            # for now, this only does anything if you're moused over
-            # the calendar
-            if (
-                    self.calendar.visible and
-                    x > self.calendar.window_left and
-                    x < self.calendar.window_right and
-                    y > self.calendar.window_bot and
-                    y < self.calendar.window_top):
-                sf = self.calendar.scroll_factor
-                self.calendar.scrolled_to += scroll_y * sf
-
     def __getattr__(self, attrn):
-        if attrn == 'width':
-            return self.window.width
-        elif attrn == 'height':
-            return self.window.height
-        elif attrn == 'hands':
+        if attrn == 'hands':
             return self.hands_by_name.itervalues()
         elif attrn == 'calendars':
             return self.calendars_by_name.itervalues()
         elif attrn == 'menus':
             return self.menus_by_name.itervalues()
+        elif attrn == 'main_menu':
+            return self.menus_by_name[self.main_menu_name]
         elif attrn == 'dx':
             return sum(self.dx_hist)
         elif attrn == 'dy':
@@ -1069,12 +310,702 @@ move_with_mouse method, use it.
             return -1 * self.view_left
         elif attrn == 'offset_y':
             return -1 * self.view_bot
+        elif attrn == 'arrow_girth':
+            return self.arrow_width * 2
         else:
             raise AttributeError(
                 "GameWindow has no attribute named {0}".format(attrn))
 
+    def on_mouse_press(self, x, y, button, modifiers):
+        """If there's something already highlit, and the mouse is
+still over it when pressed, it's been half-way clicked; remember this."""
+        logger.debug("mouse pressed at %d, %d", x, y)
+        if not (self.placing or self.thinging):
+            self.pressed = self.hovered
+
+    def on_mouse_release(self, x, y, button, modifiers):
+        """If something was being dragged, drop it. If something was being
+pressed but not dragged, it's been clicked. Otherwise do nothing."""
+        logger.debug("mouse released at %d, %d", x, y)
+        if self.placing:
+            placed = self.db.make_generic_place(self.board.dimension)
+            self.db.make_spot(
+                self.board, placed,
+                x + self.offset_x,
+                y + self.offset_y)
+            self.set_mouse_cursor()
+            self.placing = False
+            logger.debug("made generic place: %s", str(placed))
+        elif self.thinging:
+            thung = self.db.make_generic_thing(str(self.board))
+            self.db.make_pawn(str(self.board), str(thung))
+            self.thinging = False
+            logger.debug("made generic thing: %s", str(thung))
+        elif self.portaling:
+            if self.portal_from is None:
+                if hasattr(self.pressed, 'place'):
+                    self.portal_from = self.pressed
+                    logger.debug(
+                        "Making a portal from %s...",
+                        str(self.portal_from.place))
+                else:
+                    self.portaling = False
+                    self.portal_from = None
+                    for line in self.portal_triple:
+                        if line is not None:
+                            for edge in line:
+                                try:
+                                    edge.delete()
+                                except:
+                                    pass
+                    self.portal_triple = (
+                        (None, None), (None, None), (None, None))
+            else:
+                if (
+                        hasattr(self.pressed, 'place') and
+                        hasattr(self.portal_from, 'place') and
+                        self.pressed.place != self.portal_from.place):
+                    logger.debug("...to %s", str(self.pressed.place))
+                    port = self.db.make_portal(
+                        self.portal_from.place,
+                        self.pressed.place)
+                    a = Arrow(self.board, port)
+                    port.arrows = []
+                    while len(port.arrows) <= int(self.board):
+                        port.arrows.append(None)
+                    port.arrows[int(self.board)] = a
+                self.portaling = False
+                self.portal_from = None
+                for line in self.portal_triple:
+                    for edge in line:
+                        try:
+                            edge.delete()
+                        except:
+                            pass
+                self.portal_triple = (
+                    (None, None), (None, None), (None, None))
+        elif self.grabbed is not None:
+            if hasattr(self.grabbed, 'dropped'):
+                self.grabbed.dropped(x, y, button, modifiers)
+        elif self.pressed is not None:
+            if (
+                    x > self.pressed.window_left and
+                    x < self.pressed.window_right and
+                    y > self.pressed.window_bot and
+                    y < self.pressed.window_top):
+                logger.debug("%s clicked", str(self.pressed))
+                if hasattr(self.pressed, 'onclick'):
+                    self.pressed.onclick()
+                if hasattr(self.pressed, 'selectable'):
+                    logger.debug("Selecting it.")
+                    self.selected.add(self.pressed)
+                    self.pressed.tweaks += 1
+                    if hasattr(self.pressed, 'reciprocate'):
+                        reciprocal = self.pressed.reciprocate()
+                        if reciprocal is not None:
+                            self.selected.add(reciprocal)
+                            reciprocal.tweaks += 1
+            if hasattr(self.pressed, 'calcol'):
+                self.pressed.calcol.show()
+                self.calendar.adjust()
+        if self.pressed is None or self.pressed not in self.selected:
+            need_adjust = False
+            for sel in iter(self.selected):
+                sel.tweaks += 1
+                if hasattr(sel, 'calcol'):
+                    sel.calcol.hide()
+                    need_adjust = True
+            self.selected = set()
+            if need_adjust:
+                self.calendar.adjust()
+        self.pressed = None
+        self.grabbed = None
+
+    def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+        """If the thing previously pressed has a
+move_with_mouse method, use it.
+     """
+        if self.grabbed is None:
+            if (
+                    self.pressed is not None and
+                    x > self.pressed.window_left and
+                    x < self.pressed.window_right and
+                    y > self.pressed.window_bot and
+                    y < self.pressed.window_top and
+                    hasattr(self.pressed, 'move_with_mouse')):
+                self.grabbed = self.pressed
+            else:
+                self.view_left -= dx
+                if (
+                        self.view_left +
+                        self.width >
+                        self.board.wallpaper.width):
+                    self.view_left = (
+                        self.img.width -
+                        self.width)
+                elif self.view_left < 0:
+                    self.view_left = 0
+                self.view_bot -= dy
+                if (
+                        self.view_bot +
+                        self.height >
+                        self.board.wallpaper.height):
+                    self.view_bot = (
+                        self.img.height -
+                        self.height)
+                elif self.view_bot < 0:
+                    self.view_bot = 0
+                if self.pressed is not None:
+                    self.pressed = None
+                self.grabbed = None
+        else:
+            self.grabbed.move_with_mouse(x, y, dx, dy, buttons, modifiers)
+
+    def on_mouse_scroll(self, x, y, scroll_x, scroll_y):
+        # for now, this only does anything if you're moused over
+        # the calendar
+        if (
+                self.calendar.visible and
+                x > self.calendar.window_left and
+                x < self.calendar.window_right and
+                y > self.calendar.window_bot and
+                y < self.calendar.window_top):
+            sf = self.calendar.scroll_factor
+            self.calendar.scrolled_to += scroll_y * sf
+
+    def on_draw(self):
+        """Draw the background image; all spots, pawns, and edges on the
+d; all visible menus; and the calendar, if it's visible."""
+        # draw the edges, representing portals
+        if self.portaling:
+            if self.portal_from is not None:
+                for pair in self.portal_triple:
+                    for vex in pair:
+                        try:
+                            vex.delete()
+                        except:
+                            pass
+                self.portal_triple = self.connect_arrow(
+                    self.portal_from.window_x,
+                    self.portal_from.window_y,
+                    self.last_mouse_x,
+                    self.last_mouse_y,
+                    self.portal_triple)
+            else:
+                dx = self.dx
+                dy = self.dy
+                length = self.arrowhead_size * 2
+                x = self.last_mouse_x
+                y = self.last_mouse_y
+                if dx == 0:
+                    if dy > 0:
+                        coords = (x, y - length, x, y)
+                    else:
+                        coords = (x, y + length, x, y)
+                elif dy == 0:
+                    if dx > 0:
+                        coords = (x - length, y, x, y)
+                    else:
+                        coords = (x + length, y, x, y)
+                else:
+                    xco = 1
+                    yco = 1
+                    if dx < 0:
+                        xco = -1
+                    if dy < 0:
+                        yco = -1
+                    x *= xco
+                    dx *= xco
+                    y *= yco
+                    dy *= yco
+                    theta = atan(float(dy)/float(dx))
+                    xleft = int(x - cos(theta) * length)
+                    ybot = int(y - sin(theta) * length)
+                    coords = (xleft * xco, ybot * yco, x * xco, y * yco)
+                    (x1, y1, x2, y2) = coords
+                    self.portal_triple = self.connect_arrow(
+                        x1, y1, x2, y2, 0, self.portal_triple)
+        for edge in self.board.arrows:
+            newstate = edge.get_state_tup()
+            if newstate in self.onscreen:
+                continue
+            self.onscreen.discard(edge.oldstate)
+            self.onscreen.add(newstate)
+            edge.oldstate = newstate
+            if edge.orig.visible or edge.dest.visible:
+                order = edge.order
+                if edge in self.selected:
+                    order += 9000
+                    for pair in edge.vertices:
+                        for unit in pair:
+                            try:
+                                unit.delete()
+                            except:
+                                pass
+                    edge.vertices = (
+                        (None, None), (None, None), (None, None))
+                edge.vertices = self.connect_arrow(
+                    edge.orig.window_x,
+                    edge.orig.window_y,
+                    edge.dest.window_x,
+                    edge.dest.window_y,
+                    order,
+                    edge.vertices,
+                    edge.dest.r,
+                    edge.highlit)
+            else:
+                for pair in edge.vertices:
+                    for twopair in pair:
+                        try:
+                            twopair.delete()
+                        except:
+                            pass
+        # draw the spots, representing places
+        for spot in self.board.spots:
+            newstate = spot.get_state_tup()
+            if newstate in self.onscreen:
+                continue
+            self.onscreen.discard(spot.oldstate)
+            self.onscreen.add(newstate)
+            spot.oldstate = newstate
+            if spot.visible:
+                l = spot.window_left
+                r = spot.window_right
+                b = spot.window_bot
+                t = spot.window_top
+                if spot in self.selected:
+                    yelo = (255, 255, 0, 0)
+                    spot.box_edges = self.draw_box(
+                        l, t, r, b, yelo, self.higroup, spot.box_edges)
+                else:
+                    for vertls in spot.box_edges:
+                        try:
+                            vertls.delete()
+                        except (AttributeError, AssertionError):
+                            pass
+                    spot.box_edges = (None, None, None, None)
+                try:
+                    spot.sprite.x = spot.window_left
+                    spot.sprite.y = spot.window_bot
+                except AttributeError:
+                    spot.sprite = pyglet.sprite.Sprite(
+                        spot.img.tex,
+                        spot.window_left,
+                        spot.window_bot,
+                        batch=self.batch,
+                        group=self.spotgroup)
+            else:
+                try:
+                    spot.sprite.delete()
+                except (AttributeError, AssertionError):
+                    pass
+        # draw the pawns, representing things
+        for pawn in self.board.pawns:
+            newstate = pawn.get_state_tup()
+            if newstate in self.onscreen:
+                continue
+            self.onscreen.discard(pawn.oldstate)
+            self.onscreen.add(newstate)
+            pawn.oldstate = newstate
+            if pawn.visible:
+                l = pawn.window_left
+                r = pawn.window_right
+                b = pawn.window_bot
+                t = pawn.window_top
+                try:
+                    pawn.sprite.x = pawn.window_left
+                    pawn.sprite.y = pawn.window_bot
+                except AttributeError:
+                    pawn.sprite = pyglet.sprite.Sprite(
+                        pawn.img.tex,
+                        l, b,
+                        batch=self.batch,
+                        group=self.pawngroup)
+                if pawn in self.selected:
+                    yelo = (255, 255, 0, 0)
+                    pawn.box_edges = self.draw_box(
+                        l, t, r, b, yelo, self.higroup, pawn.box_edges)
+                else:
+                    for edge in pawn.box_edges:
+                        try:
+                            edge.delete()
+                        except (AttributeError, AssertionError):
+                            pass
+                    pawn.box_edges = (None, None, None, None)
+            else:
+                try:
+                    pawn.sprite.delete()
+                except (AttributeError, AssertionError):
+                    pass
+                for edge in pawn.box_edges:
+                    try:
+                        edge.delete()
+                    except (AttributeError, AssertionError):
+                        pass
+     # draw the menus, really just their backgrounds for the moment
+        for (menuname, menu) in self.menus_by_name.iteritems():
+            menustate = menu.get_state_tup()
+            if menustate not in self.onscreen:
+                self.onscreen.add(menustate)
+                self.onscreen.discard(menu.oldstate)
+                menu.oldstate = menustate
+                if menu.visible or menuname == self.main_menu_name:
+                    image = (
+                        menu.inactive_pattern.create_image(
+                            menu.width,
+                            menu.height))
+                    menu.sprite = pyglet.sprite.Sprite(
+                        image, menu.window_left, menu.window_bot,
+                        batch=self.batch, group=self.calgroup)
+                else:
+                    try:
+                        menu.sprite.delete()
+                    except:
+                        pass
+            for item in menu:
+                newstate = item.get_state_tup()
+                if newstate in self.onscreen:
+                    continue
+                self.onscreen.add(newstate)
+                self.onscreen.discard(item.oldstate)
+                item.oldstate = newstate
+                if menu.visible or menuname == self.main_menu_name:
+                    item.label = pyglet.text.Label(
+                        item.text,
+                        menu.style.fontface,
+                        menu.style.fontsize,
+                        color=menu.style.textcolor.tup,
+                        x=item.window_left,
+                        y=item.window_bot,
+                        batch=self.batch,
+                        group=self.labelgroup)
+                else:
+                    try:
+                        item.label.delete()
+                    except:
+                        pass
+                    
+      # draw the calendar
+        for calendar in self.board.calendars:
+            newstate = calendar.get_state_tup()
+            if newstate not in self.onscreen:
+                self.onscreen.add(newstate)
+                self.onscreen.discard(self.calendar.oldstate)
+                self.calendar.oldstate = newstate
+                for calcol in calendar.cols:
+                    if calcol.width != calcol.old_width:
+                        calcol.old_image = (
+                            calcol.inactive_pattern.create_image(
+                                calcol.width, calcol.height))
+                        calcol.old_width = calcol.width
+                        image = calcol.old_image
+                        calcol.sprite = pyglet.sprite.Sprite(
+                            image,
+                            calcol.window_left,
+                            calcol.window_bot,
+                            batch=self.batch,
+                            group=self.calgroup)
+                    for cel in calcol.celldict.itervalues():
+                        if cel.visible:
+                            if self.hovered == cel:
+                                color = cel.style.fg_active.tup
+                                if (
+                                        cel.old_active_image is None or
+                                        cel.old_width != cel.width or
+                                        cel.old_height != cel.height):
+                                    cel.old_active_image = (
+                                        cel.active_pattern.create_image(
+                                            cel.width, cel.height).texture)
+                                    cel.old_width = cel.width
+                                    cel.old_height = cel.height
+                                image = cel.old_active_image
+                            else:
+                                color = cel.style.fg_inactive.tup
+                                if (
+                                        cel.old_inactive_image is None or
+                                        cel.old_width != cel.width or
+                                        cel.old_height != cel.height):
+                                    cel.old_inactive_image = (
+                                        cel.inactive_pattern.create_image(
+                                            cel.width, cel.height).texture)
+                                    cel.old_width = cel.width
+                                    cel.old_height = cel.height
+                                image = cel.old_inactive_image
+                            cel.sprite = pyglet.sprite.Sprite(
+                                image,
+                                cel.window_left,
+                                cel.window_bot,
+                                batch=self.batch,
+                                group=self.celgroup)
+                            y = cel.window_top - cel.label_height
+                            if cel.label is None:
+                                cel.label = pyglet.text.Label(
+                                    cel.text,
+                                    cel.style.fontface,
+                                    cel.style.fontsize,
+                                    width=cel.width,
+                                    height=cel.height,
+                                    x=cel.window_left,
+                                    y=y,
+                                    multiline=True,
+                                    batch=self.batch,
+                                    group=self.labelgroup)
+                            else:
+                                cel.label.x = cel.window_left
+                                cel.label.y = y
+                        else:
+                            try:
+                                cel.label.delete()
+                            except AttributeError:
+                                pass
+                            try:
+                                cel.sprite.delete()
+                            except AttributeError:
+                                pass
+                            cel.label = None
+                            cel.sprite = None
+        if self.last_age != self.db.tick:
+            # draw the time line on top of the calendar
+            for calendar in self.board.calendars:
+                try:
+                    calendar.timeline.delete()
+                except (AttributeError, AssertionError):
+                    pass
+                top = calendar.window_top
+                left = calendar.window_left
+                right = calendar.window_right
+                starting = calendar.scrolled_to
+                age = self.db.tick
+                age_from_starting = age - starting
+                age_offset = age_from_starting * calendar.row_height
+                y = top - age_offset
+                color = (255, 0, 0)
+                if (
+                    calendar.visible and
+                    y > calendar.window_bot):
+                    calendar.timeline = self.batch.add(
+                        2, pyglet.graphics.GL_LINES, self.topgroup,
+                        ('v2i', (left, y, right, y)),
+                        ('c3B', color * 2))
+            self.last_age = self.db.tick
+        # draw any and all hands
+        for hand in self.hands:
+            # No state management yet because the hand itself has
+            # no graphics. The cards in it do.
+            if not (hand.visible and hand.on_screen):
+                continue
+            for card in hand:
+                ctxth = card.textholder
+                redrawn = (card.bgimage is None or
+                           ctxth.bgimage is None or
+                           card.bgimage.width != card.width or
+                           card.bgimage.height != card.height)
+                if redrawn:
+                    card.bgimage = (
+                        card.pats.bg_inactive.create_image(
+                            card.width, card.height))
+                    ctxth.bgimage = (
+                        card.pats.bg_active.create_image(
+                            ctxth.width,
+                            ctxth.height))
+                    try:
+                        card.bgsprite.delete()
+                    except (AttributeError, AssertionError):
+                        pass
+                    try:
+                        ctxth.bgsprite.delete()
+                    except (AttributeError, AssertionError):
+                        pass
+                    card.bgsprite = None
+                    ctxth.bgsprite = None
+                if card.visible:
+                    if card.bgsprite is None:
+                        card.bgsprite = pyglet.sprite.Sprite(
+                            card.bgimage,
+                            card.window_left,
+                            card.window_bot,
+                            batch=self.batch,
+                            group=self.calgroup)
+                    else:
+                        if card.bgsprite.x != card.window_left:
+                            card.bgsprite.x = card.window_left
+                        if card.bgsprite.y != card.window_bot:
+                            card.bgsprite.y = card.window_bot
+                        if redrawn:
+                            card.bgsprite.image = card.bgimage
+                    if ctxth.bgsprite is None:
+                        ctxth.bgsprite = pyglet.sprite.Sprite(
+                            ctxth.bgimage,
+                            ctxth.window_left,
+                            ctxth.window_bot,
+                            batch=self.batch,
+                            group=self.celgroup)
+                    else:
+                        if ctxth.bgsprite.x != ctxth.window_left:
+                            ctxth.bgsprite.x = ctxth.window_left
+                        if ctxth.bgsprite.y != ctxth.window_bot:
+                            ctxth.bgsprite.y = ctxth.window_bot
+                        if redrawn:
+                            ctxth.bgsprite.image = ctxth.bgimage
+                    if ctxth.label is None:
+                        ctxth.label = pyglet.text.Label(
+                            card.text,
+                            ctxth.style.fontface,
+                            ctxth.style.fontsize,
+                            anchor_y='bottom',
+                            x=ctxth.text_left,
+                            y=ctxth.text_bot,
+                            width=ctxth.text_width,
+                            height=ctxth.text_height,
+                            multiline=True,
+                            batch=self.batch,
+                            group=self.labelgroup)
+                    else:
+                        if (
+                                ctxth.label.x !=
+                                ctxth.text_left):
+                            ctxth.label.x = (
+                                ctxth.text_left)
+                        if (
+                                ctxth.label.y !=
+                                ctxth.text_bot):
+                            ctxth.label.y = (
+                                ctxth.text_bot)
+                        if (
+                                ctxth.label.width !=
+                                ctxth.text_width):
+                            ctxth.label.width = (
+                                ctxth.text_width)
+                        if (
+                                ctxth.label.height !=
+                                ctxth.text_height):
+                            ctxth.label.height = (
+                                ctxth.text_height)
+                    if isinstance(card.img, pyglet.image.AbstractImage):
+                        x = card.window_left + card.style.spacing
+                        y = ctxth.window_top + card.style.spacing
+                        if card.imgsprite is None:
+                            card.imgsprite = pyglet.sprite.Sprite(
+                                card.img,
+                                x, y,
+                                batch=self.batch,
+                                group=self.celgroup)
+                        else:
+                            if card.imgsprite.x != x:
+                                card.imgsprite.x = x
+                            if card.imgsprite.y != y:
+                                card.imgsprite.y = y
+                else:  # card not visible
+                    for dead in (
+                            card.bgsprite,
+                            card.imgsprite,
+                            ctxth.bgsprite,
+                            ctxth.label):
+                        if dead is not None:
+                            try:
+                                dead.delete()
+                            except:
+                                pass
+                    card.bgsprite = None
+                    card.imgsprite = None
+                    ctxth.bgsprite = None
+                    ctxth.label = None
+        # draw the background image
+        if self.drawn_board is None:
+            self.drawn_board = pyglet.sprite.Sprite(
+                self.board.wallpaper.tex,
+                self.offset_x,
+                self.offset_y,
+                batch=self.batch, group=self.boardgroup)
+        else:
+            if self.drawn_board.x != self.offset_x:
+                self.drawn_board.x = self.offset_x
+            if self.drawn_board.y != self.offset_y:
+                self.drawn_board.y = self.offset_y
+        # well, I lied. I was really only adding those things to the batch.
+        # NOW I'll draw them.
+        self.batch.draw()
+        self.resized = False
+
+    def on_mouse_motion(self, x, y, dx, dy):
+        """Find the widget, if any, that the mouse is over,
+and highlight it.
+        """
+        self.last_mouse_x = x
+        self.last_mouse_y = y
+        del self.dx_hist[0]
+        del self.dy_hist[0]
+        self.dx_hist.append(dx)
+        self.dy_hist.append(dy)
+        if self.hovered is None:
+            for hand in self.hands:
+                if (
+                        hand.visible and
+                        hand.interactive and
+                        x > hand.window_left and
+                        x < hand.window_right and
+                        y > hand.window_bot and
+                        y < hand.window_top):
+                    for card in hand:
+                        if (
+                                x > card.window_left and
+                                x < card.window_right):
+                            self.hovered = card
+                            card.tweaks += 1
+                            return
+            for menu in self.menus:
+                if str(menu) == self.main_menu_name or menu.visible:
+                    if (
+                            x > menu.window_left and
+                            x < menu.window_right and
+                            y > menu.window_bot and
+                            y < menu.window_top):
+                        for item in menu.items:
+                            if (
+                                    y > item.window_bot and
+                                    y < item.window_top):
+                                self.hovered = item
+                                item.tweaks += 1
+                                return
+            for spot in self.board.spots:
+                if (
+                        x > spot.window_left and
+                        x < spot.window_right and
+                        y > spot.window_bot and
+                        y < spot.window_top):
+                    self.hovered = spot
+                    spot.tweaks += 1
+                    return
+            for pawn in self.board.pawns:
+                if (
+                        x > pawn.window_left and
+                        x < pawn.window_right and
+                        y > pawn.window_bot and
+                        y < pawn.window_top):
+                    self.hovered = pawn
+                    pawn.tweaks += 1
+                    return
+            for edge in self.board.arrows:
+                if edge.touching(x, y):
+                    if (
+                            self.pressed is None or
+                            edge.order > self.pressed.order):
+                        self.pressed = edge
+        else:
+            if not (
+                    x > self.hovered.window_left and
+                    x < self.hovered.window_right and
+                    y > self.hovered.window_bot and
+                    y < self.hovered.window_top):
+                self.hovered.tweaks += 1
+                self.hovered = None
+
+    def on_key_press(self, symbol, modifiers):
+        if symbol == pyglet.window.key.DELETE:
+            self.delete_selection()
+
     def create_place(self):
-        self.window.set_mouse_cursor(self.create_place_cursor)
+        self.set_mouse_cursor(self.create_place_cursor)
         self.placing = True
 
     def create_thing(self):

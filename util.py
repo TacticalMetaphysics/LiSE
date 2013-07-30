@@ -267,32 +267,32 @@ class TerminableCoords:
         if branch not in self.coord_dict:
             self.coord_dict[branch] = {}
         if branch in self.indefinite_coords:
+            (ix, iy, itf) = self.indefinite_coords[branch]
             if tick_to is None:
-                self.indefinite_coords[branch] = (x, y, tick_from)
-                self.coord_dict[branch][tick_from] = (x, y, None)
+                self.coord_dict[branch][itf] = (ix, iy, tick_from - 1)
+                self.coord_dict[branch][tick_from] = (x, y, tick_to)
             else:
-                (ix, iy, istart) = self.indefinite_coords[branch]
-                if tick_from < istart:
-                    if tick_to < istart:
+                if tick_from < itf:
+                    if tick_to < itf:
                         self.coord_dict[branch][tick_from] = (x, y, tick_to)
-                    elif tick_to == istart:
-                        self.indefinite_coords[branch] = (x, y, tick_from)
+                    elif tick_to == itf:
                         self.coord_dict[branch][tick_from] = (x, y, None)
+                        del self.coord_dict[branch][itf]
                     else:
                         del self.indefinite_coords[branch]
-                        del self.coord_dict[branch][istart]
+                        del self.coord_dict[branch][itf]
                         self.coord_dict[branch][tick_from] = (x, y, tick_to)
-                elif tick_from == istart:
+                elif tick_from == itf:
                     del self.indefinite_coords[branch]
                     self.coord_dict[branch][tick_from] = (x, y, tick_to)
                 else:
-                    self.coord_dict[branch][istart] = (ix, iy, tick_from - 1)
+                    self.coord_dict[branch][itf] = (ix, iy, tick_from - 1)
                     del self.indefinite_coords[branch]
                     self.coord_dict[branch][tick_from] = (x, y, tick_to)
         else:
             self.coord_dict[branch][tick_from] = (x, y, tick_to)
-            if tick_to is None:
-                self.indefinite_coords[branch] = (x, y, tick_from)
+        if tick_to is None:
+            self.indefinite_coords[branch] = (x, y, tick_from)
 
 
 class PatternHolder:

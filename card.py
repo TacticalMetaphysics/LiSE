@@ -77,24 +77,6 @@ class Card:
     def mkwidget(self, x, y):
         self.widget = CardWidget(self, x, y)
 
-
-load_cards_qryfmt = "SELECT {0} FROM card WHERE effect IN ({1})".format(
-    ", ".join(Card.colns), "{0}")
-
-
-def load_cards(db, names):
-    r = {}
-    qryfmt = load_cards_qryfmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, tuple(names))
-    for row in db.c:
-        rowdict = dictify_row(row, Card.colns)
-        effn = rowdict["effect"]
-        rowdict["db"] = db
-        r[effn] = Card(**rowdict)
-    return r
-
-
 class TextHolder:
     def __init__(self, cardwidget):
         self.cardwidget = cardwidget
@@ -342,35 +324,27 @@ class Hand:
 
     def __getattr__(self, attrn):
         if attrn == "board":
-            return self.db.boarddict[self._board]
-        elif attrn == "style":
-            return self.db.styledict[self._style]
-        elif attrn == "gw":
-            return self.board.gw
+            return self.window.board
         elif attrn == "hovered":
-            return self.gw.hovered is self
-        elif attrn == "window":
-            # may raise AttributeError if the board has been loaded
-            # but not yet assigned to any game window
-            return self.board.gw.window
+            return self.window.hovered is self
         elif attrn == "window_left":
             try:
-                return int(self._left * self.window.width)
+                return int(self.left_prop * self.window.width)
             except AttributeError:
                 return 0
         elif attrn == "window_right":
             try:
-                return int(self._right * self.window.width)
+                return int(self.right_prop * self.window.width)
             except AttributeError:
                 return 0
         elif attrn == "window_bot":
             try:
-                return int(self._bot * self.window.height)
+                return int(self.bot_prop * self.window.height)
             except AttributeError:
                 return 0
         elif attrn == "window_top":
             try:
-                return int(self._top * self.window.height)
+                return int(self.top_prop * self.window.height)
             except AttributeError:
                 return 0
         elif attrn == "on_screen":

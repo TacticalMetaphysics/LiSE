@@ -11,10 +11,21 @@ SQL. That's in util.py, the class SaveableMetaclass.
 import sqlite3
 import re
 import igraph
+from effect import Effect, EffectDeck
 from dimension import Dimension
 from place import Place
 from portal import Portal
+from thing import Thing
 from spot import Spot
+from pawn import Pawn
+from arrow import Arrow
+from board import Board
+from img import Img
+from style import Style, Color
+from menu import Menu, MenuItem
+from card import Card, Hand
+from calendar import Calendar
+from gui import GameWindow
 from collections import OrderedDict
 from logging import getLogger
 from util import dictify_row
@@ -37,6 +48,63 @@ MAKE_PORTAL_ARG_RE = re.compile(
     "([a-zA-Z0-9]+)\.([a-zA-Z0-9]+)")
 MAKE_THING_ARG_RE = re.compile(
     "([a-zA-Z0-9]+)\.([a-zA-Z0-9]+)@([a-zA-Z0-9]+)")
+READ_IMGS_QRYFMT = (
+    "SELECT {0} FROM img WHERE name IN ({1})".format(
+        ", ".join(Img.colnames["img"]), "{0}"))
+LOAD_CARDS_QRYFMT = (
+    "SELECT {0} FROM card WHERE effect IN ({1})".format(
+        ", ".join(Card.colns), "{0}"))
+THING_LOC_QRY_START = (
+    "SELECT thing, branch, tick_from, tick_to, "
+    "location FROM thing_location WHERE dimension=?")
+THING_SPEED_QRY_START = (
+    "SELECT thing, branch, tick_from, tick_to, "
+    "ticks_per_span FROM thing_speed WHERE dimension=?")
+PORT_QRY_START = (
+    "SELECT origin, destination, branch, tick_from, "
+    "tick_to FROM portal_existence WHERE dimension=?")
+BOARD_QRY_START = (
+    "SELECT wallpaper, width, height "
+    "FROM board WHERE dimension=? AND i=?")
+SPOT_BOARD_QRY_START = (
+    "SELECT place, branch, tick_from, tick_to, "
+    "x, y FROM spot_coords WHERE dimension=? AND board=?")
+SPOT_IMG_QRY_START = (
+    "SELECT place, branch, tick_from, tick_to, "
+    "img FROM spot_img WHERE dimension=? AND board=?")
+SPOT_INTER_QRY_START = (
+    "SELECT place, branch, tick_from, tick_to "
+    "FROM spot_interactive WHERE dimension=? AND board=?")
+PAWN_IMG_QRY_START = (
+    "SELECT thing, branch, tick_from, tick_to, "
+    "img FROM pawn_img WHERE dimension=? AND board=?")
+PAWN_INTER_QRY_START = (
+    "SELECT thing, branch, tick_from, tick_to "
+    "FROM pawn_interactive WHERE dimension=? AND board=?")
+IMG_QRYFMT = (
+    "SELECT name, path, rltile FROM img WHERE "
+    "name IN ({0})")
+effect_join_colns = [
+    "effect_deck." + coln for coln in
+    EffectDeck.colnames["effect_deck"]]
+effect_join_colns += [
+    "effect." + coln for coln in
+    Effect.valnames["effect"]]
+effect_join_cols = (
+    EffectDeck.colnames["effect_deck"] +
+    Effect.valnames["effect"])
+EFFECT_QRYFMT = (
+    "SELECT {0} FROM effect WHERE name IN ({1})".format(
+        ", ".join(Effect.colnames["effect"]), "{0}"))
+efjoincolstr = ", ".join(effect_join_colns)
+EFFD_QRYFMT = (
+    "SELECT {0} FROM effect, effect_deck WHERE "
+    "effect.name=effect_deck.effect AND "
+    "effect_deck.deck IN ({1})".format(efjoincolstr, "{0}"))
+COLOR_QRYFMT = (
+    "SELECT {0} FROM color WHERE name IN ({1})".format(Color.colnstr, "{0}"))
+STYLE_QRYFMT = (
+    "SELECT {0} FROM style WHERE name IN ({1})".format(Style.colnstr, "{0}"))
 
 
 class RumorMill(object):
@@ -76,6 +144,7 @@ arguments.
         self.conn = sqlite3.connect(dbfilen)
         self.cursor = self.conn.cursor()
         self.c = self.cursor
+        self.windowdict = {}
         self.boarddict = {}
         self.boardhanddict = {}
         self.calendardict = {}
@@ -239,12 +308,6 @@ the function.
         else:
             self.func[name] = func
 
-    def pawns_on_spot(self, spot):
-        """Return a list of pawns on the given spot."""
-        return [thing.pawn for thing in
-                spot.place.contents
-                if thing.name in self.pawndict[spot.dimension]]
-
     def toggle_menu(self, menuitem, menuname,
                     effect=None, deck=None, event=None):
         window = menuitem.menu.window
@@ -300,9 +363,6 @@ necessary."""
         if name not in self.styledict:
             self.load_styles(name)
         return self.styledict[name]
-
-    def get_board(self, name):
-        return self.boarddict[name]
 
     def make_igraph_graph(self, name):
         self.graphdict[name] = igraph.Graph(directed=True)
@@ -622,6 +682,401 @@ necessary."""
         dimension.portals_by_orign_destn[str(orig)][str(dest)] = port
         dimension.portals.append(port)
         return port
+
+    def load_cards(self, names):
+        r = {}
+        qryfmt = load_cards_qryfmt
+        qrystr = qryfmt.format(", ".join(["?"] * len(names)))
+        self.c.execute(qrystr, tuple(names))
+        for row in self.c:
+            rowdict = dictify_row(row, Card.colns)
+            effn = rowdict["effect"]
+            rowdict["db"] = self
+            r[effn] = Card(**rowdict)
+        return r
+
+    def get_cards(self, cardnames):
+        r = {}
+        unloaded = set()
+        for card in cardnames:
+            if card in self.carddict:
+                r[card] = self.carddict[card]
+            else:
+                unloaded.add(card)
+        r.update(self.load_cards(unloaded))
+        return r
+
+    def load_dimension(self, dimn, branches=None, tick_from=None, tick_to=None):
+        # I think it might eventually *make sense* to load the same
+        # dimension more than once without unloading it first. Perhaps
+        # you want to selectively load the parts of it that the player
+        # is interested in at the moment, the game world being too
+        # large to practically load all at once.
+        if dimn not in self.dimensiondict:
+            self.dimensiondict[dimn] = Dimension(self, dimn)
+        dim = self.dimensiondict[dimn]
+        branchexpr = ""
+        tickfromexpr = ""
+        ticktoexpr = ""
+        if branches is not None:
+            branchexpr = " AND branch IN ({0})".format(
+                ", ".join(["?"] * len(branches)))
+        if tick_from is not None:
+            tickfromexpr = " AND tick_from>=?"
+        if tick_to is not None:
+            ticktoexpr = " AND tick_to<=?"
+        extrastr = "".join((branchexpr, tickfromexpr, ticktoexpr))
+        qrystr = THING_LOC_QRY_START + extrastr
+        valtup = tuple([dimn] + [
+            b for b in (branches, tick_from, tick_to)
+            if b is not None])
+        self.c.execute(qrystr, valtup)
+        for row in self.c:
+            (thingn, branch, tick_from, tick_to, locn) = row
+            if thingn not in dim.things_by_name:
+                dim.things_by_name[thingn] = Thing(dim, thingn)
+            if locn not in dim.places_by_name:
+                pl = Place(dim, locn)
+                dim.places_by_name[locn] = pl
+                dim.places.append(pl)
+            dim.things_by_name[thingn].set_location(
+                dim.places_by_name[locn], branch, tick_from, tick_to)
+        qrystr = PORT_QRY_START + extrastr
+        self.c.execute(qrystr, valtup)
+        for row in self.c:
+            (orign, destn, branch, tick_from, tick_to) = row
+            if orign not in dim.places_by_name:
+                opl = Place(dim, orign)
+                dim.places_by_name[orign] = opl
+                dim.places.append(opl)
+            else:
+                opl = dim.places_by_name[orign]
+            if destn not in dim.places_by_name:
+                dpl = Place(dim, destn)
+                dim.places_by_name[destn] = dpl
+                dim.places.append(dpl)
+            else:
+                dpl = dim.places_by_name[destn]
+            if orign not in dim.portals_by_orign_destn:
+                dim.portals_by_orign_destn[orign] = {}
+            po = Portal(dim, opl, dpl)
+            dim.portals_by_orign_destn[orign][destn] = po
+            dim.portals.append(po)
+        # Contrary to the tutorial, the graph starts out with vertex 0
+        # already in it.
+        dim.graph.add_vertices(len(dim.places) - 1)
+        edges = [(int(portal.orig), int(portal.dest)) for portal in dim.portals]
+        dim.graph.add_edges(edges)
+        for portal in dim.portals:
+            dim.graph.vs[int(portal.orig)]["place"] = portal.orig
+            dim.graph.vs[int(portal.dest)]["place"] = portal.dest
+            dim.graph.es[dim.graph.get_eid(int(portal.orig), int(portal.dest))]["portal"] = portal
+        return dim
+
+    def get_dimension(self, dimn):
+        if dimn in self.dimensiondict:
+            return self.dimensiondict[dimn]
+        else:
+            return self.load_dimension(dimn)
+
+    def get_board(self, dimn, i):
+        dim = self.get_dimension(dimn)
+        if i not in dim.boards:
+            self.load_board(i)
+        return dim.boards[i]
+
+    def get_board(self, i, window):
+        if i not in window.dimension.boards:
+            return self.load_board(i, window)
+        else:
+            return window.dimension.boards[i]
+
+    def load_board(self, i, window):
+        dim = window.dimension
+        while len(dim.boards) <= i:
+            dim.boards.append(None)
+        # basic information for this board
+        self.c.execute(BOARD_QRY_START, (str(dim), i))
+        imgs2load = set()
+        walln = None
+        width = None
+        height = None
+        (walln, width, height) = self.c.fetchone()
+        imgs2load.add(walln)
+        # images for the spots
+        self.c.execute(SPOT_IMG_QRY_START, (str(dim), i))
+        spot_rows = self.c.fetchall()
+        for row in spot_rows:
+            imgs2load.add(row[4])
+        # images for the pawns
+        self.c.execute(PAWN_IMG_QRY_START, (str(dim), i))
+        pawn_rows = self.c.fetchall()
+        for row in pawn_rows:
+            imgs2load.add(row[4])
+        imgnames = tuple(imgs2load)
+        imgs = self.load_imgs(imgs2load)
+        dim.boards[i] = Board(window, i, width, height, imgs[walln])
+        # actually assign images instead of just collecting the names
+        for row in pawn_rows:
+            (thingn, branch, tick_from, tick_to, imgn) = row
+            thing = dim.things_by_name[thingn]
+            if not hasattr(thing, 'pawns'):
+                thing.pawns = []
+            while len(thing.pawns) <= i:
+                thing.pawns.append(None)
+            thing.pawns[i] = Pawn(dim.boards[i], thing)
+            thing.pawns[i].set_img(imgs[imgn], branch, tick_from, tick_to)
+        # interactivity for the pawns
+        self.c.execute(PAWN_INTER_QRY_START, (str(dim), i))
+        for row in self.c:
+            (thingn, branch, tick_from, tick_to) = row
+            thing = dim.things_by_name[thingn]
+            thing.pawns[i].set_interactive(branch, tick_from, tick_to)
+        # spots in this board
+        spotted_places = set()
+        self.c.execute(SPOT_BOARD_QRY_START, (str(dim), i))
+        for row in self.c:
+            (placen, branch, tick_from, tick_to, x, y) = row
+            place = dim.places_by_name[placen]  # i hope you loaded *me* first
+            if not hasattr(place, 'spots'):
+                place.spots = []
+            while len(place.spots) <= i:
+                place.spots.append(None)
+            place.spots[i] = Spot(dim.boards[i], place)
+            place.spots[i].set_coords(x, y, branch, tick_from, tick_to)
+            spotted_places.add(place)
+        #their images
+        for row in spot_rows:
+            (placen, branch, tick_from, tick_to, imgn) = row
+            place = dim.places_by_name[placen]
+            place.spots[i].set_img(imgs[imgn], branch, tick_from, tick_to)
+        # interactivity for the spots
+        self.c.execute(SPOT_INTER_QRY_START, (str(dim), i))
+        for row in self.c:
+            (placen, branch, tick_from, tick_to) = row
+            place = dim.places_by_name[placen]
+            place.spots[i].set_interactive(branch, tick_from, tick_to)
+        # arrows in this board
+        arrowed_portals = set()
+        for place in iter(spotted_places):
+            for portal in place.portals:
+                if portal not in arrowed_portals:
+                    if not hasattr(portal, 'arrows'):
+                        portal.arrows = []
+                    while len(portal.arrows) <= i:
+                        portal.arrows.append(None)
+                    portal.arrows[i] = Arrow(dim.boards[i], portal)
+                    arrowed_portals.add(portal)
+        return dim.boards[i]
+
+    def load_imgs(self, imgs):
+        qryfmt = IMG_QRYFMT
+        qrystr = qryfmt.format(", ".join(["?"] * len(imgs)))
+        self.c.execute(qrystr, tuple(imgs))
+        r = {}
+        for row in self.c:
+            img = Img(self, row[0], row[1], row[2])
+            r[row[0]] = img
+        self.imgdict.update(r)
+        return r
+
+    def get_imgs(self, imgnames):
+        r = {}
+        unloaded = set()
+        for imgn in imgnames:
+            if imgn in self.imgdict:
+                r[imgn] = self.imgdict[imgn]
+            else:
+                unloaded.add(imgn)
+        r.update(self.load_imgs(unloaded))
+        return r
+
+    def load_effect_decks(self, names):
+        self.c.execute(EFFD_QRYFMT.format(
+            efjoincolstr, ", ".join(["?"] * len(names))))
+        effects2load = set()
+        deckrows = self.c.fetchall()
+        for row in deckrows:
+            rowdict = dictify_row(row, effect_join_cols)
+            effects2load.add(rowdict["effect"])
+        loaded_effects = self.load_effects(effects2load)
+        deckdict = {}
+        for row in deckrows:
+            rowdict = dictify_row(row, EffectDeck.colns)
+            if rowdict["deck"] not in deckdict:
+                deckdict[rowdict["deck"]] = []
+            while len(deckdict[rowdict["deck"]]) <= rowdict["idx"]:
+                deckdict[rowdict["deck"]].append(None)
+            deckdict[rowdict["deck"]][rowdict["idx"]] = loaded_effects[rowdict["effect"]]
+        r = {}
+        for (name, contents) in deckdict.iteritems():
+            r[name] = EffectDeck(self, name)
+            r[name].set_effects(contents)
+        self.effectdeckdict.update(r)
+        return r
+
+    def get_effect_decks(self, decknames):
+        r = {}
+        unloaded = set()
+        for deck in decknames:
+            if deck in self.effectdeckdict:
+                r[deck] = self.effectdeckdict[deck]
+            else:
+                unloaded.add(deck)
+        r.update(self.load_effect_decks(unloaded))
+        return r
+
+    def load_effects(self, names):
+        """Read the effects of the given names from disk and construct their
+Effect objects.
+        
+Return a dictionary keyed by name.
+
+        """
+        qrystr = EFFECT_QRYFMT.format(", ".join(["?"] * len(names)))
+        self.c.execute(qrystr, tuple(names))
+        r = {}
+        for row in self.c:
+            rowdict = dictify_row(row, Effect.colnames["effect"])
+            rowdict["db"] = self
+            eff = Effect(**rowdict)
+            r[rowdict["name"]] = eff
+        self.effectdeckdict.update(r)
+        return r
+
+    def get_effects(self, effectnames):
+        r = {}
+        unloaded = set()
+        for effect in effectnames:
+            if effect in self.effectdict:
+                r[effect] = self.effectdict[effect]
+            else:
+                unloaded.add(effect)
+        r.update(self.load_effects(unloaded))
+        return r
+
+    def read_colors(self, colornames):
+        qrystr = COLOR_QRYFMT.format(", ".join(["?"] * len(colornames)))
+        self.c.execute(qrystr, tuple(colornames))
+        r = {}
+        for row in self.c:
+            rowdict = dictify_row(row, Color.colns)
+            c = Color(**rowdict)
+            r[rowdict["name"]] = c
+            self.colordict[rowdict["name"]] = c
+        return r
+
+    def get_colors(self, colornames):
+        r = {}
+        unloaded = set()
+        for color in colornames:
+            if color in self.colordict:
+                r[color] = self.colordict[color]
+            else:
+                unloaded.add(color)
+        r.update(self.read_colors(unloaded))
+        return r
+
+    def read_styles(self, stylenames):
+        qrystr = STYLE_QRYFMT.format(", ".join(["?"] * len(stylenames)))
+        self.c.execute(qrystr, tuple(stylenames))
+        style_rows = self.c.fetchall()
+        colornames = set()
+        colorcols = ("textcolor", "fg_inactive", "fg_active", "bg_inactive", "bg_active")
+        for row in style_rows:
+            rowdict = dictify_row(row, Style.colns)
+            for colorcol in colorcols:
+                colornames.add(rowdict[colorcol])
+        colors = self.get_colors(tuple(colornames))
+        r = {}
+        for row in style_rows:
+            rowdict = dictify_row(row, Style.colns)
+            for colorcol in colorcols:
+                rowdict[colorcol] = colors[rowdict[colorcol]]
+            s = Style(**rowdict)
+            r[rowdict["name"]] = s
+            self.styledict[rowdict["name"]] = s
+        return r
+
+    def get_styles(self, stylenames):
+        r = {}
+        unloaded = set()
+        for style in stylenames:
+            if style in self.styledict:
+                r[style] = self.styledict[style]
+            else:
+                unloaded.add(style)
+        r.update(self.read_styles(unloaded))
+        return r
+
+    def load_window(self, name):
+        self.c.execute(
+            "SELECT min_width, min_height, dimension, board, arrowhead_size, "
+            "arrow_width, view_left, view_bot, main_menu FROM window "
+            "WHERE name=?", (name,))
+        (min_width, min_height, dimn, boardi, arrowhead_size,
+         arrow_width, view_left, view_bot, main_menu) = self.c.fetchone()
+        stylenames = set()
+        menunames = set()
+        cards_needed = set()
+        imgs_needed = set()
+        dim = self.get_dimension(dimn)
+        self.c.execute(
+            "SELECT name, left, bottom, top, right, style FROM menu "
+            "WHERE window=?", (name,))
+        menu_rows = self.c.fetchall()
+        for row in menu_rows:
+            menunames.add(row[0])
+            stylenames.add(row[5])
+        self.c.execute(
+            "SELECT i, left, right, top, bot, style, interactive, "
+            "rows_shown, scrolled_to, scroll_factor FROM calendar "
+            "WHERE window=? ORDER BY i", (name,))
+        cal_rows = self.c.fetchall()
+        for row in cal_rows:
+            stylenames.add(row[5])
+        self.c.execute(
+            "SELECT effect_deck, left, right, top, bot, style FROM hand "
+            "WHERE window=?", (name,))
+        hand_rows = self.c.fetchall()
+        effect_decks_needed = [row[0] for row in hand_rows]
+        effect_decks_loaded = self.get_effect_decks(effect_decks_needed)
+        for effect_deck in effect_decks_loaded.itervalues():
+            for effect in effect_deck.get_effects():
+                cards_needed.add(str(effect))
+        self.c.execute("SELECT effect, display_name, image, text, style FROM card WHERE effect IN ({0})".format(", ".join(["?"] * len(cards_needed))), tuple(cards_needed))
+        card_rows = self.c.fetchall()
+        for row in card_rows:
+            stylenames.add(row[4])
+            if row[2] is not None:
+                imgs_needed.add(row[2])
+        styles_loaded = self.get_styles(stylenames)
+        imgs_loaded = self.get_imgs(imgs_needed)
+        cards_loaded = {}
+        for row in card_rows:
+            (effn, dispn, imgn, text, style) = row
+            if imgn is None:
+                img = None
+            else:
+                img = imgs_loaded[imgn]
+            cards_loaded[effn] = Card(self,
+                self.effectdict[effn], dispn, text,
+                img, styles_loaded[style])
+        hands_by_name = OrderedDict()
+        self.c.execute(
+            "SELECT menu, idx, text, on_click, closer FROM menu_item WHERE window=? AND menu IN ({0})".format(", ".join(["?"] * len(menunames))), (name,) + tuple(menunames))
+        menu_item_rows = self.c.fetchall()
+        gw = GameWindow(
+            self, name, min_width, min_height, dim, boardi, arrowhead_size,
+            arrow_width, view_left, view_bot, main_menu, hand_rows, cal_rows,
+            menu_rows, menu_item_rows)
+        for spot in gw.board.spots:
+            spot.tweaks += 1
+        for pawn in gw.board.pawns:
+            pawn.tweaks += 1
+        for menu in gw.menus_by_name.itervalues():
+            menu.adjust()
+
 
 def load_game(dbfn, lang="eng"):
     db = RumorMill(dbfn, lang=lang)

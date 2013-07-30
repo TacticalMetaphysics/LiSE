@@ -4,6 +4,10 @@ from util import (
     TerminableInteractivity,
     TerminableCoords,
     dictify_row)
+from logging import getLogger
+
+
+logger = getLogger(__name__)
 
 
 """Widgets to represent places. Pawns move around on top of these."""
@@ -76,6 +80,8 @@ given coordinates, and visible or interactive as indicated.
         self.oldstate = None
         self.newstate = None
         self.tweaks = 0
+        self.drag_offset_x = 0
+        self.drag_offset_y = 0
 
     def __getattr__(self, attrn):
         if attrn == 'dimension':
@@ -93,9 +99,17 @@ given coordinates, and visible or interactive as indicated.
         elif attrn == 'coords':
             return self.get_coords()
         elif attrn == 'x':
-            return self.coords[0]
+            c = self.coords
+            if c is None:
+                return 0
+            else:
+                return c[0]
         elif attrn == 'y':
-            return self.coords[1]
+            c = self.coords
+            if c is None:
+                return 0
+            else:
+                return c[1]
         elif attrn == 'width':
             myimg = self.img
             if myimg is None:
@@ -118,26 +132,18 @@ given coordinates, and visible or interactive as indicated.
                 return self.rx
             else:
                 return self.ry
-        elif attrn == 'left':
-            return self.x - self.rx
-        elif attrn == 'bot':
-            return self.y - self.ry
-        elif attrn == 'top':
-            return self.y + self.ry
-        elif attrn == 'right':
-            return self.x + self.rx
         elif attrn == 'window_x':
-            return self.x + self.window.offset_x
+            return self.x + self.drag_offset_x + self.window.offset_x
         elif attrn == 'window_y':
-            return self.y + self.window.offset_y
+            return self.y + self.drag_offset_y + self.window.offset_y
         elif attrn == 'window_left':
-            return self.left + self.window.offset_x
+            return self.window_x - self.rx
         elif attrn == 'window_bot':
-            return self.bot + self.window.offset_y
+            return self.window_y - self.ry
         elif attrn == 'window_top':
-            return self.top + self.window.offset_y
+            return self.window_y + self.ry
         elif attrn == 'window_right':
-            return self.right + self.window.offset_x
+            return self.window_x + self.rx
         elif attrn == 'in_window':
             return (self.window_top > 0 and
                     self.window_right > 0) or (
@@ -186,6 +192,17 @@ given coordinates, and visible or interactive as indicated.
         """Does nothing yet"""
         pass
 
+    def dropped(self, x, y, button, modifiers):
+        c = self.get_coords()
+        newx = c[0] + self.drag_offset_x
+        newy = c[1] + self.drag_offset_y
+        logger.debug("moving the spot for %s from (%d,%d) to (%d,%d)",
+                     str(self.place), c[0], c[1], newx, newy)
+        self.set_coords(c[0] + self.drag_offset_x, c[1] + self.drag_offset_y)
+        logger.debug("%s", self.coord_dict)
+        self.drag_offset_x = 0
+        self.drag_offset_y = 0
+
     def hovered(self):
         """Become hovered"""
         if not self.hovered:
@@ -206,24 +223,13 @@ given coordinates, and visible or interactive as indicated.
         """Stop being pressed"""
         pass
 
-    def dropped(self, x, y, button, modifiers):
-        """Stop being dragged by the mouse, forget the grabpoint"""
-        self.grabpoint = None
-        self.save()
-
     def move_with_mouse(self, x, y, dx, dy, buttons, modifiers):
         """Remember where exactly I was grabbed, then move around with the
 mouse, always keeping the same relative position with respect to the
 mouse."""
-        if self.grabpoint is None:
-            self.grabpoint = (x - self.x, y - self.y)
-        (grabx, graby) = self.grabpoint
-        self.x = x - grabx + dx
-        self.left = self.x - self.rx
-        self.right = self.x + self.rx
-        self.y = y - graby + dy
-        self.top = self.y + self.ry
-        self.bot = self.y - self.ry
+        self.drag_offset_x += dx
+        self.drag_offset_y += dy
+        
 
     def get_tabdict(self):
         dimn = str(self.dimension)

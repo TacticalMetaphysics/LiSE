@@ -102,35 +102,3 @@ def load_regular_img(path):
     """Load an ordinary PNG image."""
     tex = image(path).get_image_data().get_texture()
     return tex
-
-
-read_imgs_qryfmt = (
-    "SELECT {0} FROM img WHERE name IN ({1})".format(
-        ", ".join(Img.colnames["img"]), "{0}"))
-
-
-def read_imgs(db, names):
-    """Instantiate the Img of the given names, but don't load their
-textures just yet. Return a dictionary keyed by name."""
-    qryfmt = read_imgs_qryfmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, names)
-    r = {}
-    for row in db.c:
-        rowdict = dictify_row(row, Img.colnames["img"])
-        rowdict["db"] = db
-        r[rowdict["name"]] = Img(**rowdict)
-    return r
-
-
-def unravel_imgs(db, imgd):
-    """Unravel Img previously read by read_imgs, thus loading the
-textures. Return a dictionary keyed by name."""
-    for img in imgd.itervalues():
-        img.unravel()
-    return imgd
-
-
-def load_imgs(db, names):
-    """Load the Img by the given names. Return a dictionary keyed by name."""
-    return unravel_imgs(db, read_imgs(db, names))

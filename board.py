@@ -77,12 +77,12 @@ each board will be open in at most one window at a time.
          []),
     ]
 
-    def __init__(self, gw, dimension, i, width, height, wallpaper):
+    def __init__(self, window, i, width, height, wallpaper):
         """Return a board representing the given dimension.
 
         """
-        self.window = gw
-        self.dimension = dimension
+        self.window = window
+        self.dimension = window.dimension
         self.db = self.dimension.db
         self.i = i
         self.width = width

@@ -86,10 +86,24 @@ With db, register in db's pawndict.
             return self.window.grabbed is self
         elif attrn == 'selected':
             return self in self.window.selected
+        elif attrn == 'coords':
+            return self.get_coords()
+        elif attrn == 'x':
+            c = self.coords
+            if c is None:
+                return 0
+            else:
+                return c[0]
+        elif attrn == 'y':
+            c = self.coords
+            if c is None:
+                return 0
+            else:
+                return c[1]
         elif attrn == 'window_left':
-            return self.get_coords()[0] + self.drag_offset_x
+            return self.x + self.drag_offset_x + self.window.offset_x
         elif attrn == 'window_bot':
-            return self.get_coords()[1] + self.drag_offset_y
+            return self.y + self.drag_offset_y + self.window.offset_y
         elif attrn == 'width':
             return self.img.width
         elif attrn == 'height':
@@ -167,14 +181,9 @@ With db, register in db's pawndict.
             if path is None:
                 return
             self.thing.add_path(path)
-            print self.thing.locations
 #            self.db.caldict[self._dimension].adjust()
 
     def get_coords(self, branch=None, tick=None):
-        if branch is None:
-            branch = self.db.branch
-        if tick is None:
-            tick = self.db.tick
         loc = self.thing.get_location(branch, tick)
         if hasattr(loc, 'dest'):
             (ox, oy) = loc.orig.spots[int(self.board)].get_coords(branch, tick)

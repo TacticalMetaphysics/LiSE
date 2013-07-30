@@ -17,8 +17,6 @@ class Portal:
           "tick_to": "integer default null"},
          ("dimension", "origin", "destination", "branch", "tick_from"),
          {},
-         # This schema relies on a trigger to create an appropriate
-         # item record.
          [])]
 
     def __init__(self, dimension, orig, dest):

@@ -176,27 +176,6 @@ just how to display this widget"""
         self.erase()
 
 
-def pull_items_in_menus(db, menunames):
-    qryfmt = "SELECT {0} FROM menu_item WHERE menu IN ({1})"
-    qms = ["?"] * len(menunames)
-    qrystr = qryfmt.format(
-        MenuItem.colnamestr["menu_item"],
-        ", ".join(qms))
-    db.c.execute(qrystr, menunames)
-    return parse_menu_item([
-        dictify_row(MenuItem.colnames["menu_item"], row)
-        for row in db.c])
-
-
-def parse_menu_item(rows):
-    r = {}
-    for row in rows:
-        if row["menu"] not in r:
-            r[row["menu"]] = {}
-        r[row["menu"]][row["idx"]] = row
-    return r
-
-
 class Menu:
     """Container for MenuItems; not interactive unto itself."""
     tables = [

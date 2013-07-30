@@ -1,5 +1,4 @@
 from util import SaveableMetaclass, dictify_row, stringlike
-from card import load_cards
 from random import randrange
 
 
@@ -248,73 +247,6 @@ class PortalExitEffectDeck(EffectDeck):
     def __init__(self, db, item):
         effect = PortalExitEffect(db, item)
         EffectDeck.__init__(self, db, effect.name, [effect])
-
-
-load_effect_qryfmt = (
-    "SELECT {0} FROM effect WHERE name IN ({1})".format(
-        ", ".join(Effect.colnames["effect"]), "{0}"))
-
-
-def load_effects(db, names):
-    """Read the effects of the given names from disk and construct their
-Effect objects.
-
-Return a dictionary keyed by name.
-
-    """
-    qryfmt = load_effect_qryfmt
-    qrystr = qryfmt.format(", ".join(["?"] * len(names)))
-    db.c.execute(qrystr, tuple(names))
-    r = {}
-    for row in db.c:
-        rowdict = dictify_row(row, Effect.colnames["effect"])
-        rowdict["db"] = db
-        eff = Effect(**rowdict)
-        r[rowdict["name"]] = eff
-    return r
-
-
-effect_join_colns = [
-    "effect_deck." + coln for coln in
-    EffectDeck.colnames["effect_deck"]]
-effect_join_colns += [
-    "effect." + coln for coln in
-    Effect.valnames["effect"]]
-effect_join_cols = (
-    EffectDeck.colnames["effect_deck"] +
-    Effect.valnames["effect"])
-
-efjoincolstr = ", ".join(effect_join_colns)
-
-load_deck_qryfmt = (
-    "SELECT {0} FROM effect, effect_deck WHERE "
-    "effect.name=effect_deck.effect AND "
-    "effect_deck.deck IN ({1})".format(efjoincolstr, "{0}"))
-
-
-def load_effect_decks(db, names):
-    db.c.execute(load_deck_qryfmt.format(
-        efjoincolstr, ", ".join(["?"] * len(names))))
-    effects2load = set()
-    deckrows = db.c.fetchall()
-    for row in deckrows:
-        rowdict = dictify_row(row, effect_join_cols)
-        effects2load.add(rowdict["effect"])
-    loaded_effects = load_effects(db, effects2load)
-    deckdict = {}
-    for row in deckrows:
-        rowdict = dictify_row(row, EffectDeck.colns)
-        if rowdict["deck"] not in deckdict:
-            deckdict[rowdict["deck"]] = []
-        while len(deckdict[rowdict["deck"]]) <= rowdict["idx"]:
-            deckdict[rowdict["deck"]].append(None)
-        deckdict[rowdict["deck"]][rowdict["idx"]] = loaded_effects[rowdict["effect"]]
-    r = {}
-    for (name, contents) in deckdict.iteritems():
-        r[name] = EffectDeck(db, name)
-        r[name].set_effects(contents)
-    return r
-
 
 def make_toggle_menu_effect(db, board, menu):
     """Return an Effect that toggles the menu in the given board of the
