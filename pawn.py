@@ -1,7 +1,8 @@
 from util import (
     SaveableMetaclass,
     TerminableImg,
-    TerminableInteractivity)
+    TerminableInteractivity,
+    BranchTicksIter)
 from logging import getLogger
 from igraph import IN
 
@@ -155,8 +156,8 @@ With db, register in db's pawndict.
             self.grabpoint,
             self.hovered,
             self.get_coords(branch, tick),
-            self.drag_offset_x,
-            self.drag_offset_y,
+            self.window_left,
+            self.window_bot,
             self.tweaks)
 
     def move_with_mouse(self, x, y, dx, dy, buttons, modifiers):
@@ -188,40 +189,38 @@ With db, register in db's pawndict.
         if hasattr(loc, 'dest'):
             (ox, oy) = loc.orig.spots[int(self.board)].get_coords(branch, tick)
             (dx, dy) = loc.dest.spots[int(self.board)].get_coords(branch, tick)
+            ox += loc.orig.spots[int(self.board)].drag_offset_x
+            dx += loc.dest.spots[int(self.board)].drag_offset_x
+            oy += loc.orig.spots[int(self.board)].drag_offset_y
+            dy += loc.dest.spots[int(self.board)].drag_offset_y
             prog = self.thing.get_progress(branch, tick)
             odx = dx - ox
             ody = dy - oy
             return (int(ox + odx * prog), int(oy + ody * prog))
         else:
-            return loc.spots[int(self.board)].get_coords(branch, tick)
+            spot = loc.spots[int(self.board)]
+            return (spot.window_x, spot.window_y)
 
     def get_tabdict(self):
-        dimn = str(self.dimension)
-        thingn = str(self.thing)
-        boardi = int(self.board)
-        pawncols = ("dimension", "thing", "board", "tick_from", "tick_to", "img")
-        pawn_img_rows = set()
-        for branch in self.imagery:
-            for (tick_from, (img, tick_to)) in self.imagery.iteritems():
-                pawn_img_rows.add((
-                    dimn,
-                    thingn,
-                    boardi,
-                    tick_from,
-                    tick_to,
-                    str(img)))
-        intercols = ("dimension", "thing", "board", "tick_from", "tick_to")
-        pawn_interactive_rows = set()
-        for branch in self.interactivity:
-            for (tick_from, tick_to) in self.interactivity[branch].iteritems():
-                pawn_interactive_rows.add((
-                    dimn,
-                    thingn,
-                    boardi,
-                    tick_from,
-                    tick_to))
         return {
-            "pawn_img": [dictify_row(row, pawncols)
-                         for row in iter(pawn_img_rows)],
-            "pawn_interactive": [dictify_row(row, intercols)
-                                 for row in iter(pawn_interactive_rows)]}
+            "pawn_img": [
+                {
+                    "dimension": str(self.dimension),
+                    "board": int(self.board),
+                    "thing": str(self.thing),
+                    "branch": branch,
+                    "tick_from": tick_from,
+                    "tick_to": tick_to,
+                    "img": str(img)}
+                for (branch, tick_from, tick_to, img) in
+                BranchTicksIter(self.imagery)],
+            "pawn_interactive": [
+                {
+                    "dimension": str(self.dimension),
+                    "board": int(self.board),
+                    "thing": str(self.thing),
+                    "branch": branch,
+                    "tick_from": tick_from,
+                    "tick_to": tick_to}
+                for (branch, tick_from, tick_to) in
+                BranchTicksIter(self.interactivity)]}

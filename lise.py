@@ -34,9 +34,3 @@ def incdb(ticky):
     db.tick += 1
 pyglet.clock.schedule_interval(incdb, 1/10.)
 pyglet.app.run()
-
-print "Saving..."
-db.save_game()
-print "Saved. Committing..."
-db.conn.commit()
-print "Committed."

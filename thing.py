@@ -1,6 +1,7 @@
 from util import (
     SaveableMetaclass,
-    LocationException)
+    LocationException,
+    BranchTicksIter)
 from logging import getLogger
 
 
@@ -277,5 +278,15 @@ my being located at the place given."""
                 self.set_location(dest, branch, lasttick, None)
         raise JourneyException("Couldn't schedule the journey")
 
-    def save(self):
-        pass
+    def get_tabdict(self):
+        return {
+            "thing_location": [
+                {
+                    "dimension": str(self.dimension),
+                    "thing": str(self),
+                    "branch": branch,
+                    "tick_from": tick_from,
+                    "tick_to": tick_to,
+                    "location": str(location)}
+                for (branch, tick_from, tick_to, location) in
+                BranchTicksIter(self.locations)]}

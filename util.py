@@ -177,6 +177,30 @@ class TerminableImg:
                 self.indefinite_imagery[branch] = (img, tick_from)
 
 
+class BranchTicksIter:
+    def __init__(self, d):
+        self.branchiter = d.iteritems()
+        self.branch = None
+        self.tickfromiter = None
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        try:
+            (tick_from, vtup) = self.tickfromiter.next()
+            if isinstance(vtup, tuple):
+                tick_to = vtup[-1]
+                value = vtup[:-1]
+                return (self.branch, tick_from, tick_to) + value
+            else:
+                return (self.branch, tick_from, vtup)
+        except (AttributeError, StopIteration):
+            (self.branch, tickfromdict) = self.branchiter.next()
+            self.tickfromiter = tickfromdict.iteritems()
+            return self.next()
+
+
 class TerminableInteractivity:
     def is_interactive(self, branch=None, tick=None):
         if branch is None:

@@ -3,6 +3,7 @@ from util import (
     TerminableImg,
     TerminableInteractivity,
     TerminableCoords,
+    BranchTicksIter,
     dictify_row)
 from logging import getLogger
 
@@ -232,75 +233,40 @@ mouse."""
         
 
     def get_tabdict(self):
-        dimn = str(self.dimension)
-        placen = str(self.place)
-        boardi = int(self.board)
-        spot_img_rows = set()
-        spot_img_cols = (
-            "dimension",
-            "place",
-            "board",
-            "branch",
-            "tick_from",
-            "tick_to",
-            "img")
-        for branch in self.imagery:
-            for (tick_from, (img, tick_to)) in (
-                    self.imagery[branch].iteritems()):
-                spot_img_rows.add((
-                    dimn,
-                    placen,
-                    boardi,
-                    branch,
-                    tick_from,
-                    tick_to,
-                    str(img)))
-        spot_interactive_rows = set()
-        spot_interactive_cols = (
-            "dimension",
-            "place",
-            "board",
-            "branch",
-            "tick_from",
-            "tick_to")
-        for branch in self.interactivity:
-            for (tick_from, tick_to) in self.interactivity[branch].iteritems():
-                spot_interactive_rows.add((
-                    dimn,
-                    placen,
-                    boardi,
-                    branch,
-                    tick_from,
-                    tick_to))
-        spot_coords_rows = set()
-        spot_coords_cols = (
-            "dimension",
-            "place",
-            "board",
-            "branch",
-            "tick_from",
-            "tick_to",
-            "x",
-            "y")
-        for branch in self.coord_dict:
-            for (tick_from, (x, y, tick_to)) in (
-                    self.coord_dict[branch].iteritems()):
-                spot_coords_rows.add((
-                    dimn,
-                    placen,
-                    boardi,
-                    branch,
-                    tick_from,
-                    tick_to,
-                    x,
-                    y))
         return {
             "spot_img": [
-                dictify_row(row, spot_img_cols) for row in iter(spot_img_rows)],
+                {
+                    "dimension": str(self.dimension),
+                    "place": str(self.place),
+                    "board": int(self.board),
+                    "branch": branch,
+                    "tick_from": tick_from,
+                    "tick_to": tick_to,
+                    "img": imgn}
+                for (branch, tick_from, tick_to, imgn) in
+                BranchTicksIter(self.imagery)],
             "spot_interactive": [
-                dictify_row(row, spot_interactive_cols) for row in iter(spot_interactive_rows)],
+                {
+                    "dimension": str(self.dimension),
+                    "place": str(self.place),
+                    "board": int(self.board),
+                    "branch": branch,
+                    "tick_from": tick_from,
+                    "tick_to": tick_to}
+                for (branch, tick_from, tick_to) in
+                BranchTicksIter(self.interactivity)],
             "spot_coords": [
-                dictify_row(row, spot_coords_cols) for row in iter(spot_coords_rows)]}
+                {
+                    "dimension": str(self.dimension),
+                    "place": str(self.place),
+                    "board": int(self.board),
+                    "branch": branch,
+                    "tick_from": tick_from,
+                    "tick_to": tick_to,
+                    "x": x,
+                    "y": y}
+                for (branch, tick_from, tick_to, x, y) in
+                BranchTicksIter(self.coord_dict)]}
 
     def get_state_tup(self):
         return (
