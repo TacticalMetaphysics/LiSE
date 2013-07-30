@@ -45,7 +45,6 @@ too.
         self.db = self.dimension.db
         self.locations = {}
         self.indefinite_locations = {}
-        self.pawns = []
 
     def __getattr__(self, attrn):
         if attrn == 'location':

@@ -5,69 +5,49 @@ from collections import OrderedDict
 """Class for user's view on gameworld, and support functions."""
 
 
-class BoardDimIter:
-    def __init__(self, boardi, boardlst, sublst):
-        self.i = boardi
-        self.it = iter(boardlst)
-        self.sublst = sublst
+class BoardPawnIter:
+    def __init__(self, board):
+        self.thingit = board.things
+        self.i = int(board)
 
     def __iter__(self):
         return self
 
     def next(self):
-        r = self.it.next()
-        while (len(getattr(r, self.sublst)) < self.i or
-               getattr(r, self.sublst)[self.i] is None):
-            r = self.it.next()
-        return r
-
-
-class BoardPortIter(BoardDimIter):
-    def __init__(self, board):
-        return BoardDimIter.__init__(self, board.i, board.dimension.portals, 'arrows')
-
-
-class BoardArrowIter:
-    def __init__(self, board):
-        self.it = BoardPortIter(board)
-
-    def __iter__(self):
-        return self
-
-    def next(self):
-        return self.it.next().arrows[self.it.i]
-
-
-class BoardPlaceIter(BoardDimIter):
-    def __init__(self, board):
-        return BoardDimIter.__init__(self, board.i, board.dimension.places, 'spots')
+        r = self.thingit.next()
+        while not hasattr(r, 'pawns'):
+            r = self.thingit.next()
+        return r.pawns[self.i]
 
 
 class BoardSpotIter:
     def __init__(self, board):
-        self.it = BoardPlaceIter(board)
+        self.placeit = board.places
+        self.i = int(board)
 
     def __iter__(self):
         return self
 
     def next(self):
-        return self.it.next().spots[self.it.i]
+        r = self.placeit.next()
+        while not hasattr(r, 'spots'):
+            r = self.placeit.next()
+        return r.spots[self.i]
 
 
-class BoardThingIter(BoardDimIter):
+class BoardArrowIter:
     def __init__(self, board):
-        return BoardDimIter.__init__(self, board.i, board.dimension.things, 'pawns')
-
-
-class BoardPawnIter:
-    def __init__(self, board):
-        self.it = BoardThingIter(board)
+        self.portit = board.portals
+        self.i = int(board)
 
     def __iter__(self):
         return self
 
     def next(self):
-        return self.it.next().pawns[self.it.i]
+        r = self.portit.next()
+        while not hasattr(r, 'arrows'):
+            r = self.portit.next()
+        return r.arrows[self.i]
 
 
 class Board:
@@ -113,15 +93,15 @@ each board will be open in at most one window at a time.
 
     def __getattr__(self, attrn):
         if attrn == "places":
-            return BoardPlaceIter(self)
+            return iter(self.dimension.places)
         elif attrn == "things":
-            return BoardThingIter(self)
+            return iter(self.dimension.things)
+        elif attrn == "portals":
+            return iter(self.dimension.portals)
         elif attrn == "pawns":
             return BoardPawnIter(self)
         elif attrn == "spots":
             return BoardSpotIter(self)
-        elif attrn == "portals":
-            return BoardPortIter(self)
         elif attrn == "arrows":
             return BoardArrowIter(self)
         elif attrn == "menus":

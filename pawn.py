@@ -49,6 +49,7 @@ With db, register in db's pawndict.
 
         """
         self.board = board
+        self.window = self.board.window
         self.db = board.db
         self.thing = thing
         self.imagery = {}
@@ -68,26 +69,26 @@ With db, register in db's pawndict.
         return str(self.thing)
 
     def __getattr__(self, attrn):
-        if attrn == 'gw':
-            return self.board.gw
-        elif attrn == 'img':
+        if attrn == 'img':
             return self.get_img()
+        elif attrn == 'visible':
+            return self.img is not None
         elif attrn == 'highlit':
             return self in self.gw.selected
+        elif attrn == 'interactive':
+            return self.is_interactive()
         elif attrn == 'hovered':
-            return self.gw.hovered is self
+            return self.window.hovered is self
         elif attrn == 'pressed':
-            return self.gw.pressed is self
+            return self.window.pressed is self
         elif attrn == 'grabbed':
-            return self.gw.grabbed is self
+            return self.window.grabbed is self
         elif attrn == 'selected':
-            return self in self.gw.selected
-        elif attrn == 'window':
-            return self.gw.window
+            return self in self.window.selected
         elif attrn == 'window_left':
-            return self.getcoords()[0]
+            return self.get_coords()[0]
         elif attrn == 'window_bot':
-            return self.getcoords()[1]
+            return self.get_coords()[1]
         elif attrn == 'width':
             return self.img.width
         elif attrn == 'height':
@@ -169,6 +170,22 @@ With db, register in db's pawndict.
                 return
             self.thing.journey.add_path(path)
             self.db.caldict[self._dimension].adjust()
+
+    def get_coords(self, branch=None, tick=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        loc = self.thing.get_location(branch, tick)
+        if hasattr(loc, 'dest'):
+            (ox, oy) = loc.orig.spots[int(self.board)].get_coords(branch, tick)
+            (dx, dy) = loc.dest.spots[int(self.board)].get_coords(branch, tick)
+            prog = self.thing.get_progress(branch, tick)
+            odx = dx - ox
+            ody = dy - oy
+            return (int(ox + odx * prog), int(oy + ody * prog))
+        else:
+            return loc.spots[int(self.board)].get_coords(branch, tick)
 
     def get_tabdict(self):
         dimn = str(self.dimension)

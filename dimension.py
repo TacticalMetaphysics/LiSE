@@ -61,9 +61,7 @@ keyed with their names.
         self.places = []
         self.places_by_name = {}
         self.portals = []
-        self.portals_by_origi_desti = {}
         self.portals_by_orign_destn = {}
-        self.things = []
         self.things_by_name = {}
         self.boards = []
         self.graph = Graph(directed=True)
@@ -75,6 +73,12 @@ constrains it to be unique."""
 
     def __str__(self):
         return self.name
+
+    def __getattr__(self, attrn):
+        if attrn == 'things':
+            return self.things_by_name.itervalues()
+        else:
+            raise AttributeError("dimension has no attribute named " + attrn)
 
     def get_igraph_layout(self, layout_type):
         """Return a Graph layout, of the kind that igraph uses, representing
