@@ -94,15 +94,13 @@ this dimension, and laid out nicely."""
             thing.save()
 
     def get_shortest_path(self, orig, dest, branch=None, tick=None):
-        origi = int(orig)
-        desti = int(dest)
         if branch is None:
             branch = self.db.branch
         if tick is None:
             tick = self.db.tick
-        for path in self.graph.get_shortest_paths(desti):
-            if path[-1] == origi:
-                return path
+        for path in self.graph.get_shortest_paths(int(dest)):
+            if self.graph.vs[path[-1]]["place"] == orig:
+                return [self.graph.vs[i]["place"] for i in path]
 
     def load(self, branches=None, tick_from=None, tick_to=None):
         branchexpr = ""
@@ -155,10 +153,13 @@ this dimension, and laid out nicely."""
         # Contrary to the tutorial, the graph starts out with vertex 0
         # already in it.
         self.graph.add_vertices(len(self.places) - 1)
-        self.graph.vs["place"] = self.places
         edges = [(int(portal.orig), int(portal.dest)) for portal in self.portals]
         self.graph.add_edges(edges)
-        self.graph.es["portal"] = self.portals
+        for portal in self.portals:
+            self.graph.vs[int(portal.orig)]["place"] = portal.orig
+            self.graph.vs[int(portal.dest)]["place"] = portal.dest
+            self.graph.es[self.graph.get_eid(int(portal.orig), int(portal.dest))]["portal"] = portal
+        
 
     def load_board(self, gw, i):
         while len(self.boards) <= i:

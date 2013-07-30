@@ -37,7 +37,7 @@ too.
          {"dimension, thing": ("thing", "dimension, name"),
           "dimension, location": ("place", "dimension, name")},
          [])]
-    basic_speed = 1
+    basic_speed = 0.1
 
     def __init__(self, dimension, name):
         self.name = name
@@ -129,6 +129,37 @@ else to do.
         if tick_to is None:
             self.indefinite_locations[branch] = tick_from
 
+    def add_path(self, path, branch=None, tick=None):
+        # the path is in reversed order.
+        # pop stuff off it to find where to go.
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        prevstep = path.pop()
+        prevtick = tick
+        while path != []:
+            step = path.pop()
+            port = self.dimension.portals_by_orign_destn[str(prevstep)][str(step)]
+            tick_out = self.get_ticks_thru(port) + prevtick + 1
+            self.set_location(port, branch, prevtick, tick_out)
+            prevstep = step
+            prevtick = tick_out
+        self.set_location(step, branch, prevtick)
+
+    def add_journey(self, journey, branch=None, tick=None):
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        prevtick = tick
+        journey_end = journey[-1].dest
+        for port in journey:
+            tick_out = self.get_ticks_thru(port) + prevtick
+            self.set_location(port, branch, prevtick, tick_out)
+            prevtick = tick_out + 1
+        self.set_location(journey_end, branch, prevtick)
+
     def get_speed(self, branch=None, tick=None):
         lo = self.get_location(branch, tick)
         ticks = self.get_ticks_thru(lo)
@@ -138,7 +169,7 @@ else to do.
         """How many ticks would it take to get through that portal?"""
         # basic_speed should really be looked up in a character, this
         # is really a placeholder
-        return len(po) * self.basic_speed
+        return len(po) / self.basic_speed
 
     def get_distance(self, branch=None, tick=None):
         """Return a float representing the number of spans across the portal

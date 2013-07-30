@@ -3,6 +3,7 @@ from util import (
     TerminableImg,
     TerminableInteractivity)
 from logging import getLogger
+from igraph import IN
 
 
 logger = getLogger(__name__)
@@ -86,9 +87,9 @@ With db, register in db's pawndict.
         elif attrn == 'selected':
             return self in self.window.selected
         elif attrn == 'window_left':
-            return self.get_coords()[0]
+            return self.get_coords()[0] + self.drag_offset_x
         elif attrn == 'window_bot':
-            return self.get_coords()[1]
+            return self.get_coords()[1] + self.drag_offset_y
         elif attrn == 'width':
             return self.img.width
         elif attrn == 'height':
@@ -139,8 +140,9 @@ With db, register in db's pawndict.
             self.onscreen,
             self.grabpoint,
             self.hovered,
-            self.window_left,
-            self.window_bot,
+            self.get_coords(branch, tick),
+            self.drag_offset_x,
+            self.drag_offset_y,
             self.tweaks)
 
     def move_with_mouse(self, x, y, dx, dy, buttons, modifiers):
@@ -155,21 +157,18 @@ With db, register in db's pawndict.
         self.drag_offset_y = 0
         spot = self.board.get_spot_at(x, y)
         if spot is not None:
-            logger.debug("Hit the spot %s", str(spot))
             destplace = spot.place
-            try:
-                startplacen = self.thing.journey.steps[-1][1]
-            except IndexError:
-                startplacen = str(self.thing.location)
-            startplace = self.db.get_place(self._dimension, startplacen)
-            logger.debug("Plotting a course from %s to %s",
-                         startplacen, str(destplace))
-            path = self.dimension.shortest_path(startplace, destplace)
-            logger.debug("Got the path: " + str(path))
+            startplace = self.thing.location
+            paths = self.thing.dimension.graph.get_shortest_paths(int(destplace), mode=IN)
+            path = None
+            for p in paths:
+                 if p != [] and self.thing.dimension.graph.vs[p[-1]]["place"] == startplace:
+                     path = [self.thing.dimension.graph.vs[i]["place"] for i in p]
             if path is None:
                 return
-            self.thing.journey.add_path(path)
-            self.db.caldict[self._dimension].adjust()
+            self.thing.add_path(path)
+            print self.thing.locations
+#            self.db.caldict[self._dimension].adjust()
 
     def get_coords(self, branch=None, tick=None):
         if branch is None:
