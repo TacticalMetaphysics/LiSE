@@ -197,9 +197,17 @@ With db, register in db's pawndict.
             odx = dx - ox
             ody = dy - oy
             return (int(ox + odx * prog), int(oy + ody * prog))
-        else:
+        elif hasattr(loc, 'spots'):
             spot = loc.spots[int(self.board)]
             return (spot.window_x, spot.window_y)
+        else:
+            print "When trying to get the coordinates of the pawn for {0}, I found that its location {1} had no spots.".format(str(self), str(loc))
+            return (0, 0)
+
+
+
+
+            
 
     def get_tabdict(self):
         print "About to make a tabdict for pawn with imagery:"

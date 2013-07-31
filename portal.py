@@ -26,11 +26,11 @@ class Portal:
         self.db = self.dimension.db
         self.existence = {}
 
-    def __str__(self):
+    def __repr__(self):
         return "Portal({0}->{1})".format(str(self.orig), str(self.dest))
 
     def __int__(self):
-        return self.dimension.portals.index(self)
+        return self.dimension.portals_by_orign_destn.values().index(self)
 
     def __len__(self):
         # eventually this will represent something like actual physical length

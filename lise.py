@@ -4,9 +4,8 @@ from rumor import load_game
 from sys import argv
 from sqlite3 import connect, DatabaseError
 
-logging.basicConfig()
+logging.basicConfig(level=logging.DEBUG, filename="debug.log")
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
 
 
 i = 0

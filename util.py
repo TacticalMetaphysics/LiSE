@@ -1,5 +1,8 @@
 import pyglet
 from math import sqrt
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 phi = (1.0 + sqrt(5))/2.0
 
@@ -636,6 +639,15 @@ and your table will be ready.
 
         def coresave(self):
             td = self.get_tabdict()
+            logger.debug("writing a tabdict to disk")
+            for item in td.iteritems():
+                logger.debug("--in the table %s:", item[0])
+                i = 0
+                for record in item[1]:
+                    logger.debug("----row %d:", i)
+                    i += 1
+                    for (key, val) in record.iteritems():
+                        logger.debug("------%s = %s", key, val)
             delete_tabdict(self.db, td)
             insert_tabdict(self.db, td)
 

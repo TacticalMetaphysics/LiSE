@@ -163,9 +163,9 @@ given coordinates, and visible or interactive as indicated.
         elif attrn == "interactive":
             self.set_interactive(val)
         elif attrn == "x":
-            self.set_coords(val, self.y)
+            raise Exception("Don't set x that way")
         elif attrn == "y":
-            self.set_coords(self.x, val)
+            raise Exception("Don't set y that way")
         elif attrn == "hovered":
             if val is True:
                 self.hovered()
@@ -233,8 +233,6 @@ mouse."""
         
 
     def get_tabdict(self):
-        print "About to make a tabdict for spot with coords:"
-        print self.coord_dict
         return {
             "spot_img": [
                 {

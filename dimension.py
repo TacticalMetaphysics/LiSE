@@ -8,6 +8,8 @@ from img import Img
 from arrow import Arrow
 from logging import getLogger
 from igraph import Graph
+from collections import OrderedDict
+from util import DictValues2DIterator
 
 logger = getLogger(__name__)
 
@@ -31,10 +33,8 @@ keyed with their names.
         self.name = name
         self.db = db
         self.db.dimensiondict[str(self)] = self
-        self.places = []
-        self.places_by_name = {}
-        self.portals = []
-        self.portals_by_orign_destn = {}
+        self.places_by_name = OrderedDict()
+        self.portals_by_orign_destn = OrderedDict()
         self.things_by_name = {}
         self.boards = []
         self.graph = Graph(directed=True)
@@ -50,6 +50,10 @@ constrains it to be unique."""
     def __getattr__(self, attrn):
         if attrn == 'things':
             return self.things_by_name.itervalues()
+        elif attrn == 'places':
+            return self.places_by_name.itervalues()
+        elif attrn == 'portals':
+            return DictValues2DIterator(self.portals_by_orign_destn)
         else:
             raise AttributeError("dimension has no attribute named " + attrn)
 
@@ -72,3 +76,17 @@ this dimension, and laid out nicely."""
         for path in self.graph.get_shortest_paths(int(dest)):
             if self.graph.vs[path[-1]]["place"] == orig:
                 return [self.graph.vs[i]["place"] for i in path]
+
+    def add_place(self, pl):
+        print "Adding place {0} to dimension {1}.".format(str(pl), str(self))
+        self.places_by_name[str(pl)] = pl
+
+    def add_portal(self, po):
+        print "Adding portal from {0} to {1} to dimension {2}.".format(str(po.orig), str(po.dest), str(self))
+        if str(po.orig) not in self.portals_by_orign_destn:
+            self.portals_by_orign_destn[str(po.orig)] = OrderedDict()
+        self.portals_by_orign_destn[str(po.orig)][str(po.dest)] = po
+
+    def add_thing(self, th):
+        print "Adding thing {0} to dimension {1}.".format(str(th), str(self))
+        self.things_by_name[str(th)] = th

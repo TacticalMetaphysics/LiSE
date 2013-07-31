@@ -16,7 +16,7 @@ thing located there.
         return that.location == self
 
     def __int__(self):
-        return self.dimension.places.index(self)
+        return self.dimension.places_by_name.values().index(self)
 
     def __str__(self):
         return self.name

@@ -159,9 +159,9 @@ else to do.
         journey_end = journey[-1].dest
         for port in journey:
             tick_out = self.get_ticks_thru(port) + prevtick
-            self.set_location(port, branch, prevtick, tick_out)
+            self.set_location(port, int(branch), int(prevtick), int(tick_out))
             prevtick = tick_out + 1
-        self.set_location(journey_end, branch, prevtick)
+        self.set_location(journey_end, int(branch), int(prevtick))
 
     def get_speed(self, branch=None, tick=None):
         lo = self.get_location(branch, tick)

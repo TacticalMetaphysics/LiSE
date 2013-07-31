@@ -39,15 +39,17 @@ def noop(*args, **kwargs):
     pass
 
 ONE_ARG_RE = re.compile("(.+)")
-ITEM_ARG_RE = re.compile("([a-zA-Z0-9]+)\.([a-zA-Z0-9]+)")
+ITEM_ARG_RE = re.compile("(.+)\.(.+)")
 MAKE_SPOT_ARG_RE = re.compile(
-    "([a-zA-Z0-9]+)\."
-    "([a-zA-Z0-9]+),([0-9]+),([0-9]+),?([a-zA-Z0-9]*)")
+    "(.+)\."
+    "(.+),([0-9]+),([0-9]+),?(.*)")
 MAKE_PORTAL_ARG_RE = re.compile(
-    "([a-zA-Z0-9]+)\.([a-zA-Z0-9]+)->"
-    "([a-zA-Z0-9]+)\.([a-zA-Z0-9]+)")
+    "(.+)\.(.+)->"
+    "(.+)\.(.+)")
 MAKE_THING_ARG_RE = re.compile(
-    "([a-zA-Z0-9]+)\.([a-zA-Z0-9]+)@([a-zA-Z0-9]+)")
+    "(.+)\.(.+)@(.+)")
+PORTAL_NAME_RE = re.compile(
+    "Portal\((.+)->(.+)\)")
 READ_IMGS_QRYFMT = (
     "SELECT {0} FROM img WHERE name IN ({1})".format(
         ", ".join(Img.colnames["img"]), "{0}"))
@@ -660,7 +662,6 @@ necessary."""
         self.hi_place += 1
         pl = Place(dimension, placen)
         dimension.places_by_name[placen] = pl
-        dimension.places.append(pl)
         return pl
 
     def make_spot(self, board, place, x, y):
@@ -680,7 +681,6 @@ necessary."""
         if str(orig) not in dimension.portals_by_orign_destn:
             dimension.portals_by_orign_destn[str(orig)] = {}
         dimension.portals_by_orign_destn[str(orig)][str(dest)] = port
-        dimension.portals.append(port)
         return port
 
     def load_cards(self, names):
@@ -726,45 +726,45 @@ necessary."""
         if tick_to is not None:
             ticktoexpr = " AND tick_to<=?"
         extrastr = "".join((branchexpr, tickfromexpr, ticktoexpr))
-        qrystr = THING_LOC_QRY_START + extrastr
         valtup = tuple([dimn] + [
             b for b in (branches, tick_from, tick_to)
             if b is not None])
-        self.c.execute(qrystr, valtup)
-        for row in self.c:
-            (thingn, branch, tick_from, tick_to, locn) = row
-            if thingn not in dim.things_by_name:
-                dim.things_by_name[thingn] = Thing(dim, thingn)
-            if locn not in dim.places_by_name:
-                pl = Place(dim, locn)
-                dim.places_by_name[locn] = pl
-                dim.places.append(pl)
-            dim.things_by_name[thingn].set_location(
-                dim.places_by_name[locn], branch, tick_from, tick_to)
-        qrystr = PORT_QRY_START + extrastr
-        self.c.execute(qrystr, valtup)
+        self.c.execute(PORT_QRY_START + extrastr, valtup)
         for row in self.c:
             (orign, destn, branch, tick_from, tick_to) = row
             if orign not in dim.places_by_name:
                 opl = Place(dim, orign)
-                dim.places_by_name[orign] = opl
-                dim.places.append(opl)
+                dim.add_place(opl)
             else:
                 opl = dim.places_by_name[orign]
             if destn not in dim.places_by_name:
                 dpl = Place(dim, destn)
-                dim.places_by_name[destn] = dpl
-                dim.places.append(dpl)
+                dim.add_place(dpl)
             else:
                 dpl = dim.places_by_name[destn]
-            if orign not in dim.portals_by_orign_destn:
-                dim.portals_by_orign_destn[orign] = {}
-            po = Portal(dim, opl, dpl)
-            dim.portals_by_orign_destn[orign][destn] = po
-            dim.portals.append(po)
+            dim.add_portal(Portal(dim, opl, dpl))
+        self.c.execute(THING_LOC_QRY_START + extrastr, valtup)
+        for row in self.c:
+            (thingn, branch, tick_from, tick_to, locn) = row
+            if thingn not in dim.things_by_name:
+                dim.add_thing(Thing(dim, thingn))
+            pomatch = re.match(PORTAL_NAME_RE, locn)
+            if pomatch is not None:
+                (orign, destn) = pomatch.groups()
+                loc = dim.portals_by_orign_destn[orign][destn]
+            elif locn in dim.places_by_name:
+                loc = dim.places_by_name[locn]
+            else:
+                pl = Place(dim, locn)
+                dim.add_place(pl)
+                loc = pl
+            dim.things_by_name[thingn].set_location(
+                loc, branch, tick_from, tick_to)
         # Contrary to the tutorial, the graph starts out with vertex 0
         # already in it.
-        dim.graph.add_vertices(len(dim.places) - 1)
+        placelist = dim.places_by_name.values()
+        if len(placelist) > 1:
+            dim.graph.add_vertices(len(placelist) - 1)
         edges = [(int(portal.orig), int(portal.dest)) for portal in dim.portals]
         dim.graph.add_edges(edges)
         for portal in dim.portals:
@@ -843,8 +843,10 @@ necessary."""
             while len(place.spots) <= i:
                 place.spots.append(None)
             place.spots[i] = Spot(dim.boards[i], place)
+            logger.debug("Loaded the spot for %s. Setting its coords to (%d, %d) in branch %d from tick %d.", str(place), x, y, branch, tick_from)
             place.spots[i].set_coords(x, y, branch, tick_from, tick_to)
             spotted_places.add(place)
+        unspotted_places = spotted_places - set(dim.places_by_name.values())
         #their images
         for row in spot_rows:
             (placen, branch, tick_from, tick_to, imgn) = row

@@ -309,6 +309,9 @@ class GameWindow(pyglet.window.Window):
             raise AttributeError(
                 "GameWindow has no attribute named {0}".format(attrn))
 
+    def __str__(self):
+        return self.name
+
     def on_mouse_press(self, x, y, button, modifiers):
         """If there's something already highlit, and the mouse is
 still over it when pressed, it's been half-way clicked; remember this."""
@@ -1155,7 +1158,7 @@ and highlight it.
             self.view_bot,
             self.main_menu_name)
         self.db.c.execute(
-            "INSERT INTO window VALUES ({0})".format(
+            "INSERT INTO window (name, min_width, min_height, dimension, board, arrowhead_size, arrow_width, view_left, view_bot, main_menu) VALUES ({0})".format(
                 ", ".join(["?"] * len(save_these))),
             save_these)
         self.db.conn.commit()
