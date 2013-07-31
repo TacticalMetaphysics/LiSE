@@ -102,9 +102,9 @@ With db, register in db's pawndict.
             else:
                 return c[1]
         elif attrn == 'window_left':
-            return self.x + self.drag_offset_x + self.window.offset_x
+            return self.x + self.drag_offset_x
         elif attrn == 'window_bot':
-            return self.y + self.drag_offset_y + self.window.offset_y
+            return self.y + self.drag_offset_y
         elif attrn == 'width':
             return self.img.width
         elif attrn == 'height':
@@ -201,17 +201,9 @@ With db, register in db's pawndict.
             spot = loc.spots[int(self.board)]
             return (spot.window_x, spot.window_y)
         else:
-            print "When trying to get the coordinates of the pawn for {0}, I found that its location {1} had no spots.".format(str(self), str(loc))
-            return (0, 0)
-
-
-
-
-            
+            raise Exception("When trying to get the coordinates of the pawn for {0}, I found that its location {1} had no spots.".format(str(self), str(loc)))
 
     def get_tabdict(self):
-        print "About to make a tabdict for pawn with imagery:"
-        print self.imagery
         return {
             "pawn_img": [
                 {

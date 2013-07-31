@@ -286,6 +286,15 @@ class GameWindow(pyglet.window.Window):
         self.portal_from = None
         self.portal_triple = ((None, None), (None, None), (None, None))
 
+        self.drawn_once = False
+
+        for menu in self.menus:
+            menu.adjust()
+        def incdb(ticky, db):
+            db.tick += 1
+        pyglet.clock.schedule_interval(incdb, 1/10., self.db)
+        pyglet.app.run()
+
     def __getattr__(self, attrn):
         if attrn == 'hands':
             return self.hands_by_name.itervalues()
@@ -316,6 +325,8 @@ class GameWindow(pyglet.window.Window):
         """If there's something already highlit, and the mouse is
 still over it when pressed, it's been half-way clicked; remember this."""
         logger.debug("mouse pressed at %d, %d", x, y)
+        if not self.drawn_once:
+            return
         if not (self.placing or self.thinging):
             self.pressed = self.hovered
 
@@ -323,6 +334,8 @@ still over it when pressed, it's been half-way clicked; remember this."""
         """If something was being dragged, drop it. If something was being
 pressed but not dragged, it's been clicked. Otherwise do nothing."""
         logger.debug("mouse released at %d, %d", x, y)
+        if not self.drawn_once:
+            return
         if self.placing:
             placed = self.db.make_generic_place(self.board.dimension)
             self.db.make_spot(
@@ -421,6 +434,8 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
         """If the thing previously pressed has a
 move_with_mouse method, use it.
      """
+        if not self.drawn_once:
+            return
         if self.grabbed is None:
             if (
                     self.pressed is not None and
@@ -460,6 +475,8 @@ move_with_mouse method, use it.
     def on_mouse_scroll(self, x, y, scroll_x, scroll_y):
         # for now, this only does anything if you're moused over
         # the calendar
+        if not self.drawn_once:
+            return
         if (
                 self.calendar.visible and
                 x > self.calendar.window_left and
@@ -472,6 +489,47 @@ move_with_mouse method, use it.
     def on_draw(self):
         """Draw the background image; all spots, pawns, and edges on the
 d; all visible menus; and the calendar, if it's visible."""
+        # draw the spots, representing places
+        for spot in self.board.spots:
+            if str(spot.place) == 'myroom':
+                pass
+            newstate = spot.get_state_tup()
+            if newstate in self.onscreen:
+                continue
+            self.onscreen.discard(spot.oldstate)
+            self.onscreen.add(newstate)
+            spot.oldstate = newstate
+            if spot.visible:
+                l = spot.window_left
+                r = spot.window_right
+                b = spot.window_bot
+                t = spot.window_top
+                if spot in self.selected:
+                    yelo = (255, 255, 0, 0)
+                    spot.box_edges = self.draw_box(
+                        l, t, r, b, yelo, self.higroup, spot.box_edges)
+                else:
+                    for vertls in spot.box_edges:
+                        try:
+                            vertls.delete()
+                        except (AttributeError, AssertionError):
+                            pass
+                    spot.box_edges = (None, None, None, None)
+                try:
+                    spot.sprite.x = spot.window_left
+                    spot.sprite.y = spot.window_bot
+                except AttributeError:
+                    spot.sprite = pyglet.sprite.Sprite(
+                        spot.img.tex,
+                        spot.window_left,
+                        spot.window_bot,
+                        batch=self.batch,
+                        group=self.spotgroup)
+            else:
+                try:
+                    spot.sprite.delete()
+                except (AttributeError, AssertionError):
+                    pass
         # draw the edges, representing portals
         if self.portaling:
             if self.portal_from is not None:
@@ -556,45 +614,6 @@ d; all visible menus; and the calendar, if it's visible."""
                             twopair.delete()
                         except:
                             pass
-        # draw the spots, representing places
-        for spot in self.board.spots:
-            newstate = spot.get_state_tup()
-            if newstate in self.onscreen:
-                continue
-            self.onscreen.discard(spot.oldstate)
-            self.onscreen.add(newstate)
-            spot.oldstate = newstate
-            if spot.visible:
-                l = spot.window_left
-                r = spot.window_right
-                b = spot.window_bot
-                t = spot.window_top
-                if spot in self.selected:
-                    yelo = (255, 255, 0, 0)
-                    spot.box_edges = self.draw_box(
-                        l, t, r, b, yelo, self.higroup, spot.box_edges)
-                else:
-                    for vertls in spot.box_edges:
-                        try:
-                            vertls.delete()
-                        except (AttributeError, AssertionError):
-                            pass
-                    spot.box_edges = (None, None, None, None)
-                try:
-                    spot.sprite.x = spot.window_left
-                    spot.sprite.y = spot.window_bot
-                except AttributeError:
-                    spot.sprite = pyglet.sprite.Sprite(
-                        spot.img.tex,
-                        spot.window_left,
-                        spot.window_bot,
-                        batch=self.batch,
-                        group=self.spotgroup)
-            else:
-                try:
-                    spot.sprite.delete()
-                except (AttributeError, AssertionError):
-                    pass
         # draw the pawns, representing things
         for pawn in self.board.pawns:
             newstate = pawn.get_state_tup()
@@ -921,12 +940,14 @@ d; all visible menus; and the calendar, if it's visible."""
         # well, I lied. I was really only adding those things to the batch.
         # NOW I'll draw them.
         self.batch.draw()
-        self.resized = False
+        self.drawn_once = True
 
     def on_mouse_motion(self, x, y, dx, dy):
         """Find the widget, if any, that the mouse is over,
 and highlight it.
         """
+        if not self.drawn_once:
+            return
         self.last_mouse_x = x
         self.last_mouse_y = y
         del self.dx_hist[0]
@@ -997,6 +1018,8 @@ and highlight it.
                 self.hovered = None
 
     def on_key_press(self, symbol, modifiers):
+        if not self.drawn_once:
+            return
         if symbol == pyglet.window.key.DELETE:
             self.delete_selection()
 

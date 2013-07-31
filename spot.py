@@ -100,17 +100,9 @@ given coordinates, and visible or interactive as indicated.
         elif attrn == 'coords':
             return self.get_coords()
         elif attrn == 'x':
-            c = self.coords
-            if c is None:
-                return 0
-            else:
-                return c[0]
+            return self.coords[0]
         elif attrn == 'y':
-            c = self.coords
-            if c is None:
-                return 0
-            else:
-                return c[1]
+            return self.coords[1]
         elif attrn == 'width':
             myimg = self.img
             if myimg is None:
@@ -197,10 +189,7 @@ given coordinates, and visible or interactive as indicated.
         c = self.get_coords()
         newx = c[0] + self.drag_offset_x
         newy = c[1] + self.drag_offset_y
-        logger.debug("moving the spot for %s from (%d,%d) to (%d,%d)",
-                     str(self.place), c[0], c[1], newx, newy)
         self.set_coords(c[0] + self.drag_offset_x, c[1] + self.drag_offset_y)
-        logger.debug("%s", self.coord_dict)
         self.drag_offset_x = 0
         self.drag_offset_y = 0
 
@@ -231,7 +220,6 @@ mouse."""
         self.drag_offset_x += dx
         self.drag_offset_y += dy
         
-
     def get_tabdict(self):
         return {
             "spot_img": [
@@ -277,6 +265,6 @@ mouse."""
             self.hovered,
             self.pressed,
             self.grabbed,
-            self.window_x,
-            self.window_y,
-            self.in_window)
+            self.get_coords(),
+            self.drag_offset_x,
+            self.drag_offset_y)

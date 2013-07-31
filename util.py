@@ -182,8 +182,6 @@ class TerminableImg:
 
 class BranchTicksIter:
     def __init__(self, d):
-        print "BranchTicksIter constructed for:"
-        print d
         self.branchiter = d.iteritems()
         self.branch = None
         self.tickfromiter = None
@@ -194,9 +192,6 @@ class BranchTicksIter:
     def next(self):
         try:
             (tick_from, vtup) = self.tickfromiter.next()
-            print "Iterating over: "
-            print tick_from
-            print vtup
             if isinstance(vtup, tuple):
                 tick_to = vtup[-1]
                 value = vtup[:-1]
@@ -286,18 +281,24 @@ class TerminableCoords:
             tick = self.db.tick
         if branch not in self.coord_dict:
             return None
+        if str(self) == 'myroom':
+            pass
         for (tick_from, (x, y, tick_to)) in self.coord_dict[branch].iteritems():
             if tick_from <= tick and (tick_to is None or tick <= tick_to):
                 return (x, y)
         return None
 
     def set_coords(self, x, y, branch=None, tick_from=None, tick_to=None):
+        print "Setting coordinates of {0} to ({1}, {2}) in branch {3} as of {4}".format(
+            str(self), x, y, branch, tick_from)
         if branch is None:
             branch = self.db.branch
         if tick_from is None:
             tick_from = self.db.tick
         if branch not in self.coord_dict:
             self.coord_dict[branch] = {}
+        if str(self) == 'myroom':
+            pass
         if branch in self.indefinite_coords:
             (ix, iy, itf) = self.indefinite_coords[branch]
             if tick_to is None:

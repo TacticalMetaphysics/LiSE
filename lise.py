@@ -31,5 +31,3 @@ db = load_game(dbfn, lang)
 gw = db.load_window('Main')
 def incdb(ticky):
     db.tick += 1
-pyglet.clock.schedule_interval(incdb, 1/10.)
-pyglet.app.run()

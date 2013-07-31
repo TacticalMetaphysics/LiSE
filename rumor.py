@@ -837,12 +837,15 @@ necessary."""
         self.c.execute(SPOT_BOARD_QRY_START, (str(dim), i))
         for row in self.c:
             (placen, branch, tick_from, tick_to, x, y) = row
+            if placen == 'myroom':
+                pass
             place = dim.places_by_name[placen]  # i hope you loaded *me* first
             if not hasattr(place, 'spots'):
                 place.spots = []
             while len(place.spots) <= i:
                 place.spots.append(None)
-            place.spots[i] = Spot(dim.boards[i], place)
+            if place.spots[i] is None:
+                place.spots[i] = Spot(dim.boards[i], place)
             logger.debug("Loaded the spot for %s. Setting its coords to (%d, %d) in branch %d from tick %d.", str(place), x, y, branch, tick_from)
             place.spots[i].set_coords(x, y, branch, tick_from, tick_to)
             spotted_places.add(place)
@@ -1072,12 +1075,6 @@ Return a dictionary keyed by name.
             self, name, min_width, min_height, dim, boardi, arrowhead_size,
             arrow_width, view_left, view_bot, main_menu, hand_rows, cal_rows,
             menu_rows, menu_item_rows)
-        for spot in gw.board.spots:
-            spot.tweaks += 1
-        for pawn in gw.board.pawns:
-            pawn.tweaks += 1
-        for menu in gw.menus_by_name.itervalues():
-            menu.adjust()
 
 
 def load_game(dbfn, lang="eng"):
