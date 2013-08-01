@@ -392,9 +392,8 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                 self.selected = set()
             if self.pressed.overlaps(x, y):
                 logger.debug("%s clicked", str(self.pressed))
-                if hasattr(self.pressed, 'onclick'):
-                    self.pressed.onclick()
                 if hasattr(self.pressed, 'selectable'):
+                    self.pressed.selected()
                     logger.debug("Selecting it.")
                     self.selected.add(self.pressed)
                     self.pressed.tweaks += 1
@@ -406,6 +405,8 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
         else:
             for sel in iter(self.selected):
                 sel.tweaks += 1
+                if hasattr(sel, 'unselected'):
+                    sel.unselected()
             self.selected = set()
         self.pressed = None
         self.grabbed = None
@@ -453,14 +454,10 @@ move_with_mouse method, use it.
     def on_mouse_scroll(self, x, y, scroll_x, scroll_y):
         # for now, this only does anything if you're moused over
         # the calendar
-        if (
-                self.calendar.visible and
-                x > self.calendar.window_left and
-                x < self.calendar.window_right and
-                y > self.calendar.window_bot and
-                y < self.calendar.window_top):
-            sf = self.calendar.scroll_factor
-            self.calendar.scrolled_to += scroll_y * sf
+        for calendar in self.calendars:
+            if calendar.overlaps(x, y):
+                sf = calendar.scroll_factor
+                calendar.scrolled_to += scroll_y * sf
 
     def on_draw(self):
         """Draw the background image; all spots, pawns, and edges on the
@@ -677,12 +674,12 @@ d; all visible menus; and the calendar, if it's visible."""
                         pass
                     
       # draw the calendar
-        for calendar in self.board.calendars:
+        for calendar in self.calendars:
             newstate = calendar.get_state_tup()
             if newstate not in self.onscreen:
                 self.onscreen.add(newstate)
-                self.onscreen.discard(self.calendar.oldstate)
-                self.calendar.oldstate = newstate
+                self.onscreen.discard(calendar.oldstate)
+                calendar.oldstate = newstate
                 for calcol in calendar.cols:
                     if calcol.width != calcol.old_width:
                         calcol.old_image = (
@@ -696,32 +693,14 @@ d; all visible menus; and the calendar, if it's visible."""
                             calcol.window_bot,
                             batch=self.batch,
                             group=self.calgroup)
-                    for cel in calcol.celldict.itervalues():
+                    for cel in calcol.cells:
                         if cel.visible:
-                            if self.hovered == cel:
-                                color = cel.style.fg_active.tup
-                                if (
-                                        cel.old_active_image is None or
-                                        cel.old_width != cel.width or
-                                        cel.old_height != cel.height):
-                                    cel.old_active_image = (
-                                        cel.active_pattern.create_image(
-                                            cel.width, cel.height).texture)
-                                    cel.old_width = cel.width
-                                    cel.old_height = cel.height
-                                image = cel.old_active_image
+                            if self.hovered is cel:
+                                image = cel.active_pattern.create_image(
+                                    cel.width, cel.height).texture
                             else:
-                                color = cel.style.fg_inactive.tup
-                                if (
-                                        cel.old_inactive_image is None or
-                                        cel.old_width != cel.width or
-                                        cel.old_height != cel.height):
-                                    cel.old_inactive_image = (
-                                        cel.inactive_pattern.create_image(
-                                            cel.width, cel.height).texture)
-                                    cel.old_width = cel.width
-                                    cel.old_height = cel.height
-                                image = cel.old_inactive_image
+                                image = cel.inactive_pattern.create_image(
+                                            cel.width, cel.height).texture
                             cel.sprite = pyglet.sprite.Sprite(
                                 image,
                                 cel.window_left,
@@ -734,6 +713,7 @@ d; all visible menus; and the calendar, if it's visible."""
                                     cel.text,
                                     cel.style.fontface,
                                     cel.style.fontsize,
+                                    color=cel.style.textcolor.tup,
                                     width=cel.width,
                                     height=cel.height,
                                     x=cel.window_left,
@@ -757,11 +737,13 @@ d; all visible menus; and the calendar, if it's visible."""
                             cel.sprite = None
         if self.last_age != self.db.tick:
             # draw the time line on top of the calendar
-            for calendar in self.board.calendars:
+            for calendar in self.calendars:
                 try:
                     calendar.timeline.delete()
                 except (AttributeError, AssertionError):
                     pass
+                if not calendar.visible:
+                    continue
                 top = calendar.window_top
                 left = calendar.window_left
                 right = calendar.window_right

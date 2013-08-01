@@ -89,7 +89,6 @@ each board will be open in at most one window at a time.
         self.height = height
         self.wallpaper = wallpaper
         self.menu_by_name = OrderedDict()
-        self.calendar_by_name = OrderedDict()
 
     def __getattr__(self, attrn):
         if attrn == "places":
@@ -106,8 +105,6 @@ each board will be open in at most one window at a time.
             return BoardArrowIter(self)
         elif attrn == "menus":
             return self.menu_by_name.itervalues()
-        elif attrn == "calendars":
-            return self.calendar_by_name.itervalues()
         else:
             raise AttributeError("Board has no attribute named " + attrn)
 

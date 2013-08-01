@@ -760,16 +760,15 @@ necessary."""
                 loc = pl
             dim.things_by_name[thingn].set_location(
                 loc, branch, tick_from, tick_to)
-        # Contrary to the tutorial, the graph starts out with vertex 0
-        # already in it.
         placelist = dim.places_by_name.values()
-        if len(placelist) > 1:
-            dim.graph.add_vertices(len(placelist) - 1)
+        dim.graph.add_vertices(len(placelist) )
         edges = [(int(portal.orig), int(portal.dest)) for portal in dim.portals]
         dim.graph.add_edges(edges)
         for portal in dim.portals:
             dim.graph.vs[int(portal.orig)]["place"] = portal.orig
+            dim.graph.vs[int(portal.orig)]["name"] = str(portal.orig)
             dim.graph.vs[int(portal.dest)]["place"] = portal.dest
+            dim.graph.vs[int(portal.dest)]["name"] = str(portal.dest)
             dim.graph.es[dim.graph.get_eid(int(portal.orig), int(portal.dest))]["portal"] = portal
         return dim
 

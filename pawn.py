@@ -165,16 +165,12 @@ With db, register in db's pawndict.
         self.drag_offset_y = 0
         spot = self.board.get_spot_at(x, y)
         if spot is not None:
-            destplace = spot.place
-            startplace = self.thing.location
-            paths = self.thing.dimension.graph.get_shortest_paths(int(destplace), mode=IN)
-            path = None
-            for p in paths:
-                 if p != [] and self.thing.dimension.graph.vs[p[-1]]["place"] == startplace:
-                     path = [self.thing.dimension.graph.vs[i]["place"] for i in p]
-            if path is None:
-                return
-            self.thing.add_path(path)
+            self.thing.journey_to(spot.place)
+        try:
+            self.calcol.regen_cells()
+            self.calcol.tweaks += 1
+        except:
+            pass
 
     def overlaps(self, x, y):
         if self.visible and self.interactive:
@@ -187,12 +183,16 @@ With db, register in db's pawndict.
         else:
             return False
 
-    def onclick(self):
+    def selected(self):
         if self.calcol is None:
-            self.calcol = self.window.sensible_calendar_for(self).mkcol(
-                self.thing.locations)
-        else:
+            sensical = self.window.sensible_calendar_for(self.thing)
+            self.calcol = sensical.mkcol(self.thing.locations)
+            self.calcol.visible = True
+
+    def unselected(self):
+        if self.calcol is not None:
             self.calcol.delete()
+            self.calcol = None
             
 
     def get_coords(self, branch=None, tick=None):

@@ -289,8 +289,6 @@ class TerminableCoords:
         return None
 
     def set_coords(self, x, y, branch=None, tick_from=None, tick_to=None):
-        print "Setting coordinates of {0} to ({1}, {2}) in branch {3} as of {4}".format(
-            str(self), x, y, branch, tick_from)
         if branch is None:
             branch = self.db.branch
         if tick_from is None:

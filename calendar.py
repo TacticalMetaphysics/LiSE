@@ -32,23 +32,30 @@ represents to calculate its dimensions and coordinates.
         self.label = None
         self.visible = True
         self.tweaks = 0
-        self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
+        self.inactive_pattern = color_pattern(self.style.fg_inactive.tup)
+        self.active_pattern = color_pattern(self.style.fg_active.tup)
 
     def __len__(self):
-        return self.tick_to - self.tick_from
+        if self.tick_to is None:
+            return None
+        else:
+            return self.tick_to - self.tick_from
 
     def __getattr__(self, attrn):
         if attrn == 'interactive':
-            return self.col.cal.interactive
+            return self.col.calendar.interactive
         elif attrn == 'window':
-            return self.col.cal.board.gw.window
+            return self.col.calendar.window
         elif attrn == 'window_top':
             return (
-                self.col.cal.window_top -
-                (self.tick_from - self.col.cal.scrolled_to) *
-                self.col.cal.row_height)
+                self.col.calendar.window_top -
+                (self.tick_from - self.col.calendar.scrolled_to) *
+                self.col.calendar.row_height)
         elif attrn == 'window_bot':
-            return self.window_top - (self.col.cal.row_height * len(self))
+            if self.tick_to is None:
+                return self.col.calendar.window_bot
+            else:
+                return self.window_top - (self.col.calendar.row_height * len(self))
         elif attrn == 'window_left':
             return self.col.window_left + self.style.spacing
         elif attrn == 'window_right':
@@ -80,20 +87,21 @@ between any two states that should appear different on-screen."""
         except:
             pass
         try:
-            self.text.delete()
+            self.label.delete()
         except:
             pass
 
 
 
+
 class CalendarCol:
-    def __init__(self, calendar, scheduledict, visible, interactive, style):
+    def __init__(self, calendar, scheduledict, interactive, style):
         self.calendar = calendar
         self.window = calendar.window
         self.scheduledict = scheduledict
         self.board = self.calendar.board
         self.db = self.calendar.db
-        self.visible = visible
+        self.visible = False
         self.interactive = interactive
         self.style = style
         self.oldstate = None
@@ -101,6 +109,9 @@ class CalendarCol:
         self.old_image = None
         self.sprite = None
         self.oldwidth = None
+        self.inactive_pattern = color_pattern(style.bg_inactive.tup)
+        self.active_pattern = color_pattern(style.bg_active.tup)
+        self.tweaks = 0
         self.cells = []
         self.regen_cells()
 
@@ -112,19 +123,19 @@ class CalendarCol:
         if attrn == 'dimension':
             return self.db.get_dimension(self._dimension)
         elif attrn == 'idx':
-            return self.cal.index(self)
+            return self.calendar.cols.index(self)
         elif attrn == 'window_top':
-            return self.cal.window_top
+            return self.calendar.window_top
         elif attrn == 'window_bot':
-            return self.cal.window_bot
+            return self.calendar.window_bot
         elif attrn == 'window_left':
-            return self.cal.window_left + self.idx * self.cal.col_width
+            return self.calendar.window_left + self.idx * self.calendar.col_width
         elif attrn == 'window_right':
-            return self.window_left + self.cal.col_width
+            return self.window_left + self.calendar.col_width
         elif attrn == 'width':
-            return self.cal.col_width
+            return self.calendar.col_width
         elif attrn == 'height':
-            return self.cal.height
+            return self.calendar.height
         else:
             raise AttributeError(
                 "CalendarCol instance has no such attribute: " +
@@ -144,7 +155,7 @@ between any two states that should appear different on-screen."""
             self.window_top,
             self.window_bot,
             self.idx,
-            self.cal.col_width,
+            self.width,
             self.visible,
             self.interactive,
             self.tweaks)
@@ -158,7 +169,7 @@ between any two states that should appear different on-screen."""
         for (tick_from, val) in self.scheduledict[branch].iteritems():
             if isinstance(val, tuple):
                 tick_to = val[-1]
-                text = ", ".join(str(val[:-1]))
+                text = self.pretty_printer(val[:-1])
             else:
                 tick_to = val
                 text = "..."
@@ -167,8 +178,29 @@ between any two states that should appear different on-screen."""
     def delete(self):
         for cell in self.cells:
             cell.delete()
+        try:
+            self.sprite.delete()
+        except:
+            pass
         if self in self.calendar.cols:
             self.calendar.cols.remove(self)
+        self.sprite = None
+
+    def pretty_caster(self, *args):
+        unargs = []
+        for arg in args:
+            if isinstance(arg, tuple) or isinstance(arg, list):
+                unargs += self.pretty_caster(*arg)
+            else:
+                unargs.append(arg)
+        return unargs
+
+    def pretty_printer(self, *args):
+        strings = []
+        unargs = self.pretty_caster(*args)
+        for unarg in unargs:
+            strings.append(str(unarg))
+        return ";\n".join(strings)
 
 
 class Calendar:
@@ -231,35 +263,22 @@ schedule, possibly several.
     def __getattr__(self, attrn):
         if attrn == 'board':
             return self.db.boarddict[self._dimension]
-        elif attrn == 'gw':
-            if not hasattr(self.board, 'gw'):
-                return None
-            else:
-                return self.board.gw
         elif attrn == 'window_top':
-            if self.gw is None:
-                return 0
-            else:
-                return int(self.top_prop * self.gw.height)
+            return int(self.top_prop * self.window.height)
         elif attrn == 'window_bot':
-            if self.gw is None:
-                return 0
-            else:
-                return int(self.bot_prop * self.gw.height)
+            return int(self.bot_prop * self.window.height)
         elif attrn == 'window_left':
-            if self.gw is None:
-                return 0
-            else:
-                return int(self.left_prop * self.gw.width)
+            return int(self.left_prop * self.window.width)
         elif attrn == 'window_right':
-            if self.gw is None:
-                return 0
-            else:
-                return int(self.right_prop * self.gw.width)
+            return int(self.right_prop * self.window.width)
         elif attrn == 'width':
             return self.window_right - self.window_left
+        elif attrn == 'col_width':
+            return self.width / len(self.cols)
         elif attrn == 'height':
             return self.window_top - self.window_bot
+        elif attrn == 'row_height':
+            return self.height / self.rows_shown
         elif attrn == 'visible':
             return self._visible and len(self.cols) > 0
         elif attrn == 'interactive':
@@ -296,7 +315,7 @@ between any two states that should appear different on-screen."""
             self.window_bot,
             self.visible,
             self.interactive,
-            self.rows_on_screen,
+            self.rows_shown,
             self.scrolled_to,
             self.tweaks)
 
@@ -331,11 +350,20 @@ between any two states that should appear different on-screen."""
                     "scrolled_to": self.scrolled_to,
                     "scroll_factor": self.scroll_factor}]}
 
-    def mkcol(self, scheduledict, visible=True, interactive=True, style=None):
+    def mkcol(self, scheduledict, interactive=True, style=None):
         if style is None:
             style = self.style
         cc = CalendarCol(
-            self, scheduledict, visible, interactive, style)
+            self, scheduledict, interactive, style)
         self.cols.append(cc)
         return cc
+
+    def overlaps(self, x, y):
+        return (
+            self.visible and
+            self.interactive and
+            self.window_left < x and
+            self.window_right > x and
+            self.window_bot < y and
+            self.window_top > y)
         

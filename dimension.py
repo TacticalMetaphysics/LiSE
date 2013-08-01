@@ -78,15 +78,12 @@ this dimension, and laid out nicely."""
                 return [self.graph.vs[i]["place"] for i in path]
 
     def add_place(self, pl):
-        print "Adding place {0} to dimension {1}.".format(str(pl), str(self))
         self.places_by_name[str(pl)] = pl
 
     def add_portal(self, po):
-        print "Adding portal from {0} to {1} to dimension {2}.".format(str(po.orig), str(po.dest), str(self))
         if str(po.orig) not in self.portals_by_orign_destn:
             self.portals_by_orign_destn[str(po.orig)] = OrderedDict()
         self.portals_by_orign_destn[str(po.orig)][str(po.dest)] = po
 
     def add_thing(self, th):
-        print "Adding thing {0} to dimension {1}.".format(str(th), str(self))
         self.things_by_name[str(th)] = th

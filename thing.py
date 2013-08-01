@@ -14,6 +14,9 @@ logger = getLogger(__name__)
 class JourneyException(Exception):
     pass
 
+class BranchError(Exception):
+    pass
+
 
 class Thing:
     """The sort of item that has a particular location at any given time.
@@ -117,51 +120,18 @@ else to do.
             tick_from = self.db.tick
         if branch not in self.locations:
             self.locations[branch] = {}
-        self.locations[branch][tick_from] = (loc, tick_to)
-        # A previous set_location might have set a previous tick_to to
-        # None. In that case, this call to set_location will set the
-        # end of that previous location.
         if branch in self.indefinite_locations:
-            indef_tick_from = self.indefinite_locations[branch]
-            indef_loc = self.locations[branch][indef_tick_from][0]
-            self.locations[branch][indef_tick_from] = (
-                indef_loc, tick_from - 1)
-            del self.indefinite_locations[branch]
+            ifrom = self.indefinite_locations[branch]
+            (iloc, ito) = self.locations[branch][ifrom]
+            if tick_from > ifrom:
+                self.locations[branch][ifrom] = (iloc, tick_from - 1)
+                del self.indefinite_locations[branch]
+            elif tick_to > ifrom:
+                del self.locations[branch][ifrom]
+                del self.indefinite_locations[brarnch]
+        self.locations[branch][tick_from] = (loc, tick_to)
         if tick_to is None:
             self.indefinite_locations[branch] = tick_from
-
-    def add_path(self, path, branch=None, tick=None):
-        # the path is in reversed order.
-        # pop stuff off it to find where to go.
-        if branch is None:
-            branch = self.db.branch
-        if tick is None:
-            tick = self.db.tick
-        prevstep = path.pop()
-        prevtick = tick
-        step = None
-        while path != []:
-            step = path.pop()
-            port = self.dimension.portals_by_orign_destn[str(prevstep)][str(step)]
-            tick_out = self.get_ticks_thru(port) + prevtick + 1
-            self.set_location(port, branch, prevtick, tick_out)
-            prevstep = step
-            prevtick = tick_out
-        if step is not None:
-            self.set_location(step, branch, prevtick)
-
-    def add_journey(self, journey, branch=None, tick=None):
-        if branch is None:
-            branch = self.db.branch
-        if tick is None:
-            tick = self.db.tick
-        prevtick = tick
-        journey_end = journey[-1].dest
-        for port in journey:
-            tick_out = self.get_ticks_thru(port) + prevtick
-            self.set_location(port, int(branch), int(prevtick), int(tick_out))
-            prevtick = tick_out + 1
-        self.set_location(journey_end, int(branch), int(prevtick))
 
     def get_speed(self, branch=None, tick=None):
         lo = self.get_location(branch, tick)
@@ -223,62 +193,6 @@ are n ticks of free time."""
                 laterthan = tick_to
         return laterthan + 1
 
-    def schedule_travel_thru(self, port, branch=None, tick=None):
-        """Plan to travel through the given portal.
-
-If I'm free, I'll go right away, or at the tick specified (and in the
-branch specified) as applicable. Otherwise it'll wait til I'm good and
-ready.
-
-        """
-        if branch is None:
-            branch = self.db.branch
-        if tick is None:
-            tick = self.db.tick
-        # how long would it take?
-        nticks = self.get_ticks_thru(port)
-        # find a time
-        starttime = self.free_time(nticks, branch, tick)
-        self.set_location(port, branch, starttime, starttime + nticks)
-
-    def schedule_journey(self, dest, branch=None, tick=None):
-        """Plan a series of travels, through a series of portals, resulting in
-my being located at the place given."""
-        # TODO: Notify each Place that I go through
-        #
-        # if I'm already in a portal, wait til I'm out of it before
-        # going on this new journey
-        if branch is None:
-            branch = self.db.branch
-        if tick is None:
-            tick = self.db.tick
-        if branch not in self.locations:
-            raise LocationException(
-                "I don't exist in the given branch, so I can't go anywhere.")
-        for (tick_from, (loc, tick_to)) in self.locations[branch].iteritems():
-            if tick_from <= tick and (tick_to is None or tick <= tick_to):
-                orig = loc
-                if hasattr(orig, 'dest'):
-                    starttick = tick_to
-                else:
-                    starttick = tick
-                    self.locations[branch][tick_from] = (loc, tick)
-                    if tick_to is None:
-                        del self.indefinite_locations[branch]
-                p = self.dimension.get_shortest_path(orig, dest, branch, tick)
-                lasti = orig.i
-                lasttick = starttick + 1
-                while p != []:
-                    nexti = p.pop()
-                    if nexti == orig.i or nexti == dest.i:
-                        continue
-                    port = self.dimension.graph[lasti, nexti]["portal"]
-                    ticks = self.get_ticks_thru(port)
-                    self.set_location(port, branch, lasttick, lasttick + ticks)
-                    lasttick += ticks + 1
-                    lasti = nexti
-                self.set_location(dest, branch, lasttick, None)
-        raise JourneyException("Couldn't schedule the journey")
 
     def get_tabdict(self):
         return {
@@ -292,3 +206,49 @@ my being located at the place given."""
                     "location": str(location)}
                 for (branch, tick_from, tick_to, location) in
                 BranchTicksIter(self.locations)]}
+
+    def end_location(self, branch=None, tick=None):
+        """Find where I am at the given time. Arrange to stop being there then."""
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        if branch not in self.locations:
+            raise BranchError("Branch not known")
+        for (tick_from, (loc, tick_to)) in self.locations[branch].iteritems():
+            if tick_from <= tick and (tick_to is None or tick <= tick_to):
+                self.locations[branch][tick_from] = (loc, tick)
+                if tick_to is None:
+                    del self.indefinite_locations[branch]
+                return
+
+    def journey_to(self, destplace, branch=None, tick=None):
+        """Schedule myself to travel to the given place, interrupting whatever
+other journey I may be on at the time."""
+        if branch is None:
+            branch = self.db.branch
+        if tick is None:
+            tick = self.db.tick
+        loc = self.get_location(branch, tick)
+        print "{0} journeys from {1} to {2}".format(str(self), str(loc), str(destplace))
+        ipath = self.dimension.graph.get_shortest_paths(
+            str(loc), to=str(destplace), output="epath")
+        path = None
+        for p in ipath:
+            if self.dimension.graph.es[p[-1]]["portal"].dest is destplace:
+                path = [
+                    self.dimension.graph.es[eid]["portal"] for eid in p]
+                break
+        if path is None:
+            raise JourneyException("Found no path to " + str(destplace))
+        prevtick = tick + 1
+        self.end_location(branch, tick)
+        for port in path:
+            tick_out = self.get_ticks_thru(port) + prevtick
+            print "At tick {0}, {1} will enter {2}. At tick {3}, it will leave.".format(
+                int(prevtick), str(self), str(port), int(tick_out))
+            self.set_location(port, int(branch), int(prevtick), int(tick_out))
+            prevtick = tick_out + 1
+        print "{0} will arrive at {1} at tick {2}.".format(
+            str(self), str(destplace), int(prevtick))
+        self.set_location(destplace, int(branch), int(prevtick))
