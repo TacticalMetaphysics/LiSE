@@ -225,7 +225,7 @@ class GameWindow(pyglet.window.Window):
         for row in hand_rows:
             self.hands_by_name[row[0]] = Hand(
                 self, self.db.effectdeckdict[row[0]], row[1], row[2], row[3], row[4],
-                self.db.styledict[row[5]])
+                self.db.styledict[row[5]], row[6], row[7])
         self.calendars = []
         for row in cal_rows:
             self.calendars.append(
@@ -285,15 +285,8 @@ class GameWindow(pyglet.window.Window):
         self.portaling = False
         self.portal_from = None
         self.portal_triple = ((None, None), (None, None), (None, None))
-
-        self.drawn_once = False
-
         for menu in self.menus:
             menu.adjust()
-        def incdb(ticky, db):
-            db.tick += 1
-        pyglet.clock.schedule_interval(incdb, 1/10., self.db)
-        pyglet.app.run()
 
     def __getattr__(self, attrn):
         if attrn == 'hands':
@@ -325,8 +318,6 @@ class GameWindow(pyglet.window.Window):
         """If there's something already highlit, and the mouse is
 still over it when pressed, it's been half-way clicked; remember this."""
         logger.debug("mouse pressed at %d, %d", x, y)
-        if not self.drawn_once:
-            return
         if not (self.placing or self.thinging):
             self.pressed = self.hovered
 
@@ -334,8 +325,6 @@ still over it when pressed, it's been half-way clicked; remember this."""
         """If something was being dragged, drop it. If something was being
 pressed but not dragged, it's been clicked. Otherwise do nothing."""
         logger.debug("mouse released at %d, %d", x, y)
-        if not self.drawn_once:
-            return
         if self.placing:
             placed = self.db.make_generic_place(self.board.dimension)
             self.db.make_spot(
@@ -397,11 +386,11 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
             if hasattr(self.grabbed, 'dropped'):
                 self.grabbed.dropped(x, y, button, modifiers)
         elif self.pressed is not None:
-            if (
-                    x > self.pressed.window_left and
-                    x < self.pressed.window_right and
-                    y > self.pressed.window_bot and
-                    y < self.pressed.window_top):
+            if not self.keep_selected:
+                for sel in iter(self.selected):
+                    sel.tweaks += 1
+                self.selected = set()
+            if self.pressed.overlaps(x, y):
                 logger.debug("%s clicked", str(self.pressed))
                 if hasattr(self.pressed, 'onclick'):
                     self.pressed.onclick()
@@ -414,19 +403,10 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
                         if reciprocal is not None:
                             self.selected.add(reciprocal)
                             reciprocal.tweaks += 1
-            if hasattr(self.pressed, 'calcol'):
-                self.pressed.calcol.show()
-                self.calendar.adjust()
-        if self.pressed is None or self.pressed not in self.selected:
-            need_adjust = False
+        else:
             for sel in iter(self.selected):
                 sel.tweaks += 1
-                if hasattr(sel, 'calcol'):
-                    sel.calcol.hide()
-                    need_adjust = True
             self.selected = set()
-            if need_adjust:
-                self.calendar.adjust()
         self.pressed = None
         self.grabbed = None
 
@@ -434,8 +414,6 @@ pressed but not dragged, it's been clicked. Otherwise do nothing."""
         """If the thing previously pressed has a
 move_with_mouse method, use it.
      """
-        if not self.drawn_once:
-            return
         if self.grabbed is None:
             if (
                     self.pressed is not None and
@@ -475,8 +453,6 @@ move_with_mouse method, use it.
     def on_mouse_scroll(self, x, y, scroll_x, scroll_y):
         # for now, this only does anything if you're moused over
         # the calendar
-        if not self.drawn_once:
-            return
         if (
                 self.calendar.visible and
                 x > self.calendar.window_left and
@@ -940,14 +916,11 @@ d; all visible menus; and the calendar, if it's visible."""
         # well, I lied. I was really only adding those things to the batch.
         # NOW I'll draw them.
         self.batch.draw()
-        self.drawn_once = True
 
     def on_mouse_motion(self, x, y, dx, dy):
         """Find the widget, if any, that the mouse is over,
 and highlight it.
         """
-        if not self.drawn_once:
-            return
         self.last_mouse_x = x
         self.last_mouse_y = y
         del self.dx_hist[0]
@@ -956,13 +929,7 @@ and highlight it.
         self.dy_hist.append(dy)
         if self.hovered is None:
             for hand in self.hands:
-                if (
-                        hand.visible and
-                        hand.interactive and
-                        x > hand.window_left and
-                        x < hand.window_right and
-                        y > hand.window_bot and
-                        y < hand.window_top):
+                if hand.overlaps(x, y):
                     for card in hand:
                         if (
                                 x > card.window_left and
@@ -971,36 +938,23 @@ and highlight it.
                             card.tweaks += 1
                             return
             for menu in self.menus:
-                if str(menu) == self.main_menu_name or menu.visible:
-                    if (
-                            x > menu.window_left and
-                            x < menu.window_right and
-                            y > menu.window_bot and
-                            y < menu.window_top):
-                        for item in menu.items:
-                            if (
-                                    y > item.window_bot and
-                                    y < item.window_top):
-                                self.hovered = item
-                                item.tweaks += 1
-                                return
-            for spot in self.board.spots:
-                if (
-                        x > spot.window_left and
-                        x < spot.window_right and
-                        y > spot.window_bot and
-                        y < spot.window_top):
-                    self.hovered = spot
-                    spot.tweaks += 1
-                    return
+                if menu.overlaps(x, y):
+                    for item in menu.items:
+                        if (
+                                y > item.window_bot and
+                                y < item.window_top):
+                            self.hovered = item
+                            item.tweaks += 1
+                            return
             for pawn in self.board.pawns:
-                if (
-                        x > pawn.window_left and
-                        x < pawn.window_right and
-                        y > pawn.window_bot and
-                        y < pawn.window_top):
+                if pawn.overlaps(x, y):
                     self.hovered = pawn
                     pawn.tweaks += 1
+                    return
+            for spot in self.board.spots:
+                if spot.overlaps(x, y):
+                    self.hovered = spot
+                    spot.tweaks += 1
                     return
             for edge in self.board.arrows:
                 if edge.touching(x, y):
@@ -1009,17 +963,11 @@ and highlight it.
                             edge.order > self.pressed.order):
                         self.pressed = edge
         else:
-            if not (
-                    x > self.hovered.window_left and
-                    x < self.hovered.window_right and
-                    y > self.hovered.window_bot and
-                    y < self.hovered.window_top):
+            if not self.hovered.overlaps(x, y):
                 self.hovered.tweaks += 1
                 self.hovered = None
 
     def on_key_press(self, symbol, modifiers):
-        if not self.drawn_once:
-            return
         if symbol == pyglet.window.key.DELETE:
             self.delete_selection()
 
@@ -1187,3 +1135,8 @@ and highlight it.
         self.db.conn.commit()
         self.db.conn.close()
         super(GameWindow, self).on_close()
+
+    def sensible_calendar_for(self, something):
+        """Return a calendar appropriate for representing some schedule-dict
+associated with the argument."""
+        return self.calendars[0]

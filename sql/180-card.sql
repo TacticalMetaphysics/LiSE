@@ -1,1 +1,1 @@
-INSERT INTO card (effect, display_name) VALUES ('one', 'Card One'), ('two', 'Card Two');
+--INSERT INTO card (effect, display_name, text) VALUES ('one', 'Card One', 'text for Card One'), ('two', 'Card Two', 'text for Card Two');

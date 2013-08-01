@@ -16,16 +16,12 @@ Uses information from the CalendarCol it's in and the Event it
 represents to calculate its dimensions and coordinates.
 
     """
-    visible = True
-
-    def __init__(self, col, event):
+    def __init__(self, col, tick_from, tick_to, text):
         self.col = col
-        self.event = event
-        self.style = self.col.cel_style
-        if self.event is None:
-            self.text = ""
-        else:
-            self.text = self.event.text
+        self.tick_from = tick_from
+        self.tick_to = tick_to
+        self.text = text
+        self.style = self.col.style
         self.oldstate = None
         self.was_hovered = False
         self.old_width = None
@@ -34,49 +30,22 @@ represents to calculate its dimensions and coordinates.
         self.old_inactive_image = None
         self.sprite = None
         self.label = None
+        self.visible = True
         self.tweaks = 0
         self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
-        if event is None:
-            self.active_pattern = self.inactive_pattern
-        else:
-            self.active_pattern = color_pattern(self.style.bg_active.tup)
-
-    def __eq__(self, other):
-        if not isinstance(other, CalendarCell):
-            return False
-        return (
-            self.start == other.start and
-            self.end == other.end and
-            self.text == other.text)
-
-    def __hash__(self):
-        return hash((
-            self.col.board.dimension,
-            self.col.item,
-            self.event))
 
     def __len__(self):
-        return self.event.length
+        return self.tick_to - self.tick_from
 
     def __getattr__(self, attrn):
         if attrn == 'interactive':
             return self.col.cal.interactive
         elif attrn == 'window':
             return self.col.cal.board.gw.window
-        elif attrn == 'start':
-            if self.event is not None:
-                return self.event.start
-            else:
-                return None
-        elif attrn == 'end':
-            if self.event is not None:
-                return self.event.start + self.event.length
-            else:
-                return None
         elif attrn == 'window_top':
             return (
                 self.col.cal.window_top -
-                (self.start - self.col.cal.scrolled_to) *
+                (self.tick_from - self.col.cal.scrolled_to) *
                 self.col.cal.row_height)
         elif attrn == 'window_bot':
             return self.window_top - (self.col.cal.row_height * len(self))
@@ -90,10 +59,6 @@ represents to calculate its dimensions and coordinates.
             return self.window_top - self.window_bot
         elif attrn == 'label_height':
             return self.style.fontsize + self.style.spacing
-        elif attrn == 'visible':
-            return (
-                self._visible and
-                self.col.visible)
         else:
             raise AttributeError(
                 "CalendarCell instance has no such attribute: " +
@@ -107,28 +72,27 @@ between any two states that should appear different on-screen."""
             self.window_bot,
             self.text,
             self.visible,
-            self.interactive,
             self.tweaks)
 
-    def toggle_visibility(self):
-        self._visibility = not self._visibility
-        self.tweaks += 1
+    def delete(self):
+        try:
+            self.sprite.delete()
+        except:
+            pass
+        try:
+            self.text.delete()
+        except:
+            pass
 
-    def show(self):
-        if not self._visible:
-            self.toggle_visibility()
-
-    def hide(self):
-        if self._visible:
-            self.toggle_visibility()
 
 
 class CalendarCol:
-    def __init__(self, calendar, visible, interactive, style):
+    def __init__(self, calendar, scheduledict, visible, interactive, style):
         self.calendar = calendar
+        self.window = calendar.window
+        self.scheduledict = scheduledict
         self.board = self.calendar.board
         self.db = self.calendar.db
-        self.dimension = self.calendar.dimension
         self.visible = visible
         self.interactive = interactive
         self.style = style
@@ -136,12 +100,13 @@ class CalendarCol:
         self.old_width = None
         self.old_image = None
         self.sprite = None
-        self.celldict = {}
-        self.cell_cache = {}
         self.oldwidth = None
+        self.cells = []
+        self.regen_cells()
+
 
     def __iter__(self):
-        return self.celldict.itervalues()
+        return iter(self.cells)
 
     def __getattr__(self, attrn):
         if attrn == 'dimension':
@@ -165,63 +130,10 @@ class CalendarCol:
                 "CalendarCol instance has no such attribute: " +
                 attrn)
 
-    def delete(self):
-        del self.db.calcoldict[self._dimension][self._item]
-        self.erase()
-
-    def toggle_visibility(self):
-        self._visible = not self._visible
-        if not self.visible:  # no underscore!
-            try:
-                self.sprite.delete()
-            except:
-                pass
-            self.sprite = None
-            for cel in self.celldict.itervalues():
-                try:
-                    cel.sprite.delete()
-                except:
-                    pass
-                try:
-                    cel.label.delete()
-                except:
-                    pass
-                cel.sprite = None
-                cel.label = None
-                cel.tweaks += 1
-        self.tweaks += 1
-
-    def hide(self):
-        if self._visible:
-            self.toggle_visibility()
-
-    def show(self):
-        if not self._visible:
-            self.toggle_visibility()
-
-    def unravel(self):
-        db = self.db
-        if stringlike(self.style):
-            self.style = db.styledict[self.style]
-        self.style.unravel()
-        self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
-        self.cel_style.unravel()
-        self.inactive_pattern = color_pattern(self.style.bg_inactive.tup)
-        self.active_pattern = color_pattern(self.style.bg_active.tup)
-        self.cal = self.board.calendar
-        if not hasattr(self, 'schedule'):
-            self.schedule = self.item.schedule
-        else:
-            assert(self.item.schedule == self.schedule)
-        if self.visible:
-            self.show()
-        else:
-            self.hide()
-
     def celhash(self):
         hashes = [
             hash(cel.get_state_tup())
-            for cel in self.celldict.itervalues()]
+            for cel in self.cells]
         return hash(tuple(hashes))
 
     def get_state_tup(self):
@@ -229,15 +141,34 @@ class CalendarCol:
 between any two states that should appear different on-screen."""
         return (
             self.celhash(),
-            self._dimension,
-            self._item,
-            self.window_left,
-            self.window_right,
             self.window_top,
             self.window_bot,
+            self.idx,
+            self.cal.col_width,
             self.visible,
             self.interactive,
             self.tweaks)
+
+    def regen_cells(self, branch=None):
+        for cell in self.cells:
+            cell.delete()
+        self.cells = []
+        if branch is None:
+            branch = self.db.branch
+        for (tick_from, val) in self.scheduledict[branch].iteritems():
+            if isinstance(val, tuple):
+                tick_to = val[-1]
+                text = ", ".join(str(val[:-1]))
+            else:
+                tick_to = val
+                text = "..."
+            self.cells.append(CalendarCell(self, tick_from, tick_to, text))
+
+    def delete(self):
+        for cell in self.cells:
+            cell.delete()
+        if self in self.calendar.cols:
+            self.calendar.cols.remove(self)
 
 
 class Calendar:
@@ -399,3 +330,12 @@ between any two states that should appear different on-screen."""
                     "rows_shown": self.rows_shown,
                     "scrolled_to": self.scrolled_to,
                     "scroll_factor": self.scroll_factor}]}
+
+    def mkcol(self, scheduledict, visible=True, interactive=True, style=None):
+        if style is None:
+            style = self.style
+        cc = CalendarCol(
+            self, scheduledict, visible, interactive, style)
+        self.cols.append(cc)
+        return cc
+        

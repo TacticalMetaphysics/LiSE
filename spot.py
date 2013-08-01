@@ -97,12 +97,19 @@ given coordinates, and visible or interactive as indicated.
             return self.window.pressed is self
         elif attrn == 'grabbed':
             return self.window.grabbed is self
+        elif attrn == 'selected':
+            return self in self.window.selected
         elif attrn == 'coords':
             return self.get_coords()
         elif attrn == 'x':
             return self.coords[0]
         elif attrn == 'y':
             return self.coords[1]
+        elif attrn == 'window_coords':
+            (x, y) = self.coords
+            return (
+                x + self.drag_offset_x + self.window.offset_x,
+                y + self.drag_offset_y + self.window.offset_y)
         elif attrn == 'width':
             myimg = self.img
             if myimg is None:
@@ -126,9 +133,9 @@ given coordinates, and visible or interactive as indicated.
             else:
                 return self.ry
         elif attrn == 'window_x':
-            return self.x + self.drag_offset_x + self.window.offset_x
+            return self.window_coords[0]
         elif attrn == 'window_y':
-            return self.y + self.drag_offset_y + self.window.offset_y
+            return self.window_coords[1]
         elif attrn == 'window_left':
             return self.window_x - self.rx
         elif attrn == 'window_bot':
@@ -219,6 +226,14 @@ mouse, always keeping the same relative position with respect to the
 mouse."""
         self.drag_offset_x += dx
         self.drag_offset_y += dy
+
+    def overlaps(self, x, y):
+        (myx, myy) = self.window_coords
+        return (
+            self.visible and
+            self.interactive and
+            abs(myx - x) < self.rx and
+            abs(myy - y) < self.ry)
         
     def get_tabdict(self):
         return {
@@ -265,6 +280,6 @@ mouse."""
             self.hovered,
             self.pressed,
             self.grabbed,
-            self.get_coords(),
-            self.drag_offset_x,
-            self.drag_offset_y)
+            self.selected,
+            self.window_x,
+            self.window_y)

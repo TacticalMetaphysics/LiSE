@@ -173,6 +173,12 @@ the given list.
             raise AttributeError(
                 "Effect instance has no attribute named " + attrn)
 
+    def __len__(self):
+        return len(self.effects)
+
+    def __iter__(self):
+        return iter(self.effects)
+
     def do(self, event=None):
         """Fire all the Effects herein, in whatever order my iterator says to.
 
@@ -183,6 +189,34 @@ Return a list of the effects, paired with their return values."""
             r.append((eff, eff.do(self, event)))
         return r
 
+    def append(self, eff):
+        cont = self.get_effects()
+        cont.append(eff)
+        self.set_effects(cont)
+
+    def insert(self, i, eff):
+        cont = self.get_effects()
+        cont.insert(i, eff)
+        self.set_effects(cont)
+
+    def remove(self, eff):
+        cont = self.get_effects()
+        cont.remove(eff)
+        self.set_effects(cont)
+
+    def index(self, eff):
+        cont = self.get_effects()
+        return cont.index(eff)
+
+    def pop(self, i=None):
+        cont = self.get_effects()
+        try:
+            r = cont.pop(i)
+        except:
+            r = cont.pop()
+        self.set_effects(cont)
+        return r
+
     def set_effects(self, effects, branch=None, tick_from=None, tick_to=None):
         if branch is None:
             branch = self.db.branch
@@ -191,22 +225,21 @@ Return a list of the effects, paired with their return values."""
         if branch not in self.cardhist:
             self.cardhist[branch] = {}
         if branch in self.indefinite_cards:
-            (icards, ito) = self.indefinite_cards[branch]
+            ifrom = self.indefinite_cards[branch]
+            (icards, ito) = self.cardhist[branch][ifrom]
             if tick_to is None or tick_to > ito:
                 del self.indefinite_cards[branch]
                 if tick_from > ito:
-                    self.cardhist[branch][ito] = (icards, tick_from - 1)
+                    self.cardhist[branch][ifrom] = (icards, tick_from - 1)
                 else:
-                    del self.cardhist[branch][ito]
-            elif tick_to == ito:
+                    del self.cardhist[branch][ifrom]
+            elif tick_to == ifrom:
                 if effects == icards:
                     self.cardhist[branch][tick_from] = (effects, None)
-                    self.indefinite_cards[branch] = (effects, tick_from)
+                    self.indefinite_cards[branch] = tick_from
                     return
-                else:
-                    raise ValueError("Illegal tick_to")
         if tick_to is None:
-            self.indefinite_cards[branch] = (effects, tick_from)
+            self.indefinite_cards[branch] = tick_from
         self.cardhist[branch][tick_from] = (effects, tick_to)
 
     def get_effects(self, branch=None, tick=None):

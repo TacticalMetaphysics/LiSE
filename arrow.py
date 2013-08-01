@@ -119,12 +119,7 @@ error. This is good enough approximation for determining if I've been
 clicked.
 
         """
-        # trivially reject stuff outside my bounding box
-        if (
-                x < self.window_left or
-                x > self.window_right or
-                y < self.window_bot or
-                y > self.window_top):
+        if not self.portal.extant():
             return False
         if self.m > 300:
             perfect_x = self.x_at(y)

@@ -66,6 +66,7 @@ With db, register in db's pawndict.
         self.drag_offset_y = 0
         self.selectable = True
         self.box_edges = (None, None, None, None)
+        self.calcol = None
 
     def __str__(self):
         return str(self.thing)
@@ -90,17 +91,9 @@ With db, register in db's pawndict.
         elif attrn == 'coords':
             return self.get_coords()
         elif attrn == 'x':
-            c = self.coords
-            if c is None:
-                return 0
-            else:
-                return c[0]
+            return self.coords[0]
         elif attrn == 'y':
-            c = self.coords
-            if c is None:
-                return 0
-            else:
-                return c[1]
+            return self.coords[1]
         elif attrn == 'window_left':
             return self.x + self.drag_offset_x
         elif attrn == 'window_bot':
@@ -182,7 +175,25 @@ With db, register in db's pawndict.
             if path is None:
                 return
             self.thing.add_path(path)
-#            self.db.caldict[self._dimension].adjust()
+
+    def overlaps(self, x, y):
+        if self.visible and self.interactive:
+            (myx, myy) = self.get_coords()
+            return (
+                x > myx and
+                y > myy and
+                x - myx < self.width and
+                y - myy < self.height)
+        else:
+            return False
+
+    def onclick(self):
+        if self.calcol is None:
+            self.calcol = self.window.sensible_calendar_for(self).mkcol(
+                self.thing.locations)
+        else:
+            self.calcol.delete()
+            
 
     def get_coords(self, branch=None, tick=None):
         loc = self.thing.get_location(branch, tick)

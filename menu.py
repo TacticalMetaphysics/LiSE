@@ -327,6 +327,14 @@ With db, register with db's menudict.
             item.window_bot = item.window_top - self.rowheight
             i += 1
 
+    def overlaps(self, x, y):
+        return (
+            (self.visible or str(self) == self.window.main_menu_name) and
+            x > self.window_left and
+            x < self.window_right and
+            y > self.window_bot and
+            y < self.window_top)
+
     def get_state_tup(self):
         """Return a tuple containing everything you need to decide how to draw
 me"""

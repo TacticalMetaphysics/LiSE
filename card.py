@@ -61,7 +61,6 @@ class Card:
     def get_tabdict(self):
         return {
             "card": {
-                "name": self.name,
                 "display_name": self._display_name,
                 "effect": str(self.effect),
                 "img": str(self.img),
@@ -73,9 +72,6 @@ class Card:
         return {
             "card": {
                 "name": self.name}}
-
-    def mkwidget(self, x, y):
-        self.widget = CardWidget(self, x, y)
 
 class TextHolder:
     def __init__(self, cardwidget):
@@ -156,8 +152,6 @@ class CardWidget:
             return self.base.img
         elif attrn == 'display_name':
             return self.base.display_name
-        elif attrn == 'name':
-            return self.base.name
         elif attrn == 'text':
             return self.base.text
         elif attrn == 'style':
@@ -189,6 +183,13 @@ class CardWidget:
 
     def __hash__(self):
         return hash(self.get_state_tup())
+
+    def overlaps(self, x, y):
+        return (
+            x > self.window_left and
+            x < self.window_right and
+            y > self.window_bot and
+            y < self.window_top)
 
     def save(self):
         self.base.save()
@@ -241,18 +242,17 @@ class CardWidget:
                         x > card.window_left and
                         x < card.window_bot):
                     print "Dropped {0} on {1}".format(str(self), str(card))
-                    self.hand.discard(self)
+                    self.hand.remove(self)
                     self.hand.insert(self.hand.index(card), self)
                     break
             # I am either to the left of all cards in hand, or to the right.
             # Which edge am I closer to?
             space_left = x - min_x
             space_right = max_x - x
+            self.hand.remove(self)
             if space_left < space_right:
-                self.hand.discard(self)
                 self.hand.insert(0, self)
             else:
-                self.hand.discard(self)
                 self.hand.append(self)
         self.floating = False
         self.grabpoint = None
@@ -260,7 +260,6 @@ class CardWidget:
 
     def get_state_tup(self):
         return (
-            self.name,
             self.display_name,
             self.text,
             self.img,
@@ -297,15 +296,17 @@ class Hand:
           "right": "float not null",
           "top": "float not null",
           "bot": "float not null",
-          "style": "text not null default 'BigLight'"},
+          "style": "text not null default 'BigLight'",
+          "visible": "boolean default 1",
+          "interactive": "boolean default 1"},
          ("window", "effect_deck"),
          {"window": ("window", "name"),
           "effect_deck": ("effect_deck", "deck"),
           "style": ("style", "name")},
          [])]
-    visible = False
 
-    def __init__(self, window, deck, left, right, top, bot, style):
+    def __init__(self, window, deck, left, right, top, bot, style,
+                 visible, interactive):
         self.window = window
         self.db = window.db
         self.deck = deck
@@ -314,6 +315,8 @@ class Hand:
         self.top_prop = top
         self.bot_prop = bot
         self.style = style
+        self.visible = bool(visible)
+        self.interactive = bool(interactive)
         self.oldstate = None
 
     def __hash__(self):
@@ -353,14 +356,12 @@ class Hand:
                 self.window_left < self.window.width and
                 self.window_top > 0 and
                 self.window_bot < self.window.height)
-        elif attrn == 'cards':
-            return self.db.handcarddict[str(self)]
         else:
             raise AttributeError(
                 "Hand has no attribute named {0}".format(attrn))
 
     def __len__(self):
-        return len(self.db.handcarddict[str(self)])
+        return len(self.deck)
 
     def __str__(self):
         return self.name
@@ -381,45 +382,37 @@ class Hand:
         for card in self:
             cardbits.extend(iter(card.get_state_tup()))
         return (
-            self._visible,
-            self._interactive,
-            self._left,
-            self._right,
-            self._bot,
-            self._top)
-
-    def unravel(self):
-        pass
+            tuple(cardbits),
+            self.visible,
+            self.interactive,
+            self.window_left,
+            self.window_right,
+            self.window_bot,
+            self.window_top)
 
     def append(self, card):
-        card.hand = self
-        self.db.handcarddict[str(self)].append(str(card))
+        eff = card.effect
+        self.deck.append(eff)
 
     def insert(self, i, card):
-        card.hand = self
-        self.db.handcarddict[str(self)].insert(i, str(card))
+        eff = card.effect
+        self.deck.insert(i, eff)
 
     def remove(self, card):
-        self.db.handcarddict[str(self)].remove(str(card))
-
-    def discard(self, card):
-        if str(card) in self.db.handcarddict[str(self)]:
-            self.remove(card)
+        eff = card.effect
+        self.deck.remove(eff)
 
     def index(self, card):
         return self.deck.index(card.effect)
 
-    def pop(self, i=-1):
-        r = self.db.handcarddict[str(self)].pop(i)
-        return r
+    def pop(self, i=None):
+        return self.deck.pop(i).card
 
     def adjust(self):
         if len(self) == 0:
             return
         windobot = self.window_bot + self.style.spacing
         prev_right = self.window_left
-        print "Cards in hand:"
-        print self.cards
         for card in iter(self):
             print "Adjusting card {0}".format(str(card))
             if card.widget is not None and card.widget.floating:
@@ -427,7 +420,7 @@ class Hand:
             card.hand = self
             x = prev_right + self.style.spacing
             if card.widget is None:
-                card.mkwidget(x, windobot)
+                card.widget = CardWidget(card, self)
             else:
                 card.widget.x = x
                 card.widget.y = windobot
@@ -443,3 +436,12 @@ class Hand:
                  "top": self.top_prop,
                  "bot": self.bot_prop,
                  "style": str(self.style)}]}
+
+    def overlaps(self, x, y):
+        return (
+            self.visible and
+            self.interactive and
+            x > self.window_left and
+            x < self.window_right and
+            y > self.window_bot and
+            y < self.window_top)

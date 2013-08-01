@@ -26,8 +26,17 @@ for arg in argv:
         except DatabaseError:
             print "Couldn't connect to the database named {0}.".format(arg)
     i += 1
-
+tocky = 0.0
 db = load_game(dbfn, lang)
 gw = db.load_window('Main')
+gamespeed = 0.1
+
 def incdb(ticky):
+    global tocky
+    tocky += ticky
+    while tocky >= gamespeed:
+        tocky -= gamespeed
+        db.tick += 1
     db.tick += 1
+pyglet.clock.schedule_interval(incdb, gamespeed)
+pyglet.app.run()

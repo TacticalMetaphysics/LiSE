@@ -1041,7 +1041,7 @@ Return a dictionary keyed by name.
         for row in cal_rows:
             stylenames.add(row[5])
         self.c.execute(
-            "SELECT effect_deck, left, right, top, bot, style FROM hand "
+            "SELECT effect_deck, left, right, top, bot, style, visible, interactive FROM hand "
             "WHERE window=?", (name,))
         hand_rows = self.c.fetchall()
         effect_decks_needed = [row[0] for row in hand_rows]
@@ -1065,8 +1065,8 @@ Return a dictionary keyed by name.
             else:
                 img = imgs_loaded[imgn]
             cards_loaded[effn] = Card(self,
-                self.effectdict[effn], dispn, text,
-                img, styles_loaded[style])
+                self.effectdict[effn], dispn, 
+                img, text, styles_loaded[style])
         hands_by_name = OrderedDict()
         self.c.execute(
             "SELECT menu, idx, text, on_click, closer FROM menu_item WHERE window=? AND menu IN ({0})".format(", ".join(["?"] * len(menunames))), (name,) + tuple(menunames))
