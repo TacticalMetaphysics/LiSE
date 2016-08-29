@@ -74,6 +74,8 @@ class AvatarnessCache(object):
         That is, characters that have a particular node as an avatar.
 
         """
+        if not db:
+            return
         for row in db.avatarness_dump():
             self.remember(*row)
 
@@ -238,24 +240,29 @@ class Engine(AbstractEngine, gORM):
     @reify
     def _rulebooks_cache(self):
         r = defaultdict(list)
+        if not self.rulebook.db:
+            return r
         for (rulebook, rule) in self.rule.db.rulebooks_rules():
             r[rulebook].append(rule)
         return r
 
     def _rulebook_set(self, rulebook, i, rule):
-        self.rule.db.rulebook_set(rulebook, i, rule)
         cache = self._rulebooks_cache[rulebook]
         while len(cache) <= i:
             cache.append(None)
         cache[i] = rule
+        if self.rulebook.db:
+            self.rulebook.db.rulebook_set(rulebook, i, rule)
 
     def _rulebook_insert(self, rulebook, i, rule):
         self._rulebooks_cache[rulebook].insert(i, rule)
-        self.db.rulebook_ins(rulebook, i, rule)
+        if self.rulebook.db:
+            self.rulebook.db.rulebook_ins(rulebook, i, rule)
 
     def _rulebook_del_rule(self, rulebook, i):
-        self.rule.db.rulebook_del(rulebook, i)
         del self._rulebooks_cache[rulebook][i]
+        if self.rulebook.db:
+            self.rulebook.db.rulebook_del(rulebook, i)
 
     def _del_rulebook(self, rulebook):
         for (character, character_rulebooks) in \
@@ -289,8 +296,9 @@ class Engine(AbstractEngine, gORM):
                             "{}->{} in character {}".format(
                                 origin, destination, character
                             ))
-        self.rule.db.rulebook_del_all(rulebook)
         del self._rulebooks_cache[rulebook]
+        if self.rulebook.db:
+            self.rulebook.db.rulebook_del_all(rulebook)
 
     class crc_default_dict(defaultdict):
         def __missing__(self, k):
@@ -307,6 +315,8 @@ class Engine(AbstractEngine, gORM):
     @reify
     def _characters_rulebooks_cache(self):
         r = self.crc_default_dict()
+        if not self.rulebook.db:
+            return r
         for (
                 character,
                 character_rulebook,
@@ -336,12 +346,15 @@ class Engine(AbstractEngine, gORM):
                 'character_portal'
         ):
             raise ValueError("Not a character rulebook: {}".format(which))
-        self.db.upd_rulebook_char(which, rulebook, character)
         self._characters_rulebooks_cache[character][which] = rulebook
+        if self.db:
+            self.db.upd_rulebook_char(which, rulebook, character)
 
     @reify
     def _nodes_rulebooks_cache(self):
         r = defaultdict(dict)
+        if not self.db:
+            return r
         for (character, node, rulebook) in self.db.nodes_rulebooks():
             r[character][node] = rulebook
         return r
@@ -572,13 +585,13 @@ class Engine(AbstractEngine, gORM):
         self._sql_polling = sql_rule_polling
         self.commit_modulus = commit_modulus
         self.random_seed = random_seed
-        if codedb:
+        if codedb == worlddb:
+            self._code_qe = self.db
+        elif codedb:
             self._code_qe = QueryEngine(
                 codedb, connect_args, alchemy, self.json_dump, self.json_load
             )
             self._code_qe.initdb()
-        else:
-            self._code_qe = self.db
         self._rules_iter = self._follow_rules()
         # set up the randomizer
         self.rando = Random()

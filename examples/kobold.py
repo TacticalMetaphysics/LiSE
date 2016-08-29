@@ -136,7 +136,7 @@ def inittest(
 if __name__ == '__main__':
     from utiltest import mkengine, clear_off, seed
     clear_off()
-    with mkengine(random_seed=seed) as engine:
+    with mkengine(c='LiSEcode.db', random_seed=seed) as engine:
         inittest(engine)
         engine.commit()
         print('shrub_places beginning: {}'.format(

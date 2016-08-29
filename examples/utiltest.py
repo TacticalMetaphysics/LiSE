@@ -15,10 +15,10 @@ def clear_off():
             pass
 
 
-def mkengine(w='sqlite:///LiSEworld.db', *args, **kwargs):
+def mkengine(w='sqlite:///LiSEworld.db', c=None, *args, **kwargs):
     return Engine(
         worlddb=w,
-        codedb='LiSEcode.db',
+        codedb=c,
         *args,
         **kwargs
     )
