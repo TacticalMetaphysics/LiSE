@@ -325,7 +325,7 @@ class Engine(AbstractEngine, gORM):
                 character_place_rulebook,
                 character_node_rulebook,
                 character_portal_rulebook
-        ) in self.db.characters_rulebooks():
+        ) in self.rulebook.db.characters_rulebooks():
             r[character] = {
                 'character': character_rulebook,
                 'avatar': avatar_rulebook,
@@ -347,34 +347,38 @@ class Engine(AbstractEngine, gORM):
         ):
             raise ValueError("Not a character rulebook: {}".format(which))
         self._characters_rulebooks_cache[character][which] = rulebook
-        if self.db:
+        if self.rulebook.db:
             self.db.upd_rulebook_char(which, rulebook, character)
 
     @reify
     def _nodes_rulebooks_cache(self):
         r = defaultdict(dict)
-        if not self.db:
+        if not self.rulebook.db:
             return r
-        for (character, node, rulebook) in self.db.nodes_rulebooks():
+        for (character, node, rulebook) in self.rulebook.db.nodes_rulebooks():
             r[character][node] = rulebook
         return r
 
     def _set_node_rulebook(self, character, node, rulebook):
         self._nodes_rulebooks_cache[character][node] = rulebook
-        self.engine.db.set_node_rulebook(character, node, rulebook)
+        if self.rulebook.db:
+            self.rulebook.db.set_node_rulebook(character, node, rulebook)
 
     @reify
     def _portals_rulebooks_cache(self):
         r = defaultdict(
             lambda: defaultdict(dict)
         )
-        for (character, nodeA, nodeB, rulebook) in self.db.portals_rulebooks():
+        if not self.rulebook.db:
+            return r
+        for (character, nodeA, nodeB, rulebook) in self.rulebook.db.portals_rulebooks():
             r[character][nodeA][nodeB] = rulebook
         return r
 
     def _set_portal_rulebook(self, character, nodeA, nodeB, rulebook):
         self._portals_rulebooks_cache[character][nodeA][nodeB] = rulebook
-        self.db.set_portal_rulebook(character, nodeA, nodeB, rulebook)
+        if self.rulebook.db:
+            self.rulebook.db.set_portal_rulebook(character, nodeA, nodeB, rulebook)
 
     @reify
     def _avatarness_cache(self):
@@ -401,14 +405,15 @@ class Engine(AbstractEngine, gORM):
             tick,
             is_avatar
         )
-        self.db.avatar_set(
-            character,
-            graph,
-            node,
-            branch,
-            tick,
-            is_avatar
-        )
+        if self.db:
+            self.db.avatar_set(
+                character,
+                graph,
+                node,
+                branch,
+                tick,
+                is_avatar
+            )
 
     @reify
     def _active_rules_cache(self):
@@ -419,6 +424,8 @@ class Engine(AbstractEngine, gORM):
                 )
             )
         )
+        if not self.db:
+            return r
         for (rulebook, rule, branch, tick, active) in \
                 self.db.dump_active_rules():
             r[rulebook][rule][branch][tick] = active
@@ -431,7 +438,8 @@ class Engine(AbstractEngine, gORM):
         tick = tick or self.tick
         self._active_rules_cache[rulebook][rule][branch][tick] = active
         # note the use of the world DB, not the code DB
-        self.db.set_rule_activeness(rulebook, rule, branch, tick, active)
+        if self.db:
+            self.db.set_rule_activeness(rulebook, rule, branch, tick, active)
 
     @reify
     def _node_rules_handled_cache(self):
@@ -446,6 +454,8 @@ class Engine(AbstractEngine, gORM):
                 )
             )
         )
+        if not self.db:
+            return r
         for (character, node, rulebook, rule, branch, tick) \
                 in self.db.dump_node_rules_handled():
             r[character][node][rulebook][rule][branch].add(tick)
@@ -466,6 +476,8 @@ class Engine(AbstractEngine, gORM):
                 )
             )
         )
+        if not self.db:
+            return r
         for (character, nodeA, nodeB, idx, rulebook, rule, branch, tick) \
                 in self.db.dump_portal_rules_handled():
             r[character][nodeA][nodeB][rulebook][rule][branch].add(tick)
@@ -474,6 +486,8 @@ class Engine(AbstractEngine, gORM):
     @reify
     def _character_rules_handled_cache(self):
         r = crhandled_defaultdict()
+        if not self.db:
+            return r
         for (character, rulebook, rule, branch, tick) in \
                 self.db.handled_character_rules():
             r[character][rulebook][rule][branch].add(tick)
@@ -482,6 +496,8 @@ class Engine(AbstractEngine, gORM):
     @reify
     def _avatar_rules_handled_cache(self):
         r = crhandled_defaultdict()
+        if not self.db:
+            return r
         for (character, rulebook, rule, branch, tick) in \
                 self.db.handled_avatar_rules():
             r[character][rulebook][rule][branch].add(tick)
@@ -490,6 +506,8 @@ class Engine(AbstractEngine, gORM):
     @reify
     def _character_thing_rules_handled_cache(self):
         r = crhandled_defaultdict()
+        if not self.db:
+            return r
         for (character, rulebook, rule, branch, tick) in \
                 self.db.handled_character_thing_rules():
             r[character][rulebook][rule][branch].add(tick)
@@ -498,6 +516,8 @@ class Engine(AbstractEngine, gORM):
     @reify
     def _character_place_rules_handled_cache(self):
         r = crhandled_defaultdict()
+        if not self.db:
+            return r
         for (character, rulebook, rule, branch, tick) in \
                 self.db.handled_character_place_rules():
             r[character][rulebook][rule][branch].add(tick)
@@ -506,6 +526,8 @@ class Engine(AbstractEngine, gORM):
     @reify
     def _character_node_rules_handled_cache(self):
         r = crhandled_defaultdict()
+        if not self.db:
+            return r
         for (character, rulebook, rule, branch, tick) in \
                 self.db.handled_character_node_rules():
             r[character][rulebook][rule][branch].add(tick)
@@ -514,6 +536,8 @@ class Engine(AbstractEngine, gORM):
     @reify
     def _character_portal_rules_handled_cache(self):
         r = crhandled_defaultdict()
+        if not self.db:
+            return r
         for (character, rulebook, rule, branch, tick) in \
                 self.db.handled_character_portal_rules():
             r[character][rulebook][rule][branch].add(tick)
@@ -528,6 +552,8 @@ class Engine(AbstractEngine, gORM):
                 )
             )
         )
+        if not self.db:
+            return r
         for (character, thing, branch, tick, loc, nextloc) in \
                 self.db.things_dump():
             r[character][thing][branch][tick] = (loc, nextloc)
@@ -547,7 +573,9 @@ class Engine(AbstractEngine, gORM):
 
     @reify
     def worlddb(self):
-        if hasattr(self.db, 'alchemist'):
+        if not self.db:
+            return None
+        elif hasattr(self.db, 'alchemist'):
             return self.db.alchemist.conn.connection
         else:
             return self.db.connection
@@ -592,6 +620,8 @@ class Engine(AbstractEngine, gORM):
                 codedb, connect_args, alchemy, self.json_dump, self.json_load
             )
             self._code_qe.initdb()
+        else:
+            self._code_qe = None
         self._rules_iter = self._follow_rules()
         # set up the randomizer
         self.rando = Random()
@@ -817,7 +847,8 @@ class Engine(AbstractEngine, gORM):
             self._branches[child] = self._branches[parent][child]
             self._branches_start[child] = t
         self._obranch = v
-        self.db.globl['branch'] = v
+        if self.db:
+            self.db.globl['branch'] = v
         if not hasattr(self, 'locktime'):
             for time_listener in self._time_listeners:
                 time_listener(b, t, v, t)
@@ -1032,25 +1063,28 @@ class Engine(AbstractEngine, gORM):
     def _handled_thing_rule(self, char, thing, rulebook, rule, branch, tick):
         self._node_rules_handled_cache[
             char][thing][rulebook][rule][branch].add(tick)
-        self.db.handled_thing_rule(
-            char, thing, rulebook, rule, branch, tick
-        )
+        if self.db:
+            self.db.handled_thing_rule(
+                char, thing, rulebook, rule, branch, tick
+            )
 
     def _handled_place_rule(self, char, place, rulebook, rule, branch, tick):
         self._node_rules_handled_cache[
             char][place][rulebook][rule][branch].add(tick)
-        self.db.handled_place_rule(
-            char, place, rulebook, rule, branch, tick
-        )
+        if self.db:
+            self.db.handled_place_rule(
+                char, place, rulebook, rule, branch, tick
+            )
 
     def _handled_portal_rule(
             self, char, nodeA, nodeB, rulebook, rule, branch, tick
     ):
         self._portal_rules_handled_cache[
             char][nodeA][nodeB][rulebook][rule][branch].add(tick)
-        self.db.handled_portal_rule(
-            char, nodeA, nodeB, rulebook, rule, branch, tick
-        )
+        if self.db:
+            self.db.handled_portal_rule(
+                char, nodeA, nodeB, rulebook, rule, branch, tick
+            )
 
     def _handled_character_rule(
             self, typ, char, rulebook, rule, branch, tick
@@ -1063,9 +1097,10 @@ class Engine(AbstractEngine, gORM):
             'character_node': self._character_node_rules_handled_cache,
             'character_portal': self._character_portal_rules_handled_cache,
         }[typ][char][rulebook][rule][branch].add(tick)
-        self.db.handled_character_rule(
-            typ, char, rulebook, rule, branch, tick
-        )
+        if self.db:
+            self.db.handled_character_rule(
+                typ, char, rulebook, rule, branch, tick
+            )
 
     def _follow_rules(self):
         """For each rule in play at the present tick, call it and yield a
@@ -1144,7 +1179,7 @@ class Engine(AbstractEngine, gORM):
             self.tick += 1
             self._rules_iter = self._follow_rules()
             self.universal['rando_state'] = self.rando.getstate()
-            if self.commit_modulus and self.tick % self.commit_modulus == 0:
+            if self.db and self.commit_modulus and self.tick % self.commit_modulus == 0:
                 self.commit()
             r = None
         return r
@@ -1203,9 +1238,10 @@ class Engine(AbstractEngine, gORM):
         This also deletes all its history. You'd better be sure.
 
         """
-        self.db.del_character(name)
         self.del_graph(name)
         del self.character[name]
+        if self.db:
+            self.db.del_character(name)
 
     def _is_thing(self, character, node):
         if character not in self._things_cache or \
@@ -1222,15 +1258,16 @@ class Engine(AbstractEngine, gORM):
     ):
         branch = branch or self.branch
         tick = tick or self.tick
-        self.db.thing_loc_and_next_set(
-            character,
-            node,
-            branch,
-            tick,
-            loc,
-            nextloc
-        )
         self._things_cache[character][node][branch][tick] = (loc, nextloc)
+        if self.db:
+            self.db.thing_loc_and_next_set(
+                character,
+                node,
+                branch,
+                tick,
+                loc,
+                nextloc
+            )
 
     def _node_exists(self, character, node):
         if character not in self._nodes_cache or \
@@ -1245,28 +1282,30 @@ class Engine(AbstractEngine, gORM):
     def _exist_node(self, character, node, exist=True, branch=None, tick=None):
         branch = branch or self.branch
         tick = tick or self.tick
-        self.db.exist_node(
-            character,
-            node,
-            branch,
-            tick,
-            exist
-        )
         self._nodes_cache[character][node][branch][tick] = exist
+        if self.db:
+            self.db.exist_node(
+                character,
+                node,
+                branch,
+                tick,
+                exist
+            )
 
     def _exist_edge(self, character, nodeA, nodeB, exist=True, branch=None, tick=None):
         branch = branch or self.branch
         tick = tick or self.tick
-        self.db.exist_edge(
-            character,
-            nodeA,
-            nodeB,
-            0,
-            branch,
-            tick,
-            exist
-        )
         self._edges_cache[character][nodeA][nodeB][0][branch][tick] = exist
+        if self.db:
+            self.db.exist_edge(
+                character,
+                nodeA,
+                nodeB,
+                0,
+                branch,
+                tick,
+                exist
+            )
 
     def alias(self, v, stat='dummy'):
         r = DummyEntity(self)

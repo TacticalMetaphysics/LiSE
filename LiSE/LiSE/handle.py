@@ -499,16 +499,11 @@ class EngineHandle(object):
         return list(self._real.character[char].thing)
 
     def character_things_diff(self, char):
-        """Return a dictionary describing added and deleted things.
-
-        Returns ``None`` if the character doesn't exist."""
-        try:
-            new = self.character_things(char)
-            old = self._char_things_cache.get(char, [])
-            self._char_things_cache[char] = new
-            return list_diff(old, new)
-        except KeyError:
-            return None
+        """Return a dictionary describing added and deleted things."""
+        new = self.character_things(char)
+        old = self._char_things_cache.get(char, [])
+        self._char_things_cache[char] = new
+        return list_diff(old, new)
 
     def character_things_len(self, char):
         """How many things are in this character?"""

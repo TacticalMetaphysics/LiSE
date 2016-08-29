@@ -1669,8 +1669,19 @@ class EngineProxy(AbstractEngine):
         charsdiffs = self.handle('get_chardiffs', chars='all')
         for char in charsdiffs:
             self._char_cache[char] = CharacterProxy(self, char)
+            for stat in charsdiffs[char]['character_stat']:
+                assert charsdiffs[char]['character_stat'][stat] is not None
             self._char_stat_cache[char] = charsdiffs[char]['character_stat']
+            for orig in charsdiffs[char]['portal_stat']:
+                for dest in charsdiffs[char]['portal_stat'][orig]:
+                    for stat in charsdiffs[char]['portal_stat'][orig][dest]:
+                        assert charsdiffs[char]['portal_stat'][orig][dest][stat] is not None
             self._portal_stat_cache[char] = charsdiffs[char]['portal_stat']
+            for node in charsdiffs[char]['node_stat']:
+                for stat in charsdiffs[char]['node_stat'][node]:
+                    if stat in {'arrival_time', 'next_arrival_time', 'next_location'}:
+                        continue
+                    assert charsdiffs[char]['node_stat'][node][stat] is not None
             self._node_stat_cache[char] = charsdiffs[char]['node_stat']
             self._character_avatars_cache[char] = charsdiffs[char]['avatars']
             self._character_rulebooks_cache[char] = charsdiffs[char]['rulebooks']
