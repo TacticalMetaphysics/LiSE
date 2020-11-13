@@ -392,18 +392,17 @@ class ELiDEApp(App):
 
     def on_pause(self):
         """Sync the database with the current state of the game."""
-        self.engine.commit()
+        if hasattr(self, 'engine'):
+            self.engine.commit()
         self.strings.save()
         self.funcs.save()
         self.config.write()
 
     def on_stop(self, *largs):
         """Sync the database, wrap up the game, and halt."""
-        if self.strings:
-            self.strings.save()
-        if self.funcs:
-            self.funcs.save()
-        if self.engine:
+        self.strings.save()
+        self.funcs.save()
+        if hasattr(self, 'engine'):
             self.engine.commit()
         if hasattr(self, 'procman'):
             self.procman.shutdown()

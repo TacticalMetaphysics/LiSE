@@ -362,7 +362,7 @@ class EdBox(BoxLayout):
         self.toggle()
 
     def save(self, *args, name=None):
-        if not self.editor:
+        if not self.editor or not self.store:
             return
         if hasattr(self, '_lock_save'):
             return
