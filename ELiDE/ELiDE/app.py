@@ -207,7 +207,7 @@ class ELiDEApp(App):
         if config['LiSE'].get('loglevel'):
             enkw['loglevel'] = config['LiSE']['loglevel']
         self.procman = EngineProcessManager()
-        self.engine = self.procman.start(**enkw)
+        self.engine = engine = self.procman.start(**enkw)
         self.pull_time()
 
         self.engine.time.connect(self._pull_time_from_signal, weak=False)
@@ -220,12 +220,18 @@ class ELiDEApp(App):
             tick=self._push_time
         )
 
+        self.chars.names = list(self.engine.character)
+        self.strings.store = self.engine.string
+        self._started = True
+        return engine
+    trigger_start_subprocess = trigger(start_subprocess)
+
+    def init_board(self, *args):
         if 'boardchar' not in self.engine.eternal:
             if 'physical' in self.engine.character:
                 self.engine.eternal['boardchar'] = self.engine.character['physical']
             else:
-                self.engine.eternal['boardchar'] = self.engine.new_character('physical')
-        self.chars.names = list(self.engine.character)
+                chara = self.engine.eternal['boardchar'] = self.engine.new_character('physical')
         self.mainscreen.graphboards = {
                 name: GraphBoard(
                     character=char
@@ -235,11 +241,8 @@ class ELiDEApp(App):
                 name: GridBoard(character=char)
                 for name, char in self.engine.character.items()
             }
-        self.strings.store = self.engine.string
         self.select_character(self.engine.eternal['boardchar'])
         self.selected_proxy = self._get_selected_proxy()
-        self._started = True
-    trigger_start_subprocess = trigger(start_subprocess)
 
     def _add_screens(self, *args):
         def toggler(screenname):
@@ -251,7 +254,10 @@ class ELiDEApp(App):
             return tog
         config = self.config
 
-        self.mainmenu = ELiDE.menu.DirPicker(toggle=toggler('mainmenu'))
+        self.mainmenu = ELiDE.menu.DirPicker(
+            toggle=toggler('mainmenu'),
+            start=self.start_subprocess
+        )
 
         self.pawncfg = ELiDE.spritebuilder.PawnConfigScreen(
             toggle=toggler('pawncfg'),
@@ -402,7 +408,7 @@ class ELiDEApp(App):
         """Sync the database, wrap up the game, and halt."""
         self.strings.save()
         self.funcs.save()
-        if hasattr(self, 'engine'):
+        if self.engine:
             self.engine.commit()
         if hasattr(self, 'procman'):
             self.procman.shutdown()

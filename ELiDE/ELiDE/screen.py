@@ -48,7 +48,6 @@ from .charmenu import CharMenu
 from .graph.board import GraphBoardView
 from .grid.board import GridBoardView
 from .calendar import Agenda
-from .gen import GeneratorDialog
 from .util import dummynum, trigger
 
 Factory.register('CharMenu', cls=CharMenu)
@@ -76,7 +75,6 @@ class StatListPanel(BoxLayout):
     proxy = ObjectProperty()
     toggle_stat_cfg = ObjectProperty()
     toggle_gridview = ObjectProperty()
-    open_grid_gen_view = ObjectProperty()
     toggle_calendar = ObjectProperty()
 
     def on_proxy(self, *args):
@@ -220,8 +218,7 @@ class MainScreen(Screen):
         def update_adding_portal(*args):
             self.boardview.adding_portal = self.charmenu.portaladdbut.state == 'down'
         def update_board(*args):
-            self.boardview.board = self.grid_gen.graphboard = self.graphboards[self.app.character_name]
-            self.grid_gen.gridboard = self.gridboards[self.app.character_name]
+            self.boardview.board = self.graphboards[self.app.character_name]
         self.mainview.bind(
             size=self.boardview.setter('size'),
             pos=self.boardview.setter('pos')
@@ -252,12 +249,6 @@ class MainScreen(Screen):
         )
         self.calendar_view.add_widget(self.calendar)
         self.mainview.add_widget(self.boardview)
-        self.grid_gen_view = ModalView(size_hint_x=0.3, size_hint_y=0.2)
-        self.grid_gen = GeneratorDialog(
-            graphboard=self.graphboards[self.app.character_name],
-            gridboard=self.gridboards[self.app.character_name],
-            dismiss=self.grid_gen_view.dismiss)
-        self.grid_gen_view.add_widget(self.grid_gen)
 
     def on_statpanel(self, *args):
         if not self.app:
@@ -451,9 +442,6 @@ class MainScreen(Screen):
             self.mainview.clear_widgets()
             self.mainview.add_widget(self.gridview)
 
-    def open_grid_gen_view(self, *args):
-        self.grid_gen_view.open()
-
     def toggle_calendar(self, *args):
         # TODO decide how to handle switching between >2 view types
         if self.boardview in self.mainview.children:
@@ -485,11 +473,6 @@ Builder.load_string(
         size_hint_y: 0.05
         text: 'toggle grid'
         on_release: root.toggle_gridview()
-    Button:
-        id: gridgenbut
-        size_hint_y: 0.05
-        text: 'generate grid'
-        on_release: root.open_grid_gen_view()
     Button:
         id: cfgstatbut
         size_hint_y: 0.05
@@ -607,7 +590,6 @@ Builder.load_string(
         toggle_stat_cfg: app.statcfg.toggle
         toggle_calendar: root.toggle_calendar
         toggle_gridview: root.toggle_gridview
-        open_grid_gen_view: root.open_grid_gen_view
         pos_hint: {'left': 0, 'top': 1}
         size_hint: (0.25, 0.8)
         selection_name: str(app.selected_proxy.name) if app.selected_proxy else ''

@@ -6,31 +6,32 @@ from LiSE.character import grid_2d_8graph
 from networkx import grid_2d_graph
 
 
-class GeneratorDialog(BoxLayout):
-    graphboard = ObjectProperty()
-    gridboard = ObjectProperty()
+class GridGeneratorDialog(BoxLayout):
     xval = NumericProperty()
     yval = NumericProperty()
-    directions = OptionProperty(4, options=[4, 8])
-    dismiss = ObjectProperty()
-
-    def generate(self, *args):
+    directions = OptionProperty(None, options=[None, 4, 8])
+    
+    def generate(self, engine):
         x = int(self.xval)
         y = int(self.yval)
         if x < 1 or y < 1:
-            return
-        if self.directions == 4:
-            self.graphboard.character.copy_from(grid_2d_graph(x, y))
+            return False
+        elif self.directions == 4:
+            # instead, we're running just after game init, before the view is open on it, and we'll make a character ourselves
+            engine.add_character('physical', grid_2d_graph(x, y))
+            return True
+        elif self.directions == 8:
+            engine.add_character('physical', grid_2d_8graph(x, y))
+            return True
         else:
-            assert self.directions == 8
-            self.graphboard.character.copy_from(grid_2d_8graph(x, y))
-        self.graphboard.update()
-        self.gridboard.update()
-    _trigger_generate = trigger(generate)
+            return False
+    
+    def validate(self):
+        return self.directions and int(self.xval) and int(self.yval)
 
 
 Builder.load_string("""
-<GeneratorDialog>:
+<GridGeneratorDialog>:
     directions: 4 if but4.state == 'down' else 8
     orientation: 'vertical'
     BoxLayout:
@@ -55,14 +56,4 @@ Builder.load_string("""
         ToggleButton:
             id: but8
             group: 'dir'
-            text: '8-way'
-    BoxLayout:
-        Button:
-            text: 'Cancel'
-            on_release:
-                root.dismiss()
-        Button:
-            text: 'OK'
-            on_release:
-                root._trigger_generate()
-                root.dismiss()""")
+            text: '8-way'""")

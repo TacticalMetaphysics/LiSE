@@ -2519,6 +2519,13 @@ class EngineProxy(AbstractEngine):
         if char in self._char_cache:
             raise KeyError("Character already exists")
         assert char not in self._char_stat_cache
+        if not isinstance(data, dict):
+            # it's a networkx graph
+            data = {
+                'place': {k: v for k, v in data._node.items() if 'location' not in v},
+                'thing': {k: v for k, v in data._node.items() if 'location' in v},
+                'edge': data._adj
+            }
         self._char_cache[char] = character = CharacterProxy(self, char)
         self._char_stat_cache[char] = attr
         placedata = data.get('place', data.get('node', {}))
@@ -2547,7 +2554,7 @@ class EngineProxy(AbstractEngine):
             for dest, stats in dests.items():
                 assert dest not in self._character_portals_cache.successors[char][orig]
                 assert dest not in self._portal_stat_cache[char][orig]
-                self._character_portals_cache.store(char, orig, dest, PortalProxy(self.engine.character[char], orig, dest))
+                self._character_portals_cache.store(char, orig, dest, PortalProxy(self.character[char], orig, dest))
                 self._portal_stat_cache[char][orig][dest] = stats
         self.handle(
             command='add_character', char=char, data=data, attr=attr,
