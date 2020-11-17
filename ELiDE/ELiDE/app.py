@@ -220,7 +220,6 @@ class ELiDEApp(App):
             tick=self._push_time
         )
 
-        self.chars.names = list(self.engine.character)
         self.strings.store = self.engine.string
         self._started = True
         return engine
@@ -232,6 +231,7 @@ class ELiDEApp(App):
                 self.engine.eternal['boardchar'] = self.engine.character['physical']
             else:
                 chara = self.engine.eternal['boardchar'] = self.engine.new_character('physical')
+        self.chars.names = list(self.engine.character)
         self.mainscreen.graphboards = {
                 name: GraphBoard(
                     character=char
