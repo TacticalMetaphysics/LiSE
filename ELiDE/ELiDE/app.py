@@ -109,6 +109,7 @@ class ELiDEApp(App):
         self.tick = int(t)
 
     def set_turn(self, t):
+        """Set the turn to the given value, cast to an integer"""
         self.turn = int(t)
 
     def select_character(self, char):
@@ -161,10 +162,6 @@ class ELiDEApp(App):
         config.write()
 
     def build(self):
-        """Make sure I can use the database, create the tables as needed, and
-        return the root widget.
-
-        """
         self.icon = 'icon_24px.png'
         config = self.config
         Logger.debug(
@@ -198,6 +195,11 @@ class ELiDEApp(App):
         self.branch, self.turn, self.tick = branch, turn, tick
 
     def start_subprocess(self, *args):
+        """Start the LiSE core and get a proxy to it
+
+        Must be called before ``init_board``
+
+        """
         if hasattr(self, '_started'):
             raise ChildProcessError("Subprocess already running")
         config = self.config
@@ -226,6 +228,11 @@ class ELiDEApp(App):
     trigger_start_subprocess = trigger(start_subprocess)
 
     def init_board(self, *args):
+        """Get the board widgets initialized to display the game state
+
+        Must be called after start_subprocess
+
+        """
         if 'boardchar' not in self.engine.eternal:
             if 'physical' in self.engine.character:
                 self.engine.eternal['boardchar'] = self.engine.character['physical']
@@ -340,7 +347,7 @@ class ELiDEApp(App):
         self.manager.current = 'mainmenu'
 
     def update_calendar(self, calendar, past_turns=1, future_turns=5):
-        # TODO: make the turn range configurable
+        """Fill in a calendar widget with actual simulation data"""
         startturn = self.turn - past_turns
         endturn = self.turn + future_turns
         stats = ['_config'] + [
