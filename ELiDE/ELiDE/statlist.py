@@ -396,14 +396,16 @@ class BaseStatListView(RecycleView):
 
     def iter_data(self):
         """Iterate over key-value pairs that are really meant to be displayed"""
+        invalid = {
+            'character',
+            'name',
+            'location',
+            'rulebooks'
+        }
         for (k, v) in self.proxy.items():
             if (
                 not (isinstance(k, str) and k[0] == '_') and
-                k not in (
-                    'character',
-                    'name',
-                    'location'
-                )
+                k not in invalid
             ):
                 yield k, v
 
