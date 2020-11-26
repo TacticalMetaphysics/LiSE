@@ -865,6 +865,7 @@ class FacadePortalMapping(FacadeEntityMapping):
 
 class Facade(AbstractCharacter, nx.DiGraph):
     engine = getatt('character.engine')
+    db = getatt('character.engine')
 
     def __getstate__(self):
         ports = {}

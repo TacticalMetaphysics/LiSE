@@ -22,7 +22,7 @@ from LiSE.engine import Engine
 
 class CharacterTest(LiSE.allegedb.tests.test_all.AllegedTest):
     def setUp(self):
-        self.engine = Engine("sqlite:///:memory:")
+        self.engine = Engine(connect_string="sqlite:///:memory:")
         self.graphmakers = (self.engine.new_character,)
         self.tempdir = tempfile.mkdtemp(dir='.')
         for f in (
@@ -199,7 +199,7 @@ CHAR_DATA = [
 
 @pytest.mark.parametrize(['name', 'data', 'stat', 'nodestat', 'statup', 'nodeup', 'edgeup'], CHAR_DATA)
 def test_char_creation(name, data, stat, nodestat, statup, nodeup, edgeup):
-    with Engine("sqlite:///:memory:") as eng:
+    with Engine(connect_string="sqlite:///:memory:") as eng:
         char = eng.new_character(name, data, **stat)
         assert set(char.node) == set(data)
         es = set()
@@ -213,13 +213,11 @@ def test_char_creation(name, data, stat, nodestat, statup, nodeup, edgeup):
 
 # TODO parametrize bunch of characters
 @pytest.fixture(scope="function", params=CHAR_DATA)
-def character_updates(request, clean):
+def character_updates(request, engy):
     name, data, stat, nodestat, statup, nodeup, edgeup = request.param
-    engine = Engine("sqlite:///:memory:")
-    char = engine.new_character(name, data, **stat)
+    char = engy.new_character(name, data, **stat)
     update_char(char, node=nodestat)
     yield char, statup, nodeup, edgeup
-    engine.close()
 
 
 def test_facade(character_updates):

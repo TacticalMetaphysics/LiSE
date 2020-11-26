@@ -19,25 +19,29 @@ from collections import defaultdict
 from LiSE.engine import Engine
 import pytest
 import os
+import shutil
 import tempfile
 
 
 @pytest.fixture(scope='module')
-def college24_premade(clean_module):
+def college24_premade():
     from LiSE.examples.college import install
-    with Engine(':memory:', random_seed=69105) as eng:
+    directory = tempfile.mkdtemp('.')
+    with Engine(directory, random_seed=69105) as eng:
         install(eng)
         for i in range(24):
             print(i)
             eng.next_turn()
         yield eng
+    shutil.rmtree(directory)
 
 
-def roommate_collisions(engine):
+def roommate_collisions(college24_premade):
     """Test queries' ability to tell that all of the students that share
     rooms have been in the same place.
 
     """
+    engine = college24_premade
     done = set()
     for chara in engine.character.values():
         if chara.name in done:
@@ -71,11 +75,12 @@ def test_roomie_collisions_premade(college24_premade):
     roommate_collisions(college24_premade)
 
 
-def sober_collisions(engine):
+def sober_collisions(college24_premade):
     """Students that are neither lazy nor drunkards should all have been
     in class together at least once.
 
     """
+    engine = college24_premade
     students = [
         stu for stu in
         engine.character['student_body'].stat['characters']
@@ -108,8 +113,9 @@ def test_sober_collisions_premade(college24_premade):
     sober_collisions(college24_premade)
 
 
-def noncollision(engine):
+def noncollision(college24_premade):
     """Make sure students *not* from the same room never go there together"""
+    engine = college24_premade
     dorm = defaultdict(lambda: defaultdict(dict))
     for character in engine.character.values():
         match = re.match(r'dorm(\d)room(\d)student(\d)', character.name)
