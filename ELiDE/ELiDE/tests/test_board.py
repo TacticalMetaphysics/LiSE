@@ -1,13 +1,65 @@
 from kivy.base import EventLoop
 from kivy.tests.common import GraphicUnitTest
+import networkx as nx
 
 from LiSE.character import Facade
 from ELiDE.app import ELiDEApp
-from ELiDE.graph.board import GraphBoard, GraphBoardView
+from ELiDE.graph.board import GraphBoard, GraphBoardView, FinalLayout
 from ELiDE.tests.util import MockTouch
 
 
 class BoardTest(GraphicUnitTest):
+    @staticmethod
+    def test_layout_grid_graphboard():
+        spots_wide = 3
+        spots_tall = 3
+        graph = nx.grid_2d_graph(spots_wide, spots_tall)
+        char = Facade(graph)
+        app = ELiDEApp()
+        spotlayout = FinalLayout()
+        arrowlayout = FinalLayout()
+        board = GraphBoard(
+            app=app,
+            character=char,
+            spotlayout=spotlayout,
+            arrowlayout=arrowlayout
+        )
+        spotlayout.pos = board.pos
+        board.bind(pos=spotlayout.setter('pos'))
+        spotlayout.size = board.size
+        board.bind(size=spotlayout.setter('size'))
+        board.add_widget(spotlayout)
+        arrowlayout.pos = board.pos
+        board.bind(pos=arrowlayout.setter('pos'))
+        arrowlayout.size = board.size
+        board.bind(size=arrowlayout.setter('size'))
+        board.add_widget(arrowlayout)
+        board.update()
+        boardview = GraphBoardView(board=board)
+        EventLoop.ensure_window()
+        win = EventLoop.window
+        win.add_widget(boardview)
+        def all_spots_placed():
+            for x in range(spots_wide):
+                for y in range(spots_tall):
+                    if (x, y) not in board.spot:
+                        return False
+            return True
+        while not all_spots_placed():
+            EventLoop.idle()
+        # Don't get too picky about the exact proportions of the grid; just make sure the
+        # spots are positioned logically with respect to one another
+        for name, spot in board.spot.items():
+            x, y = name
+            if x > 0:
+                assert spot.x > board.spot[x-1, y].x
+            if y > 0:
+                assert spot.y > board.spot[x, y-1].y
+            if x < spots_wide - 1:
+                assert spot.x < board.spot[x+1, y].x
+            if y < spots_tall - 1:
+                assert spot.y < board.spot[x, y+1].y
+
     @staticmethod
     def test_select_arrow():
         char = Facade()
