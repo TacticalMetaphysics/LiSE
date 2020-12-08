@@ -969,7 +969,7 @@ class Facade(AbstractCharacter, nx.DiGraph):
 
         def _get_inner_map(self):
             try:
-                return self.facade.character.place
+                return self.facade.character._node
             except AttributeError:
                 return {}
 
@@ -984,7 +984,7 @@ class Facade(AbstractCharacter, nx.DiGraph):
 
         def _get_inner_map(self):
             try:
-                return self.facade.character.portal
+                return self.facade.character._adj
             except AttributeError:
                 return {}
 
@@ -992,11 +992,11 @@ class Facade(AbstractCharacter, nx.DiGraph):
         cls = FacadePortalPredecessors
 
         def __contains__(self, item):
-            return item in self.facade.node
+            return item in self.facade._node
 
         def _get_inner_map(self):
             try:
-                return self.facade.character.preportal
+                return self.facade.character.pred
             except AttributeError:
                 return {}
 
