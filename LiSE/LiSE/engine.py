@@ -1055,7 +1055,7 @@ class Engine(AbstractEngine, gORM):
         if string:
             self.string = string
         else:
-            self._string_file = os.path.join(prefix, 'string.json')
+            self._string_file = os.path.join(prefix, 'strings.json')
             if clear and os.path.exists(self._string_file):
                 os.remove(self._string_file)
         if function:
