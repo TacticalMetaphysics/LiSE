@@ -110,8 +110,6 @@ def update_char(char, *, stat=(), node=(), portal=()):
     end_places = char.place.unwrap()
     end_things = char.thing.unwrap()
     for node, v in node:
-        if 'name' not in v:
-            v['name'] = node
         if v is None:
             del char.node[node]
             if node in end_places:
@@ -160,6 +158,7 @@ def update_char(char, *, stat=(), node=(), portal=()):
             for k, vv in v.items():
                 set_in_mapping(me, k, vv)
         else:
+            v['name'] = node
             end_places[node] = v
             me = char.new_node(node)
             for k, vv in v.items():
