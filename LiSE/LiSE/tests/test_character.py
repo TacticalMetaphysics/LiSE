@@ -209,6 +209,20 @@ def test_char_creation(name, data, stat, nodestat, statup, nodeup, edgeup):
         assert char.stat == stat
 
 
+@pytest.mark.parametrize(['name', 'data', 'stat', 'nodestat', 'statup', 'nodeup', 'edgeup'], CHAR_DATA)
+def test_facade_creation(name, data, stat, nodestat, statup, nodeup, edgeup):
+    with Engine(connect_string='sqlite:///:memory:') as eng:
+        char = eng.new_character(name, data, **stat)
+        fac = char.facade()
+        assert set(fac.node) == set(data)
+        es = set()
+        for k, v in data.items():
+             for vv in v:
+                 es.add((k, vv))
+        assert set(fac.edges) == es
+        assert fac.stat == stat
+
+
 
 # TODO parametrize bunch of characters
 @pytest.fixture(scope="function", params=CHAR_DATA)
