@@ -674,6 +674,12 @@ class FacadePlace(FacadeNode):
             self._real = real_or_name
         else:
             self._real = {'name': real_or_name}
+    
+    def add_thing(self, name):
+        self.facade.add_thing(name, self.name)
+    
+    def new_thing(self, name):
+        return self.facade.new_thing(name, self.name)
 
 
 class FacadeThing(FacadeNode):
@@ -696,10 +702,15 @@ class FacadeThing(FacadeNode):
 
     @property
     def location(self):
-        try:
-            return self.facade.node[self['location']]
-        except KeyError:
-            return None
+        return self.facade.node[self['location']]
+    
+    @location.setter
+    def location(self, v):
+        if isinstance(v, (FacadePlace, FacadeThing)):
+            v = v.name
+        if v not in self.facade.node:
+            raise KeyError("Location {} not present".format(v))
+        self['location'] = v
 
 
 class FacadePortal(FacadeEntity):
@@ -929,7 +940,8 @@ class Facade(AbstractCharacter, nx.DiGraph):
     def remove_thing(self, thing):
         del self.thing[thing]
 
-    def add_thing(self, name, **kwargs):
+    def add_thing(self, name, location, **kwargs):
+        kwargs['location'] = location
         self.thing[name] = kwargs
 
     def add_portal(self, orig, dest, symmetrical=False, **kwargs):

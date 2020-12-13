@@ -8,9 +8,9 @@ from ELiDE.graph.board import GraphBoard, GraphBoardView, FinalLayout
 from ELiDE.tests.util import MockTouch
 
 
-class BoardTest(GraphicUnitTest):
+class GraphBoardTest(GraphicUnitTest):
     @staticmethod
-    def test_layout_grid_graphboard():
+    def test_layout_grid():
         spots_wide = 3
         spots_tall = 3
         graph = nx.grid_2d_graph(spots_wide, spots_tall)
