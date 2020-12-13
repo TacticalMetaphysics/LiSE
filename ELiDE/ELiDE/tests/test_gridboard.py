@@ -58,5 +58,6 @@ class GridBoardTest(GraphicUnitTest):
                 assert spot.x == x * spot_width
                 assert spot.y == y * spot_height
         assert board.pawn['something'].parent == board.spot[1, 1]
+        assert board.pawn['something'].pos == board.spot[1, 1].pos
         assert board.pawn['otherthing'].parent == board.spot[0, 0]
         assert board.pawn['otherthing'].pos == board.spot[0, 0].pos
