@@ -42,6 +42,14 @@ class GridBoardTest(GraphicUnitTest):
         while not (all_spots_placed() and all_pawns_placed()):
             EventLoop.idle()
         otherthing['location'] = board.pawn['otherthing'].loc_name = (0, 0)
+        zero = board.spot[0, 0]
+        that = board.pawn['otherthing']
+        for ticked in range(1000):
+            EventLoop.idle()
+            if that in zero.children:
+                break
+        else:
+            assert False, "pawn did not relocate within 1000 ticks"
         while board.pawn['otherthing'].parent != board.spot[0, 0]:
             EventLoop.idle()
         for x in range(spots_wide):
