@@ -141,7 +141,7 @@ class AbstractEntityMapping(AllegedMapping):
         return wrapval(self._get_cache_now(key))
 
     def __contains__(self, item):
-        return self._cache_contains(item, *self.db._btt())
+        return item == 'name' or self._cache_contains(item, *self.db._btt())
 
     def __setitem__(self, key, value):
         """Set key=value at the present branch and revision"""
