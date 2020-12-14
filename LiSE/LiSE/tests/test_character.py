@@ -214,13 +214,12 @@ def test_facade_creation(name, data, stat, nodestat, statup, nodeup, edgeup):
     with Engine(connect_string='sqlite:///:memory:') as eng:
         char = eng.new_character(name, data, **stat)
         fac = char.facade()
-        assert set(fac.node) == set(char.node)
-        es = set()
-        for k, v in data.items():
-             for vv in v:
-                 es.add((k, vv))
+        assert dict(fac.node) == dict(char.node)
+        assert fac.node == char.node
+        assert fac.edges == char.edges
         assert set(fac.edges) == set(char.edges)
         assert fac.stat == char.stat
+        assert dict(fac.stat) == dict(char.stat)
 
 
 

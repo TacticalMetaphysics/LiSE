@@ -343,6 +343,11 @@ class Node(AbstractEntityMapping):
             branch, turn, tick,
             value
         )
+    
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        return dict(self) == dict(other)
 
 
 class Edge(AbstractEntityMapping):

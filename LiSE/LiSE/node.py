@@ -356,9 +356,7 @@ class Node(graph.Node, rule.RuleFollower):
 
     def __contains__(self, k):
         """Handle extra keys, then delegate."""
-        if k in self.extrakeys:
-            return True
-        return super().__contains__(k)
+        return k in self.extrakeys or super().__contains__(k)
 
     def __setitem__(self, k, v):
         super().__setitem__(k, v)
