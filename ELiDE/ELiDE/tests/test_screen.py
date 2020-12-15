@@ -10,7 +10,7 @@ from ELiDE.spritebuilder import PawnConfigScreen, SpotConfigScreen
 from ELiDE.statcfg import StatScreen
 from ELiDE.graph.board import GraphBoard
 from ELiDE.grid.board import GridBoard
-from .util import MockTouch, ListenableDict, MockEngine
+from .util import MockTouch, ListenableDict, MockEngine, idle_until, window_with_widget
 
 
 class ScreenTest(GraphicUnitTest):
@@ -34,14 +34,10 @@ class ScreenTest(GraphicUnitTest):
             character=char, app=app)}, gridboards={
             'foo': GridBoard(character=char)
         })
-        EventLoop.ensure_window()
-        win = EventLoop.window
-        win.add_widget(screen)
-        while 'timepanel' not in screen.ids:
-            EventLoop.idle()
+        win = window_with_widget(screen)
+        idle_until(lambda: 'timepanel' in screen.ids)
         timepanel = screen.ids['timepanel']
-        while timepanel.size == [100, 100]:
-            EventLoop.idle()
+        idle_until(lambda: timepanel.size != [100, 100])
         turnfield = timepanel.ids['turnfield']
         turn_before = int(turnfield.hint_text)
         stepbut = timepanel.ids['stepbut']

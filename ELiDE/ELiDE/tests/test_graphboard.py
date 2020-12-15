@@ -5,7 +5,7 @@ import networkx as nx
 from LiSE.character import Facade
 from ELiDE.app import ELiDEApp
 from ELiDE.graph.board import GraphBoard, GraphBoardView, FinalLayout
-from ELiDE.tests.util import MockTouch
+from ELiDE.tests.util import MockTouch, idle_until, window_with_widget
 
 
 class GraphBoardTest(GraphicUnitTest):
@@ -72,13 +72,12 @@ class GraphBoardTest(GraphicUnitTest):
             character=char
         )
         boardview = GraphBoardView(board=board)
-        EventLoop.ensure_window()
-        win = EventLoop.window
-        win.add_widget(boardview)
-        while 0 not in board.arrow \
-                or 1 not in board.arrow[0] \
-                or board.arrow[0][1] not in board.arrowlayout.children:
-            EventLoop.idle()
+        win = window_with_widget(boardview)
+        idle_until(lambda:
+            0 in board.arrow and
+            1 in board.arrow[0] and
+            board.arrow[0][1] in board.arrowlayout.children
+        )
         ox, oy = board.spot[0].center
         dx, dy = board.spot[1].center
         motion = MockTouch("unittest", 1, {
@@ -98,12 +97,8 @@ class GraphBoardTest(GraphicUnitTest):
             character=char
         )
         boardview = GraphBoardView(board=board)
-        EventLoop.ensure_window()
-        win = EventLoop.window
-        win.add_widget(boardview)
-        while 0 not in board.spot \
-                or board.spot[0] not in board.spotlayout.children:
-            EventLoop.idle()
+        win = window_with_widget(boardview)
+        idle_until(lambda: 0 in board.spot and board.spot[0] in board.spotlayout.children)
         x, y = board.spot[0].center
         motion = MockTouch("unittest", 1, {
             'sx': x / win.width,
@@ -123,13 +118,12 @@ class GraphBoardTest(GraphicUnitTest):
             character=char
         )
         boardview = GraphBoardView(board=board)
-        EventLoop.ensure_window()
-        win = EventLoop.window
-        win.add_widget(boardview)
-        while 0 not in board.spot \
-                or board.spot[0] not in board.spotlayout.children \
-                or board.pawn['that'] not in board.spot[0].children:
-            EventLoop.idle()
+        win = window_with_widget(boardview)
+        idle_until(lambda: 
+            0 in board.spot and
+            board.spot[0] in board.spotlayout.children and
+            board.pawn['that'] in board.spot[0].children
+        )
         x, y = board.pawn['that'].center
         motion = MockTouch("unittest", 1, {
             'sx': x / win.width,
@@ -150,24 +144,18 @@ class GraphBoardTest(GraphicUnitTest):
             character=char
         )
         boardview = GraphBoardView(board=board)
-        EventLoop.ensure_window()
-        win = EventLoop.window
-        win.add_widget(boardview)
-        while 0 not in board.spot \
-                or board.spot[0] not in board.spotlayout.children \
-                or 1 not in board.spot \
-                or board.spot[1] not in board.spotlayout.children \
-                or 'that' not in board.pawn \
-                or board.pawn['that'] not in board.spot[0].children:
-            EventLoop.idle()
+        win = window_with_widget(boardview)
+        idle_until(lambda: 
+            0 in board.spot and
+            board.spot[0] in board.spotlayout.children and
+            1 in board.spot and
+            board.spot[1] in board.spotlayout.children and
+            'that' in board.pawn and
+            board.pawn['that'] in board.spot[0].children
+        )
         that = board.pawn['that']
         one = board.spot[1]
         # In a real ELiDE session, the following would happen as a
         # result of a Board.update() call
         char.thing['that']['location'] = that.loc_name = 1
-        for ticked in range(1000):
-            EventLoop.idle()
-            if that in one.children:
-                return
-        else:
-            assert False, "pawn did not relocate within 1000 ticks"
+        idle_until(lambda: that in one.children, 1000, "pawn did not relocate within 1000 ticks")

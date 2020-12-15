@@ -6,7 +6,7 @@ import networkx as nx
 from LiSE.character import Facade
 from ELiDE.app import ELiDEApp
 from ELiDE.grid.board import GridBoard, GridBoardView
-from ELiDE.tests.util import MockTouch
+from ELiDE.tests.util import MockTouch, all_spots_placed, all_pawns_placed, all_arrows_placed, idle_until, window_with_widget
 
 
 class GridBoardTest(GraphicUnitTest):
@@ -24,34 +24,14 @@ class GridBoardTest(GraphicUnitTest):
         board = GridBoard(
             character=char
         )
-        boardview = GridBoardView(board=board)
-        EventLoop.ensure_window()
-        win = EventLoop.window
-        win.add_widget(boardview)
-        def all_spots_placed():
-            for x in range(spots_wide):
-                for y in range(spots_tall):
-                    if (x, y) not in board.spot:
-                        return False
-            return True
-        def all_pawns_placed():
-            for thing in char.thing:
-                if thing not in board.pawn:
-                    return False
-            return True
-        while not (all_spots_placed() and all_pawns_placed()):
+        win = window_with_widget(GridBoardView(board=board))
+        while not (all_spots_placed(board, char) and all_pawns_placed(board, char)):
             EventLoop.idle()
         otherthing['location'] = board.pawn['otherthing'].loc_name = (0, 0)
         zero = board.spot[0, 0]
         that = board.pawn['otherthing']
-        for ticked in range(1000):
-            EventLoop.idle()
-            if that in zero.children:
-                break
-        else:
-            assert False, "pawn did not relocate within 1000 ticks"
-        while board.pawn['otherthing'].parent != board.spot[0, 0]:
-            EventLoop.idle()
+        idle_until(lambda: that in zero.children, 1000, "pawn 'otherthing' did not relocate within 1000 ticks")
+        assert that.parent == zero
         for x in range(spots_wide):
             for y in range(spots_tall):
                 spot = board.spot[x, y]
