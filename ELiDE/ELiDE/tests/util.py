@@ -3,21 +3,27 @@ from kivy.input.motionevent import MotionEvent
 from kivy.base import EventLoop
 
 
-def all_spots_placed(board, char):
+def all_spots_placed(board, char=None):
+    if char is None:
+        char = board.character
     for place in char.place:
         if place not in board.spot:
             return False
     return True
 
 
-def all_pawns_placed(board, char):
+def all_pawns_placed(board, char=None):
+    if char is None:
+        char = board.character
     for thing in char.thing:
         if thing not in board.pawn:
             return False
     return True
 
 
-def all_arrows_placed(board, char):
+def all_arrows_placed(board, char=None):
+    if char is None:
+        char = board.character
     for orig, dests in char.portal.items():
         if orig not in board.arrow:
             return False
@@ -26,6 +32,12 @@ def all_arrows_placed(board, char):
             if dest not in arrows:
                 return False
     return True
+
+
+def board_is_arranged(board, char=None):
+    if char is None:
+        char = board.character
+    return all_spots_placed(board, char) and all_pawns_placed(board, char) and all_arrows_placed(board, char)
 
 
 def idle_until(condition, timeout=None, msg="Timed out"):
