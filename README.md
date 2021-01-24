@@ -91,7 +91,7 @@ pip3 install --user LiSE/ ELiDE/
 
 ## Mac
 ```
-# if you don't have python installed (Macs often come with in installed): 
+# if you don't have python 3 installed: 
 brew install python pip3
 # install the Kivy app framework
 brew install cython
