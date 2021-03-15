@@ -1397,25 +1397,32 @@ class ORM(object):
             raise ValueError("Can't time travel backward in a forward context")
 
         # first make sure the cursor is not before the start of this branch
-        tick = self._turn_end_plan.get((branch, v), 0)
-        if branch not in loaded:
-            self._load_at(branch, v, tick)
-            return
-        (start_turn, start_tick, end_turn, end_tick) = loaded[branch]
-        if (
-                v > end_turn or (v == end_turn and tick > end_tick)
-        ) or (
-            v < start_turn or (v == start_turn and tick < start_tick)
-        ):
-            self._load_at(branch, v, tick)
-        parent, turn_start, tick_start, turn_end, tick_end = self._branches[branch]
         if branch != 'trunk':
+            parent, turn_start, tick_start, turn_end, tick_end = self._branches[branch]
             if v < turn_start:
                 raise ValueError(
                     "The turn number {} "
                     "occurs before the start of "
                     "the branch {}".format(v, branch)
                 )
+        if branch not in loaded:
+            if (branch, v) in self._turn_end_plan:
+                tick = self._turn_end_plan[branch, v]
+                self._load_at(branch, v, tick)
+            else:
+                tick = 0
+        else:
+            (start_turn, start_tick, end_turn, end_tick) = loaded[branch]
+            if (branch, v) in self._turn_end_plan:
+                tick = self._turn_end_plan[(branch, v)]
+                if ((
+                    v > end_turn or (v == end_turn and tick > end_tick)
+                ) or (
+                    v < start_turn or (v == start_turn and tick < start_tick)
+                )):
+                    self._load_at(branch, v, tick)
+            else:
+                self._turn_end_plan[(branch, v)] = tick = 0
         self._otick = tick
         self._oturn = v
 
