@@ -1381,6 +1381,9 @@ class ORM(object):
         loaded = self._loaded
         if v == self.turn:
             self._otick = tick = self._turn_end_plan[tuple(self.time)]
+            if branch not in loaded:
+                loaded[branch] = (v, tick, v, tick)
+                return
             (start_turn, start_tick, end_turn, end_tick) = loaded[branch]
             if tick > end_tick:
                 loaded[branch] = (start_turn, start_tick, end_turn, tick)
@@ -1563,7 +1566,7 @@ class ORM(object):
         branch, turn, tick = self._btt()
         if data:
             if isinstance(data, DiGraph):
-                self._snap_keyframe(name, branch, turn, tick, data._node_state(), data._edges_state(), data._val_state())
+                self._snap_keyframe(name, branch, turn, tick, data._nodes_state(), data._edges_state(), data._val_state())
             elif isinstance(data, nx.Graph):
                 self._snap_keyframe(name, branch, turn, tick, data._node, data._adj, data.graph)
             elif isinstance(data, dict):
@@ -1574,7 +1577,6 @@ class ORM(object):
                 self._snap_keyframe(name, branch, turn, tick, data._node, data._adj, data.graph)
             else:
                 self._snap_keyframe(name, branch, turn, tick, *data)
-        self._new_keyframes.append((name, branch, turn, tick))
 
     def new_graph(self, name, data=None, **attr):
         """Return a new instance of type Graph, initialized with the given
