@@ -733,7 +733,6 @@ class ORM(object):
             gvkb[turn][tick] = graph_val
         else:
             gvkb[turn] = {tick: graph_val}
-        self._new_keyframes.append((graph, branch, turn, tick, nodes, edges, graph_val))
 
     def snap_keyframe(self):
         branch, turn, tick = self._btt()
@@ -741,10 +740,13 @@ class ORM(object):
         kfl = self._keyframes_list
         kfd = self._keyframes_dict
         kfs = self._keyframes_times
+        nkfs = self._new_keyframes
         for graphn, graph in self.graph.items():
-            snapp(graphn, branch, turn, tick,
-                  graph._nodes_state(), graph._edges_state(),
-                  graph._val_state())
+            nodes = graph._nodes_state()
+            edges = graph._edges_state()
+            val = graph._val_state()
+            snapp(graphn, branch, turn, tick, nodes, edges, val)
+            nkfs.append((graphn, branch, turn, tick, nodes, edges, val))
             kfl.append((graphn, branch, turn, tick))
             kfs.add((branch, turn, tick))
             if graphn not in kfd:
@@ -1566,17 +1568,33 @@ class ORM(object):
         branch, turn, tick = self._btt()
         if data:
             if isinstance(data, DiGraph):
-                self._snap_keyframe(name, branch, turn, tick, data._nodes_state(), data._edges_state(), data._val_state())
+                nodes = data._nodes_state()
+                edges = data._edges_state()
+                val = data._val_state()
+                self._snap_keyframe(name, branch, turn, tick,
+                                    nodes, edges, val)
+                self._new_keyframes.append((
+                    name, branch, turn, tick, nodes, edges, val
+                ))
             elif isinstance(data, nx.Graph):
                 self._snap_keyframe(name, branch, turn, tick, data._node, data._adj, data.graph)
+                self._new_keyframes.append((
+                    name, branch, turn, tick, data._node, data._adj, data.graph
+                ))
             elif isinstance(data, dict):
                 try:
                     data = nx.from_dict_of_dicts(data)
                 except AttributeError:
                     data = nx.from_dict_of_lists(data)
                 self._snap_keyframe(name, branch, turn, tick, data._node, data._adj, data.graph)
+                self._new_keyframes.append((
+                    name, branch, turn, tick, data._node, data._adj, data.graph
+                ))
             else:
                 self._snap_keyframe(name, branch, turn, tick, *data)
+                self._new_keyframes.append((
+                    name, branch, turn, tick
+                ) + tuple(data))
 
     def new_graph(self, name, data=None, **attr):
         """Return a new instance of type Graph, initialized with the given
