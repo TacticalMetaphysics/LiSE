@@ -1389,8 +1389,11 @@ class ORM(object):
                 loaded[branch] = (v, tick, v, tick)
                 return
             (start_turn, start_tick, end_turn, end_tick) = loaded[branch]
-            if tick > end_tick:
-                loaded[branch] = (start_turn, start_tick, end_turn, tick)
+            if v > end_turn or (v == end_turn and tick > end_tick):
+                if (branch, v, tick) in self._keyframes_times:
+                    self._load_at(branch, v, tick)
+                else:
+                    loaded[branch] = (start_turn, start_tick, end_turn, tick)
             return
         if not isinstance(v, int):
             raise TypeError("turn must be an integer")
@@ -1410,21 +1413,22 @@ class ORM(object):
         if branch not in loaded:
             if (branch, v) in self._turn_end_plan:
                 tick = self._turn_end_plan[branch, v]
-                self._load_at(branch, v, tick)
             else:
                 tick = 0
+            self._load_at(branch, v, tick)
         else:
             (start_turn, start_tick, end_turn, end_tick) = loaded[branch]
             if (branch, v) in self._turn_end_plan:
                 tick = self._turn_end_plan[(branch, v)]
-                if ((
-                    v > end_turn or (v == end_turn and tick > end_tick)
-                ) or (
-                    v < start_turn or (v == start_turn and tick < start_tick)
-                )):
-                    self._load_at(branch, v, tick)
             else:
                 self._turn_end_plan[(branch, v)] = tick = 0
+            if v > end_turn or (v == end_turn and tick > end_tick):
+                if (branch, v, tick) in self._keyframes_times:
+                    self._load_at(branch, v, tick)
+                else:
+                    loaded[branch] = (start_turn, start_tick, v, tick)
+            elif v < start_turn or (v == start_turn and tick < start_tick):
+                self._load_at(branch, v, tick)
         self._otick = tick
         self._oturn = v
 
@@ -1462,14 +1466,13 @@ class ORM(object):
             return
         (start_turn, start_tick, end_turn, end_tick) = loaded[branch]
         if turn > end_turn or (turn == end_turn and v > end_tick):
-            if not self._forward or turn > end_turn or v > end_tick + 1:
+            if (branch, end_turn, end_tick) in self._keyframes_times:
                 self._load_at(branch, turn, v)
-            (end_turn, end_tick) = (turn, v)
+                return
+            loaded[branch] = (start_turn, start_tick, turn, v)
         elif turn < start_turn or (
                 turn == start_turn and v < start_tick):
             self._load_at(branch, turn, v)
-            (start_turn, start_tick) = (turn, v)
-        loaded[branch] = (start_turn, start_tick, end_turn, end_tick)
 
     # easier to override things this way
     @property
