@@ -1461,14 +1461,12 @@ class ORM(object):
             self._load_at(branch, turn, v)
             return
         (start_turn, start_tick, end_turn, end_tick) = loaded[branch]
-        later = (turn > end_turn or (turn == end_turn and v > end_tick))
-        earlier = not later and (turn < start_turn or (
-                turn == start_turn and v < start_tick))
-        if later:
+        if turn > end_turn or (turn == end_turn and v > end_tick):
             if not self._forward or turn > end_turn or v > end_tick + 1:
                 self._load_at(branch, turn, v)
             (end_turn, end_tick) = (turn, v)
-        elif earlier:
+        elif turn < start_turn or (
+                turn == start_turn and v < start_tick):
             self._load_at(branch, turn, v)
             (start_turn, start_tick) = (turn, v)
         loaded[branch] = (start_turn, start_tick, end_turn, end_tick)
