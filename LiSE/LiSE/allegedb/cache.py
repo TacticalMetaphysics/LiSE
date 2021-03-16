@@ -265,13 +265,12 @@ class Cache:
         branch2do = deque(['trunk'])
 
         store = self.store
-        with db.batch():
-            while branch2do:
-                branch = branch2do.popleft()
-                for row in branches[branch]:
-                    store(*row, planning=False, loading=True)
-                if branch in childbranch:
-                    branch2do.extend(childbranch[branch])
+        while branch2do:
+            branch = branch2do.popleft()
+            for row in branches[branch]:
+                store(*row, planning=False, loading=True)
+            if branch in childbranch:
+                branch2do.extend(childbranch[branch])
 
     def _valcache_lookup(self, cache, branch, turn, tick):
         """Return the value at the given time in ``cache``"""

@@ -857,11 +857,12 @@ class ORM(object):
             for row in self.query.edge_val_dump():
                 updload(*row[5:8])
                 edgevalrows.append(row)
-            self._nodes_cache.load(noderows)
-            self._edges_cache.load(edgerows)
-            self._graph_val_cache.load(graphvalrows)
-            self._node_val_cache.load(nodevalrows)
-            self._edge_val_cache.load(edgevalrows)
+            with self.batch():
+                self._nodes_cache.load(noderows)
+                self._edges_cache.load(edgerows)
+                self._graph_val_cache.load(graphvalrows)
+                self._node_val_cache.load(nodevalrows)
+                self._edge_val_cache.load(edgevalrows)
             return
         past_branch, past_turn, past_tick = latest_past_keyframe
         for graph in self.graph:
@@ -1128,11 +1129,12 @@ class ORM(object):
                     elif turn == start_turn and tick < start_tick:
                         start_tick = tick
                 loaded[branch] = (start_turn, start_tick, end_turn, end_tick)
-        self._nodes_cache.load(noderows)
-        self._edges_cache.load(edgerows)
-        self._graph_val_cache.load(graphvalrows)
-        self._node_val_cache.load(nodevalrows)
-        self._edge_val_cache.load(edgevalrows)
+        with self.batch():
+            self._nodes_cache.load(noderows)
+            self._edges_cache.load(edgerows)
+            self._graph_val_cache.load(graphvalrows)
+            self._node_val_cache.load(nodevalrows)
+            self._edge_val_cache.load(edgevalrows)
 
     def unload(self):
         """Remove everything from memory we can"""
