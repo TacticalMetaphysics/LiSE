@@ -153,10 +153,6 @@ def test_keyframe_unload(tmpdbfile):
         orm.branch = 'u'
         del g.node[1, 2]
         orm.unload()
-        assert ('g', (0, 0), (0, 1)) not in orm._edges_cache.keyframe \
-               or 0 not in orm._edges_cache.keyframe['g', (0, 0), (0, 1)]['trunk']
-        assert ('g', (1, 1), (1, 2)) not in orm._edges_cache.keyframe \
-               or 'trunk' not in orm._edges_cache.keyframe['g', (1, 1), (1, 2)]
     with ORM('sqlite:///' + tmpdbfile) as orm:
         assert orm.branch == 'u'
         assert ('g', (1, 1), (1, 2)) not in orm._edges_cache.keyframe \
