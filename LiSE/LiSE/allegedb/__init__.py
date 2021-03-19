@@ -298,8 +298,7 @@ class ORM(object):
     illegal_node_names = ['nodes', 'node_val', 'edges', 'edge_val']
     time = TimeSignalDescriptor()
 
-    def _kfhash(self, graphn, branch, turn, tick, nodes, edges, vals):
-        """Return a hash digest of a keyframe"""
+    def _graph_state_hash(self, nodes, edges, vals):
         from hashlib import blake2b
         qpac = self.query.pack
 
@@ -308,7 +307,6 @@ class ORM(object):
                 return qpac(x).encode()
         else:
             pack = qpac
-
         nodes_hash = 0
         for name, val in nodes.items():
             hash = blake2b(pack(name))
@@ -328,13 +326,26 @@ class ORM(object):
             hash = blake2b(pack(key))
             hash.update(pack(val))
             val_hash ^= int.from_bytes(hash.digest(), 'little')
+        total_hash = blake2b(nodes_hash.to_bytes(64, 'little'))
+        total_hash.update(edges_hash.to_bytes(64, 'little'))
+        total_hash.update(val_hash.to_bytes(64, 'little'))
+        return total_hash.digest()
+
+    def _kfhash(self, graphn, branch, turn, tick, nodes, edges, vals):
+        """Return a hash digest of a keyframe"""
+        from hashlib import blake2b
+        qpac = self.query.pack
+
+        if isinstance(qpac(' '), str):
+            def pack(x):
+                return qpac(x).encode()
+        else:
+            pack = qpac
         total_hash = blake2b(pack(graphn))
         total_hash.update(pack(branch))
         total_hash.update(pack(turn))
         total_hash.update(pack(tick))
-        total_hash.update(nodes_hash.to_bytes(64, 'little'))
-        total_hash.update(edges_hash.to_bytes(64, 'little'))
-        total_hash.update(val_hash.to_bytes(64, 'little'))
+        total_hash.update(self._graph_state_hash(nodes, edges, vals))
         return total_hash.digest()
 
     def _make_node(self, graph, node):
