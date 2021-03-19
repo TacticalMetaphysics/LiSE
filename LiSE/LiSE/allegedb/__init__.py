@@ -867,7 +867,7 @@ class ORM(object):
         past_branch, past_turn, past_tick = latest_past_keyframe
         for graph in self.graph:
             nodes, edges, graph_val = get_keyframe(graph, past_branch, past_turn, past_tick)
-            snap_keyframe(graph, branch, turn, tick, nodes, edges, graph_val)
+            snap_keyframe(graph, past_branch, past_turn, past_tick, nodes, edges, graph_val)
             if earliest_future_keyframe is None:
                 if branch in loaded:
                     start_turn, start_tick, end_turn, end_tick = loaded[branch]
