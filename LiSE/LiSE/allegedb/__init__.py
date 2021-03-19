@@ -1203,9 +1203,19 @@ class ORM(object):
                 for graph, branches in cache.keyframe.items():
                     turns = branches[branch]
                     turns.truncate(latest_turn, 'forward')
-                    turns[latest_turn].truncate(latest_tick, 'forward')
+                    try:
+                        late = turns[latest_turn]
+                    except HistoryError:
+                        pass
+                    else:
+                        late.truncate(latest_tick, 'forward')
                     turns.truncate(earliest_turn, 'backward')
-                    turns[earliest_turn].truncate(earliest_tick, 'backward')
+                    try:
+                        early = turns[earliest_turn]
+                    except HistoryError:
+                        pass
+                    else:
+                        early.truncate(earliest_tick, 'backward')
 
         # find the slices of time that need to stay loaded
         loaded = self._loaded
