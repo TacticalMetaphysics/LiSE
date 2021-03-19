@@ -523,6 +523,12 @@ class GraphNodeMapping(AllegedMapping):
         """Indicate that the given node no longer exists"""
         if node not in self:
             raise KeyError("No such node")
+        for succ in self.graph.adj[node]:
+            del self.graph.adj[node][succ]
+            assert node not in self.graph.pred[succ]
+        for pred in self.graph.pred[node]:
+            del self.graph.pred[node][pred]
+            assert node not in self.graph.adj[pred]
         branch, turn, tick = self.db._nbtt()
         self.db.query.exist_node(
             self.graph.name,
