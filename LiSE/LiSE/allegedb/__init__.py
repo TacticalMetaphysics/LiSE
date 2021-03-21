@@ -1624,8 +1624,8 @@ class ORM(object):
             self.query.plan_ticks_insert_many(self._plan_ticks_uncommitted)
         if self._new_keyframes:
             self.query.keyframes_insert_many(self._new_keyframes)
+            self._new_keyframes = []
         self.query.commit()
-        self._new_keyframes = []
         self._plans_uncommitted = []
         self._plan_ticks_uncommitted = []
 
@@ -1666,6 +1666,8 @@ class ORM(object):
                     name, branch, turn, tick, data._node, data._adj, data.graph
                 ))
             else:
+                if len(data) != 3 or not all(isinstance(d, dict) for d in data):
+                    raise ValueError("Invalid graph data")
                 self._snap_keyframe(name, branch, turn, tick, *data)
                 self._new_keyframes.append((
                     name, branch, turn, tick

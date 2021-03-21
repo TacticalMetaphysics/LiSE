@@ -204,7 +204,8 @@ class QueryEngine(object):
     def keyframes_insert_many(self, many):
         pack = self.pack
         return self.sqlmany('keyframes_insert', *[
-            (pack(graph), branch, turn, tick, pack(nodes), pack(edges), pack(graph_val))
+            (pack(graph), branch, turn, tick, pack(nodes), pack(edges),
+             pack(graph_val))
             for (graph, branch, turn, tick, nodes, edges, graph_val) in many
         ])
 
