@@ -645,6 +645,9 @@ class Engine(AbstractEngine, gORM):
             self._action_file = os.path.join(prefix, 'action.py')
             if clear and os.path.exists(self._action_file):
                 os.remove(self._action_file)
+        if clear:
+            for character in self.query.characters():
+		        self.del_graph(character)
         self.schema = schema_cls(self)
         if connect_string and not alchemy:
             connect_string = connect_string.split('sqlite:///')[-1]
