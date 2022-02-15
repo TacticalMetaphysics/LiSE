@@ -647,7 +647,7 @@ class Engine(AbstractEngine, gORM):
                 os.remove(self._action_file)
         if clear:
             for character in self.query.characters():
-		        self.del_graph(character)
+                self.del_graph(character)
         self.schema = schema_cls(self)
         if connect_string and not alchemy:
             connect_string = connect_string.split('sqlite:///')[-1]
