@@ -325,6 +325,11 @@ class AbstractEngine(ABC):
 	block, in which deserialized entities will be created as needed.
 
 	"""
+	portal_cls: type
+	thing_cls: type
+	place_cls: type
+	portal_cls: type
+	char_cls: type
 
 	@cached_property
 	def pack(self):
