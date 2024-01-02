@@ -333,6 +333,11 @@ class AbstractEngine(ABC):
 
 	@cached_property
 	def pack(self):
+		try:
+			from LiSE_msgpack import serialize_one
+			return serialize_one
+		except ImportError:
+			pass
 		handlers = {
 			self.char_cls:
 			lambda char: msgpack.ExtType(MsgpackExtensionType.character.value,
