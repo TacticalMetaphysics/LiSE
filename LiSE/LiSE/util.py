@@ -331,8 +331,8 @@ class AbstractEngine(ABC):
 	@cached_property
 	def pack(self):
 		try:
-			from LiSE_msgpack import serialize_one
-			return serialize_one
+			from lise_ormsgpack import packb
+			return packb
 		except ImportError:
 			pass
 		handlers = {
