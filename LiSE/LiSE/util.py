@@ -60,9 +60,6 @@ class MsgpackExtensionType(Enum):
 	final_rule = 0x7b
 	function = 0x7a
 	method = 0x79
-	trigger = 0x78
-	prereq = 0x77
-	action = 0x76
 
 
 class get_rando:
@@ -382,6 +379,7 @@ class AbstractEngine(ABC):
 				packer([
 					exc.__class__.__name__,
 					Traceback(exc.__traceback__).to_dict()
+					if hasattr(exc, "__traceback__") else None
 				] + list(exc.args)))
 		}
 
@@ -409,9 +407,6 @@ class AbstractEngine(ABC):
 		place_cls = self.place_cls
 		thing_cls = self.thing_cls
 		portal_cls = self.portal_cls
-		trigger = self.trigger
-		prereq = self.prereq
-		action = self.action
 		function = self.function
 		method = self.method
 		excs = {
@@ -467,7 +462,8 @@ class AbstractEngine(ABC):
 			if data[0] not in excs:
 				return Exception(*data)
 			ret = excs[data[0]](*data[2:])
-			ret.__traceback__ = Traceback.from_dict(data[1]).to_traceback()
+			if data[1] is not None:
+				ret.__traceback__ = Traceback.from_dict(data[1]).to_traceback()
 			return ret
 
 		def unpack_char(ext):
@@ -530,12 +526,6 @@ class AbstractEngine(ABC):
 			lambda ext: frozenset(unpacker(ext)),
 			MsgpackExtensionType.set.value:
 			lambda ext: set(unpacker(ext)),
-			MsgpackExtensionType.trigger.value:
-			lambda ext: getattr(trigger, unpacker(ext)),
-			MsgpackExtensionType.prereq.value:
-			lambda ext: getattr(prereq, unpacker(ext)),
-			MsgpackExtensionType.action.value:
-			lambda ext: getattr(action, unpacker(ext)),
 			MsgpackExtensionType.function.value:
 			lambda ext: getattr(function, unpacker(ext)),
 			MsgpackExtensionType.method.value:
