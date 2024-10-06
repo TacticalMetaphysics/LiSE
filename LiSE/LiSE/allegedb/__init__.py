@@ -38,6 +38,7 @@ from .window import update_window, update_backward_window
 from .cache import HistoricKeyError
 from .graph import DiGraph, Node, Edge, GraphsMapping
 from .query import (
+	Key,
 	QueryEngine,
 	TimeError,
 	NodeRowType,
@@ -47,14 +48,6 @@ from .query import (
 	EdgeValRowType,
 )
 from .window import HistoricKeyError
-
-Key = Union[str, int, float, Tuple["Key"], FrozenSet["Key"]]
-"""Type hint for things LiSE can use as keys
-
-They have to be serializable using LiSE's particular msgpack schema,
-as well as hashable.
-
-"""
 
 Graph = DiGraph  # until I implement other graph types...
 
