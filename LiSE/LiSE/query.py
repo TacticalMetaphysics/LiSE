@@ -1364,14 +1364,14 @@ class ParquetDBHolder:
 				continue
 			if table in initial:
 				db.create(
-					[{"dataset_name": table}, *initial[table]],
-					table_name=table,
+					initial[table],
+					dataset_name=table,
 					schema=pa.schema(schema),
 				)
 			else:
 				db.create(
-					{"dataset_name": table},
-					table_name=table,
+					{},
+					dataset_name=table,
 					schema=pa.schema(schema),
 				)
 
