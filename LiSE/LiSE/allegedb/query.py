@@ -21,12 +21,11 @@ doesn't pollute the other files so much.
 from abc import abstractmethod
 from threading import Thread, Lock
 from time import monotonic
-from typing import Tuple, Any, Iterator, Hashable, List
+from typing import Tuple, Any, Iterator, Hashable, List, Union, FrozenSet
 from queue import Queue
 import os
 from collections.abc import MutableMapping
 
-from allegedb import Key
 from sqlalchemy.sql import Select
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.engine.base import Engine
