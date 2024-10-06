@@ -3164,7 +3164,8 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		pass
 
 	def plan_ticks_dump(self) -> Iterator:
-		pass
+		for d in self.call("dump", "plan_ticks"):
+			yield d["plan_id"], d["turn"], d["tick"]
 
 	def truncate_all(self):
 		pass
