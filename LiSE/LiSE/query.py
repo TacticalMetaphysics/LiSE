@@ -1161,7 +1161,7 @@ class ParquetDBHolder:
 			("turn", pa.uint64()),
 			("tick", pa.uint64()),
 		],
-		"universal": [
+		"universals": [
 			("key", pa.binary()),
 			("branch", pa.string()),
 			("turn", pa.uint64()),
@@ -1567,7 +1567,10 @@ class ParquetDBHolder:
 			)
 
 	def universals_dump(self):
-		return self._db.read(dataset_name="universal").to_pylist()
+		return self._db.read(dataset_name="universals").to_pylist()
+
+	def rulebooks_dump(self):
+		return self._db.read(dataset_name="rulebooks").to_pylist()
 
 	@staticmethod
 	def echo(it):
