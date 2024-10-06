@@ -1386,6 +1386,14 @@ class ParquetDBHolder:
 	def dump(self, table: str) -> list:
 		return self._db.read(dataset_name=table).to_pylist()
 
+	def graphs(self):
+		from pyarrow.lib import ArrowInvalid
+
+		try:
+			return set(self._db.read(dataset_name="graphs", columns=["graph"]))
+		except ArrowInvalid:
+			return set()
+
 	def list_keyframes(self) -> list:
 		return self._db.read(
 			table="keyframes", columns=["graph", "branch", "turn", "tick"]
@@ -2962,7 +2970,11 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		pass
 
 	def graphs_dump(self) -> Iterator[Tuple[Key, str, int, int, str]]:
-		pass
+		unpack = self.unpack
+		for d in self.call("graphs"):
+			yield unpack(d["graph"])
+
+	characters = characters_dump = graphs_dump
 
 	def exist_node(
 		self,
