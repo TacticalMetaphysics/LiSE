@@ -46,6 +46,7 @@ from queue import Queue
 from threading import Thread, Lock, RLock
 from typing import Any, List, Callable, Tuple, Iterator, Optional
 
+from parquetdb import ParquetDB
 from sqlalchemy import select, and_, Table
 from sqlalchemy.sql.functions import func
 import msgpack
@@ -1456,6 +1457,9 @@ class ParquetDBHolder:
 		except IndexError:
 			return self._db.create({"key": key, "value": value}, "global")
 
+	def global_keys(self):
+		return self._db.read("global", columns=["key"]).to_pylist()
+
 	def field_get_id(self, table, keyfield, value):
 		import pyarrow.compute as pc
 
@@ -2025,6 +2029,26 @@ class AbstractLiSEQueryEngine(AbstractQueryEngine):
 		pass
 
 
+class ParquetGlobalMapping(MutableMapping):
+	def __init__(self, query_engine: "ParquetQueryEngine"):
+		self._qe = query_engine
+
+	def __iter__(self):
+		return self._qe.global_keys()
+
+	def __len__(self):
+		return self._qe.count_all_table("global")
+
+	def __getitem__(self, item):
+		return self._qe.global_get(item)
+
+	def __setitem__(self, key, value):
+		self._qe.global_set(key, value)
+
+	def __delitem__(self, key):
+		self._qe.global_del(key)
+
+
 class ParquetQueryEngine(AbstractLiSEQueryEngine):
 	holder_cls = ParquetDBHolder
 
@@ -2053,6 +2077,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		self._nodes2set = []
 		self._edges2set = []
 		self._btts = set()
+		self.globl = ParquetGlobalMapping(self)
 		self._t = Thread(target=self._holder.run, daemon=True)
 		self._t.start()
 
@@ -2067,6 +2092,11 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 
 	def call_silent(self, method, *args, **kwargs):
 		self._inq.put(("silent", method, args, kwargs))
+
+	def global_keys(self):
+		unpack = self.unpack
+		for key in self.call("global_keys"):
+			yield unpack(key)
 
 	def new_graph(
 		self, graph: Key, branch: str, turn: int, tick: int, typ: str
