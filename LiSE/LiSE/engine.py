@@ -76,6 +76,7 @@ from .query import (
 	QueryResult,
 	QueryResultEndTurn,
 	CombinedQueryResult,
+	ParquetQueryEngine,
 )
 from .proxy import worker_subprocess
 from .character import Character
@@ -453,6 +454,9 @@ class Engine(AbstractEngine, gORM):
 
 		self.log = logfun
 		self._prefix = prefix
+		if connect_string is None:
+			self.query_engine_cls = ParquetQueryEngine
+			connect_string = os.path.join(os.path.abspath(prefix), "world")
 		if connect_args is None:
 			connect_args = {}
 		if not os.path.exists(prefix):
