@@ -1609,6 +1609,10 @@ class AbstractLiSEQueryEngine(AbstractQueryEngine):
 		pass
 
 	@abstractmethod
+	def rules_dump(self) -> Iterator[str]:
+		pass
+
+	@abstractmethod
 	def rule_triggers_dump(
 		self,
 	) -> Iterator[Tuple[Key, str, int, int, List[Key]]]:
@@ -2433,6 +2437,10 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				unpack(d["rules"]),
 				d["priority"],
 			)
+
+	def rules_dump(self) -> Iterator[str]:
+		for d in self.call("dump", "rules"):
+			yield d["rule"]
 
 	def _rule_dump(self, typ):
 		unpack = self.unpack
