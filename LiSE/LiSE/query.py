@@ -1515,7 +1515,7 @@ class ParquetDBHolder:
 		)
 		return self._db.update(
 			{
-				"id": id,
+				"id": id_,
 				"branch": branch,
 				"turn": turn,
 				"end_tick": end_tick,
@@ -1523,6 +1523,21 @@ class ParquetDBHolder:
 			},
 			dataset_name="turns",
 		)
+
+	def set_turn(
+		self, branch: str, turn: int, end_tick: int, plan_end_tick: int
+	):
+		try:
+			self.update_turn(branch, turn, end_tick, plan_end_tick)
+		except IndexError:
+			self._db.create(
+				{
+					"branch": branch,
+					"turn": turn,
+					"end_tick": end_tick,
+					"plan_end_tick": plan_end_tick,
+				}
+			)
 
 	@staticmethod
 	def echo(it):
@@ -1725,6 +1740,9 @@ class ParquetQueryEngine:
 
 	def update_turn(self, branch, turn, end_tick, plan_end_tick):
 		return self.call("update_turn", branch, turn, end_tick, plan_end_tick)
+
+	def set_turn(self, branch, turn, end_tick, plan_end_tick):
+		return self.call("set_turn", branch, turn, end_tick, plan_end_tick)
 
 	def initdb(self):
 		self.call("initdb")
