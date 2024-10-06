@@ -1379,12 +1379,6 @@ class ParquetDBHolder:
 					dataset_name=table,
 					schema=pa.schema(schema),
 				)
-			else:
-				db.create(
-					{},
-					dataset_name=table,
-					schema=pa.schema(schema),
-				)
 
 	def insert(self, table: str, data: list) -> None:
 		self._db.create(data, dataset_name=table)
