@@ -1416,7 +1416,7 @@ class ParquetDBHolder:
 		return bool(
 			self._db.read(
 				"graphs", filters=[pc.field("graph") == pc.scalar(graph)]
-			)
+			).num_rows
 		)
 
 	def new_graph(self, graph: bytes) -> None:
