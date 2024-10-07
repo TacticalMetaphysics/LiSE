@@ -1850,7 +1850,7 @@ class AbstractLiSEQueryEngine(AbstractQueryEngine):
 		pass
 
 	@abstractmethod
-	def set_rule_neightborhood(
+	def set_rule_neighborhood(
 		self, rule: str, branch: str, turn: int, tick: int, neighborhood: int
 	):
 		pass
@@ -2827,7 +2827,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 	):
 		pass
 
-	def set_rule_neightborhood(
+	def set_rule_neighborhood(
 		self, rule: str, branch: str, turn: int, tick: int, neighborhood: int
 	):
 		pass
