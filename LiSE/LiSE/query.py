@@ -1827,14 +1827,14 @@ class ParquetDBHolder:
 
 	def load_nodes_tick_to_end(
 		self, graph: bytes, branch: str, turn_from: int, tick_from: int
-	) -> List[Tuple[bytes, str, int, int, bool]]:
+	) -> List[Tuple[bytes, int, int, bool]]:
 		return list(
 			self._iter_nodes_tick_to_end(graph, branch, turn_from, tick_from)
 		)
 
 	def _iter_nodes_tick_to_end(
 		self, graph: bytes, branch: str, turn_from: int, tick_from: int
-	) -> Iterator[Tuple[bytes, str, int, int, bool]]:
+	) -> Iterator[Tuple[bytes, int, int, bool]]:
 		try:
 			results = self._db.read(
 				"nodes",
@@ -1851,7 +1851,6 @@ class ParquetDBHolder:
 				if d["tick"] >= tick_from:
 					yield (
 						d["node"],
-						d["branch"],
 						d["turn"],
 						d["tick"],
 						d["extant"],
@@ -1859,7 +1858,6 @@ class ParquetDBHolder:
 			else:
 				yield (
 					d["node"],
-					d["branch"],
 					d["turn"],
 					d["tick"],
 					d["extant"],
@@ -1873,7 +1871,7 @@ class ParquetDBHolder:
 		tick_from: int,
 		turn_to: int,
 		tick_to: int,
-	) -> List[Tuple[bytes, str, int, int, bool]]:
+	) -> List[Tuple[bytes, int, int, bool]]:
 		return list(
 			self._iter_nodes_tick_to_tick(
 				graph, branch, turn_from, tick_from, turn_to, tick_to
@@ -1906,7 +1904,6 @@ class ParquetDBHolder:
 			for d in results.to_pylist():
 				yield (
 					d["node"],
-					d["branch"],
 					d["turn"],
 					d["tick"],
 					d["extant"],
@@ -1929,7 +1926,6 @@ class ParquetDBHolder:
 					if d["tick"] >= tick_from:
 						yield (
 							d["node"],
-							d["branch"],
 							d["turn"],
 							d["tick"],
 							d["extant"],
@@ -1938,7 +1934,6 @@ class ParquetDBHolder:
 					if d["tick"] <= tick_to:
 						yield (
 							d["node"],
-							d["branch"],
 							d["turn"],
 							d["tick"],
 							d["extant"],
@@ -1946,7 +1941,6 @@ class ParquetDBHolder:
 				else:
 					yield (
 						d["node"],
-						d["branch"],
 						d["turn"],
 						d["tick"],
 						d["extant"],
