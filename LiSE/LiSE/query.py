@@ -4616,6 +4616,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		self.call("close")
 
 	def commit(self):
+		self.flush()
 		self.call("commit")
 
 	def initdb(self):
