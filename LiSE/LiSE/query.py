@@ -1440,7 +1440,7 @@ class ParquetDBHolder:
 
 	def get_keyframe(
 		self, graph: bytes, branch: str, turn: int, tick: int
-	) -> Tuple[bytes, bytes, bytes]:
+	) -> Optional[Tuple[bytes, bytes, bytes]]:
 		rec = self._db.read(
 			"keyframes",
 			filters=[
@@ -1450,10 +1450,12 @@ class ParquetDBHolder:
 				pc.field("tick") == pc.scalar(tick),
 			],
 		)
+		if not rec.num_rows:
+			return None
 		return (
-			rec["nodes"][0].to_py(),
-			rec["edges"][0].to_py(),
-			rec["graph_val"][0].to_py(),
+			rec["nodes"][0].as_py(),
+			rec["edges"][0].as_py(),
+			rec["graph_val"][0].as_py(),
 		)
 
 	def insert1(self, table: str, data: dict):
@@ -2751,7 +2753,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		stuff = self.call("get_keyframe", self.pack(graph), branch, turn, tick)
 		if not stuff:
 			return
-		nodes, edges, val = stuff[0]
+		nodes, edges, val = stuff
 		return unpack(nodes), unpack(edges), unpack(val)
 
 	def have_branch(self, branch: str) -> bool:
