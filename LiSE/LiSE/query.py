@@ -1732,6 +1732,17 @@ class AbstractLiSEQueryEngine(AbstractQueryEngine):
 			windows=windows,
 		)
 
+	def _increc(self):
+		self._records += 1
+		override = self.kf_interval_override()
+		if override is True:
+			return
+		if override is False or (
+			self.keyframe_interval is not None
+			and self._records % self.keyframe_interval == 0
+		):
+			self.snap_keyframe()
+
 	@abstractmethod
 	def universals_dump(self) -> Iterator[Tuple[Key, str, int, int, Any]]:
 		pass
@@ -2188,6 +2199,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		self._inq = Queue()
 		self._outq = Queue()
 		self._holder = self.holder_cls(path, self._inq, self._outq)
+		self._records = 0
 
 		if pack is None:
 
@@ -3750,17 +3762,6 @@ class QueryEngine(query.QueryEngine, AbstractLiSEQueryEngine):
 		self._portal_rules_handled = []
 		self._unitness = []
 		self._location = []
-
-	def _increc(self):
-		self._records += 1
-		override = self.kf_interval_override()
-		if override is True:
-			return
-		if override is False or (
-			self.keyframe_interval is not None
-			and self._records % self.keyframe_interval == 0
-		):
-			self.snap_keyframe()
 
 	def graph_val_set(self, graph, key, branch, turn, tick, value):
 		super().graph_val_set(graph, key, branch, turn, tick, value)
