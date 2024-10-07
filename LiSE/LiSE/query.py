@@ -1387,6 +1387,16 @@ class ParquetDBHolder:
 	def rowcount(self, table: str) -> int:
 		return self._db.read(dataset_name=table).rowcount
 
+	def rulebooks(self):
+		try:
+			return set(
+				self._db.read(dataset="rulebooks", columns=["rulebook"])[
+					"rulebook"
+				]
+			)
+		except ArrowInvalid:
+			return set()
+
 	def graphs(self):
 		try:
 			return set(self._db.read(dataset_name="graphs", columns=["graph"]))
@@ -3062,7 +3072,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		)
 
 	def rulebooks(self) -> Iterator[Key]:
-		pass
+		return map(self.pack, self.call("rulebooks"))
 
 	def set_node_rulebook(
 		self,
