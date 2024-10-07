@@ -145,7 +145,7 @@ class RuleFollower(BaseRuleFollower):
 
 	def _set_rulebook_name(self, n):
 		branch, turn, tick = self.engine._nbtt()
-		self.engine.query._set_rulebook_on_character(
+		self.engine.query.set_rulebook_on_character(
 			self._book, self.character.name, branch, turn, tick, n
 		)
 		self._get_rulebook_cache().store(
@@ -742,7 +742,7 @@ class Character(DiGraph, AbstractCharacter, RuleFollower):
 		branch, turn, tick = engine._btt()
 		for rulebook, cache in cachemap.items():
 			rulebook_name = (name, rulebook)
-			engine.query._set_rulebook_on_character(
+			engine.query.set_rulebook_on_character(
 				rulebook, name, branch, turn, tick, rulebook_name
 			)
 			cache.store((name, rulebook), branch, turn, tick, rulebook_name)
