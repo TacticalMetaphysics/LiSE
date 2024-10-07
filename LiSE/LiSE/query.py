@@ -1365,6 +1365,12 @@ class ParquetDBHolder:
 		self.existence_lock = Lock()
 		self.existence_lock.acquire()
 
+	def commit(self):
+		pass
+
+	def close(self):
+		self.existence_lock.release()
+
 	def initdb(self):
 		db = self._db
 		initial = self.initial
@@ -3827,10 +3833,10 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		pass
 
 	def close(self):
-		pass
+		self.call("close")
 
 	def commit(self):
-		pass
+		self.call("commit")
 
 	def initdb(self):
 		self.call("initdb")
