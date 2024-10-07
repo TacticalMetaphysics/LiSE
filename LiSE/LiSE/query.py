@@ -70,6 +70,9 @@ from .util import EntityStatAccessor
 import LiSE
 
 
+pa.log_memory_allocations(False)
+
+
 NONE = msgpack.packb(None)
 
 
@@ -1423,7 +1426,7 @@ class ParquetDBHolder:
 				continue
 			for d in result.to_pylist():
 				if d["turn"] == turn:
-					if d["tick"] > tick:
+					if d["tick"] >= tick:
 						ids.append(d["id"])
 				else:
 					ids.append(d["id"])
@@ -1448,7 +1451,7 @@ class ParquetDBHolder:
 				continue
 			for d in result.to_pylist():
 				if d["turn"] == turn:
-					if d["tick"] > tick:
+					if d["tick"] >= tick:
 						ids.append(d["id"])
 				else:
 					ids.append(d["id"])
