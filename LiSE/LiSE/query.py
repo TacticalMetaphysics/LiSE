@@ -1948,7 +1948,7 @@ class ParquetDBHolder:
 
 	def load_node_val_tick_to_end(
 		self, graph: bytes, branch: str, turn_from: int, tick_from: int
-	) -> List[Tuple[bytes, bytes, str, int, int, bytes]]:
+	) -> List[Tuple[bytes, bytes, int, int, bytes]]:
 		return list(
 			self._iter_node_val_tick_to_end(
 				graph, branch, turn_from, tick_from
@@ -1957,7 +1957,7 @@ class ParquetDBHolder:
 
 	def _iter_node_val_tick_to_end(
 		self, graph: bytes, branch: str, turn_from: int, tick_from: int
-	) -> Iterator[Tuple[bytes, bytes, str, int, int, bytes]]:
+	) -> Iterator[Tuple[bytes, bytes, int, int, bytes]]:
 		try:
 			results = self._db.read(
 				"node_val",
@@ -1975,12 +1975,11 @@ class ParquetDBHolder:
 					yield (
 						d["node"],
 						d["key"],
-						d["branch"],
 						d["turn"],
 						d["tick"],
 					)
 			else:
-				yield d["node"], d["key"], d["branch"], d["turn"], d["tick"]
+				yield d["node"], d["key"], d["turn"], d["tick"]
 
 	def load_node_val_tick_to_tick(
 		self,
@@ -1990,7 +1989,7 @@ class ParquetDBHolder:
 		tick_from: int,
 		turn_to: int,
 		tick_to: int,
-	) -> List[Tuple[bytes, bytes, str, int, int, bytes]]:
+	) -> List[Tuple[bytes, bytes, int, int, bytes]]:
 		return list(
 			self._iter_node_val_tick_to_tick(
 				graph, branch, turn_from, tick_from, turn_to, tick_to
@@ -2005,7 +2004,7 @@ class ParquetDBHolder:
 		tick_from: int,
 		turn_to: int,
 		tick_to: int,
-	) -> Iterator[Tuple[bytes, bytes, str, int, int, bytes]]:
+	) -> Iterator[Tuple[bytes, bytes, int, int, bytes]]:
 		if turn_from == turn_to:
 			try:
 				results = self._db.read(
@@ -2024,7 +2023,6 @@ class ParquetDBHolder:
 				yield (
 					d["node"],
 					d["key"],
-					d["branch"],
 					d["turn"],
 					d["tick"],
 					d["value"],
@@ -2048,7 +2046,6 @@ class ParquetDBHolder:
 						yield (
 							d["node"],
 							d["key"],
-							d["branch"],
 							d["turn"],
 							d["tick"],
 							d["value"],
@@ -2058,7 +2055,6 @@ class ParquetDBHolder:
 						yield (
 							d["node"],
 							d["key"],
-							d["branch"],
 							d["turn"],
 							d["tick"],
 							d["value"],
@@ -2067,7 +2063,6 @@ class ParquetDBHolder:
 					yield (
 						d["node"],
 						d["key"],
-						d["branch"],
 						d["turn"],
 						d["tick"],
 						d["value"],
