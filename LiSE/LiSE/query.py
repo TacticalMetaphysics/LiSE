@@ -39,13 +39,16 @@ import operator
 from abc import abstractmethod
 from collections.abc import MutableMapping, Sequence, Set
 from itertools import chain
-from operator import gt, lt, eq, ne, le, ge, itemgetter
+from operator import gt, lt, eq, ne, le, ge
 from functools import partialmethod
 from time import monotonic
 from queue import Queue
 from threading import Thread, Lock, RLock
 from typing import Any, List, Callable, Tuple, Iterator, Optional
 
+import pyarrow as pa
+from pyarrow.lib import ArrowInvalid
+import pyarrow.compute as pc
 from parquetdb import ParquetDB
 from sqlalchemy import select, and_, Table
 from sqlalchemy.sql.functions import func
@@ -1071,8 +1074,6 @@ def slow_iter_btts_eval_cmp(qry, oper, start_branch=None, engine=None):
 
 
 class ParquetDBHolder:
-	import pyarrow as pa
-
 	schema = {
 		"branches": [
 			("branch", pa.string()),
@@ -1357,8 +1358,6 @@ class ParquetDBHolder:
 	}
 
 	def __init__(self, path, inq, outq):
-		from parquetdb import ParquetDB
-
 		self._inq = inq
 		self._outq = outq
 		self._db = ParquetDB(path)
@@ -1367,8 +1366,6 @@ class ParquetDBHolder:
 		self.existence_lock.acquire()
 
 	def initdb(self):
-		import pyarrow as pa
-
 		db = self._db
 		initial = self.initial
 		for table, schema in self.schema.items():
@@ -1388,16 +1385,12 @@ class ParquetDBHolder:
 		return self._db.read(dataset_name=table).to_pylist()
 
 	def graphs(self):
-		from pyarrow.lib import ArrowInvalid
-
 		try:
 			return set(self._db.read(dataset_name="graphs", columns=["graph"]))
 		except ArrowInvalid:
 			return set()
 
 	def list_keyframes(self) -> list:
-		from pyarrow.lib import ArrowInvalid
-
 		try:
 			return self._db.read(
 				dataset_name="keyframes",
@@ -1409,8 +1402,6 @@ class ParquetDBHolder:
 	def get_keyframe(
 		self, graph: bytes, branch: str, turn: int, tick: int
 	) -> Tuple[bytes, bytes, bytes]:
-		import pyarrow.compute as pc
-
 		rec = self._db.read(
 			"keyframes",
 			filters=[
@@ -1442,9 +1433,6 @@ class ParquetDBHolder:
 		)
 
 	def graph_exists(self, graph: bytes) -> bool:
-		import pyarrow.compute as pc
-		from pyarrow.lib import ArrowInvalid
-
 		try:
 			return bool(
 				self._db.read(
@@ -1486,8 +1474,6 @@ class ParquetDBHolder:
 		)
 
 	def get_global(self, key: bytes) -> bytes:
-		import pyarrow.compute as pc
-
 		try:
 			return self._db.read("global", filters=[pc.field("key") == key])[
 				"value"
@@ -1508,13 +1494,9 @@ class ParquetDBHolder:
 		return self._db.read("global", columns=["key"]).to_pylist()
 
 	def field_get_id(self, table, keyfield, value):
-		import pyarrow.compute as pc
-
 		return self.filter_get_id(table, filters=[pc.field(keyfield) == value])
 
 	def filter_get_id(self, table, filters):
-		from pyarrow.lib import ArrowInvalid
-
 		try:
 			return self._db.read(table, filters=filters, columns=["id"])["id"][
 				0
@@ -1574,8 +1556,6 @@ class ParquetDBHolder:
 	def update_turn(
 		self, branch: str, turn: int, end_tick: int, plan_end_tick: int
 	):
-		import pyarrow.compute as pc
-
 		id_ = self.filter_get_id(
 			"turns", [pc.field("branch") == branch, pc.field("turn") == turn]
 		)
@@ -1603,8 +1583,6 @@ class ParquetDBHolder:
 	def set_turn(
 		self, branch: str, turn: int, end_tick: int, plan_end_tick: int
 	) -> None:
-		from pyarrow.lib import ArrowInvalid
-
 		try:
 			self.update_turn(branch, turn, end_tick, plan_end_tick)
 		except (ArrowInvalid, IndexError):
@@ -1618,9 +1596,6 @@ class ParquetDBHolder:
 			)
 
 	def set_turn_completed(self, branch: str, turn: int) -> None:
-		import pyarrow.compute as pc
-		from pyarrow.lib import ArrowInvalid
-
 		try:
 			id_ = self._db.read(
 				"turns_completed",
