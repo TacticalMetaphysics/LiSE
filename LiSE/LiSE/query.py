@@ -70,9 +70,6 @@ from .util import EntityStatAccessor
 import LiSE
 
 
-pa.log_memory_allocations(False)
-
-
 NONE = msgpack.packb(None)
 
 
