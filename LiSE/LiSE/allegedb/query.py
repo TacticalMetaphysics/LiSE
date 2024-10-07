@@ -304,10 +304,6 @@ class AbstractQueryEngine:
 		pass
 
 	@abstractmethod
-	def graph_type(self) -> str:
-		pass
-
-	@abstractmethod
 	def have_branch(self, branch: str) -> bool:
 		pass
 
@@ -777,11 +773,6 @@ class QueryEngine(AbstractQueryEngine):
 			return
 		nodes, edges, graph_val = stuff[0]
 		return unpack(nodes), unpack(edges), unpack(graph_val)
-
-	def graph_type(self, graph):
-		"""What type of graph is this?"""
-		graph = self.pack(graph)
-		return self.call_one("graph_type", graph)[0][0]
 
 	def have_branch(self, branch):
 		"""Return whether the branch thus named exists in the database."""
