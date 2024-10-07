@@ -300,7 +300,9 @@ class AbstractQueryEngine:
 		pass
 
 	@abstractmethod
-	def get_keyframe(self) -> Tuple[list, list, list]:
+	def get_keyframe(
+		self, graph: Key, branch: str, turn: int, tick: int
+	) -> Tuple[list, list, list]:
 		pass
 
 	@abstractmethod
@@ -764,7 +766,7 @@ class QueryEngine(AbstractQueryEngine):
 		for graph, branch, turn, tick in self.call_one("keyframes_list"):
 			yield unpack(graph), branch, turn, tick
 
-	def get_keyframe(self, graph, branch, turn, tick):
+	def get_keyframe(self, graph: Key, branch: str, turn: int, tick: int):
 		unpack = self.unpack
 		stuff = self.call_one(
 			"get_keyframe", self.pack(graph), branch, turn, tick
