@@ -1411,9 +1411,10 @@ class ParquetDBHolder:
 	def graphs(self):
 		try:
 			return set(
-				self._db.read(dataset_name="graphs", columns=["graph"])[
-					"graph"
-				]
+				name.as_py()
+				for name in self._db.read(
+					dataset_name="graphs", columns=["graph"]
+				)["graph"]
 			)
 		except ArrowInvalid:
 			return set()
@@ -3917,8 +3918,8 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 
 	def graphs_dump(self) -> Iterator[Tuple[Key, str, int, int, str]]:
 		unpack = self.unpack
-		for d in self.call("graphs"):
-			yield unpack(d["graph"])
+		for graph in self.call("graphs"):
+			yield unpack(graph)
 
 	characters = characters_dump = graphs_dump
 
