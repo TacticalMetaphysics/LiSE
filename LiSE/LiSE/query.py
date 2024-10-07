@@ -1359,8 +1359,8 @@ class ParquetDBHolder:
 			{
 				"branch": "trunk",
 				"parent": None,
-				"start_turn": 0,
-				"start_tick": 0,
+				"parent_turn": 0,
+				"parent_tick": 0,
 				"end_turn": 0,
 				"end_tick": 0,
 			}
