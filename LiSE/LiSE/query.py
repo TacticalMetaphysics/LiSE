@@ -3046,7 +3046,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				"branch": branch,
 				"turn": turn,
 				"tick": tick,
-				"actions": self.pack(fist),
+				"actions": self.pack(flist),
 			},
 		)
 
