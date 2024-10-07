@@ -3693,7 +3693,12 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		)
 
 	def set_rule_neighborhood(
-		self, rule: str, branch: str, turn: int, tick: int, neighborhood: Optional[int]
+		self,
+		rule: str,
+		branch: str,
+		turn: int,
+		tick: int,
+		neighborhood: Optional[int],
 	):
 		self.call(
 			"insert1",
@@ -4297,8 +4302,9 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		unpack = self.unpack
 		for d in self.call("dump", "node_val"):
 			yield (
-				unpack(d["character"]),
+				unpack(d["graph"]),
 				unpack(d["node"]),
+				unpack(d["key"]),
 				d["branch"],
 				d["turn"],
 				d["tick"],
