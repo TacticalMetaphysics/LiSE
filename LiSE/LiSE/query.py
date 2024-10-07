@@ -4016,23 +4016,23 @@ class QueryEngine(query.QueryEngine, AbstractLiSEQueryEngine):
 		)
 		self._increc()
 
-	def _set_rulebook_on_character(self, rbtyp, char, branch, turn, tick, rb):
+	def set_rulebook_on_character(self, rbtyp, char, branch, turn, tick, rb):
 		char, rb = map(self.pack, (char, rb))
 		self.call_one(rbtyp + "_rulebook_insert", char, branch, turn, tick, rb)
 		self._increc()
 
 	set_character_rulebook = partialmethod(
-		_set_rulebook_on_character, "character"
+		set_rulebook_on_character, "character"
 	)
-	set_unit_rulebook = partialmethod(_set_rulebook_on_character, "unit")
+	set_unit_rulebook = partialmethod(set_rulebook_on_character, "unit")
 	set_character_thing_rulebook = partialmethod(
-		_set_rulebook_on_character, "character_thing"
+		set_rulebook_on_character, "character_thing"
 	)
 	set_character_place_rulebook = partialmethod(
-		_set_rulebook_on_character, "character_place"
+		set_rulebook_on_character, "character_place"
 	)
 	set_character_portal_rulebook = partialmethod(
-		_set_rulebook_on_character, "character_portal"
+		set_rulebook_on_character, "character_portal"
 	)
 
 	def rulebooks(self):
