@@ -2893,7 +2893,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 	):
 		pack = self.pack
 		self.call(
-			"insert",
+			"insert1",
 			"universal",
 			{
 				"key": pack(key),
