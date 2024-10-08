@@ -2982,6 +2982,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		self.pack = pack
 		self.unpack = unpack
 		self._branches = {}
+		self._kf2set = []
 		self._nodevals2set = []
 		self._edgevals2set = []
 		self._graphvals2set = []
@@ -3061,21 +3062,8 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		edges: list,
 		graph_val: list,
 	) -> None:
-		graph, nodes, edges, graph_val = map(
-			self.pack, (graph, nodes, edges, graph_val)
-		)
-		return self.call(
-			"insert1",
-			"keyframes",
-			dict(
-				graph=graph,
-				branch=branch,
-				turn=turn,
-				tick=tick,
-				nodes=nodes,
-				edges=edges,
-				graph_val=graph_val,
-			),
+		self._kf2set.append(
+			(graph, branch, turn, tick, nodes, edges, graph_val)
 		)
 
 	def keyframes_insert_many(self, many):
@@ -3227,6 +3215,35 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		with self._holder.lock:
 			put = self._inq.put
 			pack = self.pack
+			if self._kf2set:
+				put(
+					(
+						"silent",
+						"insert",
+						"keyframes",
+						[
+							{
+								"graph": pack(graph),
+								"branch": branch,
+								"turn": turn,
+								"tick": tick,
+								"nodes": pack(nodes),
+								"edges": pack(edges),
+								"graph_val": pack(graph_val),
+							}
+							for (
+								graph,
+								branch,
+								turn,
+								tick,
+								nodes,
+								edges,
+								graph_val,
+							) in self._kf2set
+						],
+					)
+				)
+				self._kf2set = []
 			if self._graphvals2set:
 				put(
 					(
