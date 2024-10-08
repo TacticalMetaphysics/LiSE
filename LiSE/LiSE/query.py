@@ -3215,7 +3215,9 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		with self._holder.lock:
 			put = self._inq.put
 			pack = self.pack
+			records = 0
 			if self._kf2set:
+				records += len(self._kf2set)
 				put(
 					(
 						"silent",
@@ -3245,6 +3247,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				)
 				self._kf2set = []
 			if self._graphvals2set:
+				records += len(self._graphvals2set)
 				put(
 					(
 						"silent",
@@ -3272,6 +3275,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				)
 				self._graphvals2set = []
 			if self._nodes2set:
+				records += len(self._nodes2set)
 				put(
 					(
 						"silent",
@@ -3299,6 +3303,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				)
 				self._nodes2set = []
 			if self._nodevals2set:
+				records += len(self._nodevals2set)
 				put(
 					(
 						"silent",
@@ -3328,6 +3333,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				)
 				self._nodevals2set = []
 			if self._edges2set:
+				records += len(self._edges2set)
 				put(
 					(
 						"silent",
@@ -3357,6 +3363,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				)
 				self._edges2set = []
 			if self._edgevals2set:
+				records += len(self._edgevals2set)
 				put(
 					(
 						"silent",
@@ -3390,6 +3397,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				)
 				self._edgevals2set = []
 			if self._unitness:
+				records += len(self._unitness)
 				put(
 					(
 						"silent",
@@ -3411,6 +3419,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				put(("silent", "insert", "units", self._unitness))
 				self._unitness = []
 			if self._location:
+				records += len(self._location)
 				put(
 					(
 						"silent",
@@ -3449,9 +3458,20 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				("_portal_rules_handled", "portal_rules_handled"),
 			]:
 				if getattr(self, attr):
+					records += len(getattr(self, attr))
 					put(("silent", "insert", cmd, getattr(self, attr)))
 				setattr(self, attr, [])
 		assert self.call("echo", "flushed") == "flushed"
+		override = self.kf_interval_override()
+		if override is False or (
+			self.keyframe_interval is not None
+			and self._records + records > self.keyframe_interval
+		):
+			self.snap_keyframe()
+		if self.keyframe_interval:
+			self._records = (self._records + records) % self.keyframe_interval
+		else:
+			self._records += records
 
 	def universals_dump(self) -> Iterator[Tuple[Key, str, int, int, Any]]:
 		unpack = self.unpack
