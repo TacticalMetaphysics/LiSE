@@ -3344,6 +3344,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 								"graph": pack(graph),
 								"orig": pack(orig),
 								"dest": pack(dest),
+								"idx": 0,
 								"branch": branch,
 								"turn": turn,
 								"tick": tick,
@@ -3374,7 +3375,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 								"graph": pack(graph),
 								"orig": pack(orig),
 								"dest": pack(dest),
-								"idx": idx,
+								"idx": 0,
 								"key": pack(key),
 								"branch": branch,
 								"turn": turn,
@@ -3385,7 +3386,6 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 								graph,
 								orig,
 								dest,
-								idx,
 								key,
 								branch,
 								turn,
@@ -4285,6 +4285,28 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				unpack(d["value"]),
 			)
 
+	def _flush_graph_val(self):
+		if not self._graphvals2set:
+			return
+		todo = self._graphvals2set
+		self._graphvals2set = []
+		pack = self.pack
+		self.call(
+			"insert",
+			"graph_val",
+			[
+				{
+					"graph": pack(graph),
+					"key": pack(key),
+					"branch": branch,
+					"turn": turn,
+					"tick": tick,
+					"value": pack(value),
+				}
+				for (graph, key, branch, turn, tick, value) in todo
+			],
+		)
+
 	def load_graph_val(
 		self,
 		graph: Key,
@@ -4379,6 +4401,28 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				d["extant"],
 			)
 
+	def _flush_nodes(self):
+		if not self._nodes2set:
+			return
+		pack = self.pack
+		nodes2set = self._nodes2set
+		self._nodes2set = []
+		self.call(
+			"insert",
+			"nodes",
+			[
+				{
+					"graph": pack(graph),
+					"node": pack(node),
+					"branch": branch,
+					"turn": turn,
+					"tick": tick,
+					"extant": bool(extant),
+				}
+				for (graph, node, branch, turn, tick, extant) in nodes2set
+			],
+		)
+
 	def load_nodes(
 		self,
 		graph: str,
@@ -4426,6 +4470,37 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				d["tick"],
 				unpack(d["value"]),
 			)
+
+	def _flush_node_val(self):
+		if not self._nodevals2set:
+			return
+		nodevals2set = self._nodevals2set
+		self._nodevals2set = []
+		pack = self.pack
+		self.call(
+			"insert",
+			"node_val",
+			[
+				{
+					"graph": pack(graph),
+					"node": pack(node),
+					"key": pack(key),
+					"branch": branch,
+					"turn": turn,
+					"tick": tick,
+					"value": pack(value),
+				}
+				for (
+					graph,
+					node,
+					key,
+					branch,
+					turn,
+					tick,
+					value,
+				) in nodevals2set
+			],
+		)
 
 	def load_node_val(
 		self,
@@ -4512,6 +4587,30 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				d["extant"],
 			)
 
+	def _flush_edges(self):
+		if not self._edges2set:
+			return
+		todo = self._edges2set
+		self._edges2set = []
+		pack = self.pack
+		self.call(
+			"insert",
+			"edges",
+			[
+				{
+					"graph": pack(graph),
+					"orig": pack(orig),
+					"dest": pack(dest),
+					"idx": 0,
+					"branch": branch,
+					"turn": turn,
+					"tick": tick,
+					"extant": bool(extant),
+				}
+				for (graph, orig, dest, branch, turn, tick, extant) in todo
+			],
+		)
+
 	def load_edges(
 		self,
 		graph: Key,
@@ -4523,7 +4622,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 	) -> Iterator[EdgeRowType]:
 		if (turn_to is None) ^ (tick_to is None):
 			raise ValueError("I need both or neither of turn_to and tick_to")
-		self._flush_edge_val()
+		self._flush_edges()
 		pack = self.pack
 		unpack = self.unpack
 		if turn_to is None:
@@ -4567,21 +4666,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		tick: int,
 		extant: bool,
 	):
-		pack = self.pack
-		self.call(
-			"insert1",
-			"edges",
-			dict(
-				graph=pack(graph),
-				orig=pack(orig),
-				dest=pack(dest),
-				idx=idx,
-				branch=branch,
-				turn=turn,
-				tick=tick,
-				extant=extant,
-			),
-		)
+		self._edges2set.append((graph, orig, dest, branch, turn, tick, extant))
 
 	def edges_del_time(self, branch: str, turn: int, tick: int):
 		self.call("edges_del_time", branch, turn, tick)
@@ -4599,6 +4684,31 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				d["tick"],
 				unpack(d["value"]),
 			)
+
+	def _flush_edge_val(self):
+		if not self._edgevals2set:
+			return
+		todo = self._edgevals2set
+		self._edgevals2set = []
+		pack = self.pack
+		self.call(
+			"insert",
+			"edge_val",
+			[
+				{
+					"graph": pack(graph),
+					"orig": pack(orig),
+					"dest": pack(dest),
+					"idx": 0,
+					"key": pack(key),
+					"branch": branch,
+					"turn": turn,
+					"tick": tick,
+					"value": pack(value),
+				}
+				for (graph, orig, dest, key, branch, turn, tick, value) in todo
+			],
+		)
 
 	def load_edge_val(
 		self,
@@ -4657,23 +4767,9 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		tick: int,
 		value: Any,
 	):
-		pack = self.pack
-		self.call(
-			"insert1",
-			"edge_val",
-			dict(
-				graph=pack(graph),
-				orig=pack(orig),
-				dest=pack(dest),
-				idx=idx,
-				key=pack(key),
-				branch=branch,
-				turn=turn,
-				tick=tick,
-				value=pack(value),
-			),
+		self._edgevals2set.append(
+			(graph, orig, dest, key, branch, turn, tick, value)
 		)
-		self._increc()
 
 	def edge_val_del_time(self, branch: str, turn: int, tick: int):
 		self.call("edge_val_del_time", branch, turn, tick)
