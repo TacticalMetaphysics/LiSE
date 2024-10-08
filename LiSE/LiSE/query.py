@@ -2453,6 +2453,7 @@ class ParquetDBHolder:
 			try:
 				res = getattr(self, inst[0])(*inst[1], **inst[2])
 			except Exception as ex:
+				assert not silent, f"Got exception while silenced: {ex}"
 				res = ex
 			if not silent:
 				outq.put(res)
@@ -3201,25 +3202,28 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 					(
 						"silent",
 						"insert",
-						"graph_val",
-						[
-							{
-								"graph": pack(graph),
-								"key": pack(key),
-								"branch": branch,
-								"turn": turn,
-								"tick": tick,
-								"value": pack(value),
-							}
-							for (
-								graph,
-								key,
-								branch,
-								turn,
-								tick,
-								value,
-							) in self._graphvals2set
-						],
+						(
+							"graph_val",
+							[
+								{
+									"graph": pack(graph),
+									"key": pack(key),
+									"branch": branch,
+									"turn": turn,
+									"tick": tick,
+									"value": pack(value),
+								}
+								for (
+									graph,
+									key,
+									branch,
+									turn,
+									tick,
+									value,
+								) in self._graphvals2set
+							],
+						),
+						{},
 					)
 				)
 				self._graphvals2set = []
@@ -3229,25 +3233,28 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 					(
 						"silent",
 						"insert",
-						"nodes",
-						[
-							{
-								"graph": pack(graph),
-								"key": pack(key),
-								"branch": branch,
-								"turn": turn,
-								"tick": tick,
-								"extant": bool(extant),
-							}
-							for (
-								graph,
-								key,
-								branch,
-								turn,
-								tick,
-								extant,
-							) in self._nodes2set
-						],
+						(
+							"nodes",
+							[
+								{
+									"graph": pack(graph),
+									"key": pack(key),
+									"branch": branch,
+									"turn": turn,
+									"tick": tick,
+									"extant": bool(extant),
+								}
+								for (
+									graph,
+									key,
+									branch,
+									turn,
+									tick,
+									extant,
+								) in self._nodes2set
+							],
+						),
+						{},
 					)
 				)
 				self._nodes2set = []
@@ -3257,27 +3264,30 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 					(
 						"silent",
 						"insert",
-						"node_val",
-						[
-							{
-								"graph": pack(graph),
-								"node": pack(node),
-								"key": pack(key),
-								"branch": branch,
-								"turn": turn,
-								"tick": tick,
-								"value": pack(value),
-							}
-							for (
-								graph,
-								node,
-								key,
-								branch,
-								turn,
-								tick,
-								value,
-							) in self._nodevals2set
-						],
+						(
+							"node_val",
+							[
+								{
+									"graph": pack(graph),
+									"node": pack(node),
+									"key": pack(key),
+									"branch": branch,
+									"turn": turn,
+									"tick": tick,
+									"value": pack(value),
+								}
+								for (
+									graph,
+									node,
+									key,
+									branch,
+									turn,
+									tick,
+									value,
+								) in self._nodevals2set
+							],
+						),
+						{},
 					)
 				)
 				self._nodevals2set = []
@@ -3287,28 +3297,31 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 					(
 						"silent",
 						"insert",
-						"edges",
-						[
-							{
-								"graph": pack(graph),
-								"orig": pack(orig),
-								"dest": pack(dest),
-								"idx": 0,
-								"branch": branch,
-								"turn": turn,
-								"tick": tick,
-								"extant": bool(extant),
-							}
-							for (
-								graph,
-								orig,
-								dest,
-								branch,
-								turn,
-								tick,
-								extant,
-							) in self._edges2set
-						],
+						(
+							"edges",
+							[
+								{
+									"graph": pack(graph),
+									"orig": pack(orig),
+									"dest": pack(dest),
+									"idx": 0,
+									"branch": branch,
+									"turn": turn,
+									"tick": tick,
+									"extant": bool(extant),
+								}
+								for (
+									graph,
+									orig,
+									dest,
+									branch,
+									turn,
+									tick,
+									extant,
+								) in self._edges2set
+							],
+						),
+						{},
 					)
 				)
 				self._edges2set = []
@@ -3318,30 +3331,33 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 					(
 						"silent",
 						"insert",
-						"edge_val",
-						[
-							{
-								"graph": pack(graph),
-								"orig": pack(orig),
-								"dest": pack(dest),
-								"idx": 0,
-								"key": pack(key),
-								"branch": branch,
-								"turn": turn,
-								"tick": tick,
-								"value": pack(value),
-							}
-							for (
-								graph,
-								orig,
-								dest,
-								key,
-								branch,
-								turn,
-								tick,
-								value,
-							) in self._edgevals2set
-						],
+						(
+							"edge_val",
+							[
+								{
+									"graph": pack(graph),
+									"orig": pack(orig),
+									"dest": pack(dest),
+									"idx": 0,
+									"key": pack(key),
+									"branch": branch,
+									"turn": turn,
+									"tick": tick,
+									"value": pack(value),
+								}
+								for (
+									graph,
+									orig,
+									dest,
+									key,
+									branch,
+									turn,
+									tick,
+									value,
+								) in self._edgevals2set
+							],
+						),
+						{},
 					)
 				)
 				self._edgevals2set = []
@@ -3351,18 +3367,21 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 					(
 						"silent",
 						"del_units_after",
-						[
-							(character, graph, node, branch, turn, tick)
-							for (
-								character,
-								graph,
-								node,
-								branch,
-								turn,
-								tick,
-								_,
-							) in self._unitness
-						],
+						(
+							[
+								(character, graph, node, branch, turn, tick)
+								for (
+									character,
+									graph,
+									node,
+									branch,
+									turn,
+									tick,
+									_,
+								) in self._unitness
+							],
+						),
+						{},
 					)
 				)
 				put(("silent", "insert", "units", self._unitness))
@@ -3373,20 +3392,23 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 					(
 						"silent",
 						"del_things_after",
-						[
-							(character, thing, branch, turn, tick)
-							for (
-								character,
-								thing,
-								branch,
-								turn,
-								tick,
-								_,
-							) in self._location
-						],
+						(
+							[
+								(character, thing, branch, turn, tick)
+								for (
+									character,
+									thing,
+									branch,
+									turn,
+									tick,
+									_,
+								) in self._location
+							],
+						),
+						{},
 					)
 				)
-				put(("silent", "insert", "things", self._location))
+				put(("silent", "insert", ("things", self._location), {}))
 				self._location = []
 			for attr, cmd in [
 				("_char_rules_handled", "character_rules_handled"),
@@ -3408,7 +3430,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 			]:
 				if getattr(self, attr):
 					records += len(getattr(self, attr))
-					put(("silent", "insert", cmd, getattr(self, attr)))
+					put(("silent", "insert", (cmd, getattr(self, attr)), {}))
 				setattr(self, attr, [])
 		assert self.call("echo", "flushed") == "flushed"
 		override = self.kf_interval_override()
