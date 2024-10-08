@@ -3489,7 +3489,6 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 	) -> Iterator[Tuple[Key, str, int, int, Tuple[List[Key], float]]]:
 		unpack = self.unpack
 		for d in self.call("dump", "rulebooks"):
-			print(d)
 			yield (
 				unpack(d["rulebook"]),
 				d["branch"],
