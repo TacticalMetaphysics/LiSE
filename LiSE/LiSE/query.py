@@ -2193,7 +2193,7 @@ class ParquetDBHolder:
 		tick_from: int,
 		turn_to: int,
 		tick_to: int,
-	) -> Iterator[Tuple[bytes, bytes, bytes, int, str, int, int, bytes]]:
+	) -> Iterator[Tuple[bytes, bytes, bytes, int, int, int, bytes]]:
 		if turn_from == turn_to:
 			try:
 				results = self._db.read(
@@ -2263,7 +2263,7 @@ class ParquetDBHolder:
 
 	def load_edge_val_tick_to_end(
 		self, graph: bytes, branch: str, turn_from: int, tick_from: int
-	) -> List[Tuple[bytes, bytes, bytes, int, str, int, int, bytes]]:
+	) -> List[Tuple[bytes, bytes, bytes, int, int, int, bytes]]:
 		return list(
 			self._iter_edge_val_tick_to_end(
 				graph, branch, turn_from, tick_from
@@ -2272,7 +2272,7 @@ class ParquetDBHolder:
 
 	def _iter_edge_val_tick_to_end(
 		self, graph: bytes, branch: str, turn_from: int, tick_from: int
-	) -> Iterator[Tuple[bytes, bytes, bytes, int, str, int, int, bytes]]:
+	) -> Iterator[Tuple[bytes, bytes, int, bytes, int, int, bytes]]:
 		try:
 			results = self._db.read(
 				"edge_val",
@@ -2288,22 +2288,20 @@ class ParquetDBHolder:
 			if d["turn"] == turn_from:
 				if d["tick"] >= tick_from:
 					yield (
-						d["graph"],
 						d["orig"],
 						d["dest"],
 						d["idx"],
-						d["branch"],
+						d["key"],
 						d["turn"],
 						d["tick"],
 						d["value"],
 					)
 			else:
 				yield (
-					d["graph"],
 					d["orig"],
 					d["dest"],
 					d["idx"],
-					d["branch"],
+					d["key"],
 					d["turn"],
 					d["tick"],
 					d["value"],
@@ -2317,7 +2315,7 @@ class ParquetDBHolder:
 		tick_from: int,
 		turn_to: int,
 		tick_to: int,
-	) -> List[Tuple[bytes, bytes, bytes, int, str, int, int, bytes]]:
+	) -> List[Tuple[bytes, bytes, bytes, int, int, int, bytes]]:
 		return list(
 			self._iter_edge_val_tick_to_tick(
 				graph, branch, turn_from, tick_from, turn_to, tick_to
@@ -2332,7 +2330,7 @@ class ParquetDBHolder:
 		tick_from: int,
 		turn_to: int,
 		tick_to: int,
-	) -> Iterator[Tuple[bytes, bytes, bytes, int, str, int, int, bytes]]:
+	) -> Iterator[Tuple[bytes, bytes, int, bytes, int, int, bytes]]:
 		if turn_from == turn_to:
 			try:
 				results = self._db.read(
@@ -2349,11 +2347,10 @@ class ParquetDBHolder:
 				return
 			for d in results.to_pylist():
 				yield (
-					d["graph"],
 					d["orig"],
 					d["dest"],
 					d["idx"],
-					d["branch"],
+					d["key"],
 					d["turn"],
 					d["tick"],
 					d["value"],
@@ -2375,11 +2372,10 @@ class ParquetDBHolder:
 				if d["turn"] == turn_from:
 					if d["tick"] >= tick_from:
 						yield (
-							d["graph"],
 							d["orig"],
 							d["dest"],
 							d["idx"],
-							d["branch"],
+							d["key"],
 							d["turn"],
 							d["tick"],
 							d["value"],
@@ -2387,22 +2383,20 @@ class ParquetDBHolder:
 				elif d["turn"] == turn_to:
 					if d["tick"] <= tick_to:
 						yield (
-							d["graph"],
 							d["orig"],
 							d["dest"],
 							d["idx"],
-							d["branch"],
+							d["key"],
 							d["turn"],
 							d["tick"],
 							d["value"],
 						)
 				else:
 					yield (
-						d["graph"],
 						d["orig"],
 						d["dest"],
 						d["idx"],
-						d["branch"],
+						d["key"],
 						d["turn"],
 						d["tick"],
 						d["value"],
