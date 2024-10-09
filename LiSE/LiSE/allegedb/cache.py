@@ -176,40 +176,6 @@ class StructuredDefaultDict(dict):
 		raise TypeError("Can't set layer {}".format(self.layer))
 
 
-KEYCACHE_MAXSIZE = 1024
-
-
-def lru_append(kc, lru, kckey, maxsize):
-	"""Delete old data from ``kc``, then add new ``kckey`` to ``lru``
-
-	:param kc: a three-layer keycache
-	:param lru: an :class:`OrderedDict` with a key for each triple that should
-				fill out ``kc``'s three layers
-	:param kckey: a triple that indexes into ``kc``, which will be added to
-				  ``lru`` if needed
-	:param maxsize: maximum number of entries in ``lru`` and, therefore, ``kc``
-
-	"""
-	if kckey in lru:
-		return
-	while len(lru) >= maxsize:
-		(peb, turn, tick), _ = lru.popitem(False)
-		if peb not in kc:
-			continue
-		kcpeb = kc[peb]
-		if turn not in kcpeb:
-			continue
-		kcpebturn = kcpeb[turn]
-		if tick not in kcpebturn:
-			continue
-		del kcpebturn[tick]
-		if not kcpebturn:
-			del kcpeb[turn]
-		if not kcpeb:
-			del kc[peb]
-	lru[kckey] = True
-
-
 class Cache:
 	"""A data store that's useful for tracking graph revisions."""
 
@@ -521,8 +487,12 @@ class Cache:
 			ret = frozenset(
 				get_adds_dels(
 					parentity, branch, turn, tick, stoptime=stoptime
-				)[0]
-			)
+				)
+				kf = self.keyframe[parentity][stoptime[0]][stoptime[1]][
+					stoptime[2]
+				]
+				keys_now = kf.keys().union(adds).difference(dels)
+				ret = frozenset(keys_now)
 			if keycache2:
 				if keycache3:
 					keycache3[tick] = ret
@@ -549,12 +519,6 @@ class Cache:
 		forward and updates them.
 
 		"""
-		lru_append(
-			self.keycache,
-			self._kc_lru,
-			(parentity + (branch,), turn, tick),
-			KEYCACHE_MAXSIZE,
-		)
 		return self._get_keycachelike(
 			self.keycache,
 			self.keys,
@@ -1461,10 +1425,10 @@ class EdgesCache(Cache):
 
 	def __init__(self, db):
 		def gettest(k):
-			assert len(k) == 3, "Bad key: " + repr(k)
+			assert len(k) == 2, "Bad key: " + repr(k)
 
 		def settest(k, v):
-			assert len(k) == 3, "Bad key: {}, to be set to {}".format(k, v)
+			assert len(k) == 2, "Bad key: {}, to be set to {}".format(k, v)
 
 		Cache.__init__(
 			self, db, kfkvs={"gettest": gettest, "settest": settest}
@@ -1676,12 +1640,6 @@ class EdgesCache(Cache):
 			successors,
 			adds_dels_sucpred,
 		) = self._get_destcache_stuff
-		lru_append(
-			destcache,
-			destcache_lru,
-			((graph, orig, branch), turn, tick),
-			KEYCACHE_MAXSIZE,
-		)
 		return get_keycachelike(
 			destcache,
 			successors,
@@ -1711,12 +1669,6 @@ class EdgesCache(Cache):
 			predecessors,
 			adds_dels_sucpred,
 		) = self._get_origcache_stuff
-		lru_append(
-			origcache,
-			origcache_lru,
-			((graph, dest, branch), turn, tick),
-			KEYCACHE_MAXSIZE,
-		)
 		return get_keycachelike(
 			origcache,
 			predecessors,
