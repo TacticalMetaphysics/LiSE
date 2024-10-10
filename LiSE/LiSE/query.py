@@ -1371,7 +1371,7 @@ class ParquetDBHolder:
 		self._inq = inq
 		self._outq = outq
 		self._schema = {}
-		self._db = ParquetDB(path)
+		self._path = path
 		self.lock = RLock()
 		self.existence_lock = Lock()
 		self.existence_lock.acquire()
@@ -1383,131 +1383,118 @@ class ParquetDBHolder:
 		self.existence_lock.release()
 
 	def initdb(self):
-		db = self._db
 		initial = self.initial
 		for table, schema in self.schema.items():
 			schema = self._schema[table] = pa.schema(schema)
-			if db.dataset_exists(table):
+			db = ParquetDB(table, self._path)
+			if db.dataset_exists():
 				continue
 			if table in initial:
 				db.create(
 					initial[table],
-					dataset_name=table,
 					schema=schema,
 				)
 
 	def insert(self, table: str, data: list) -> None:
-		self._db.create(data, dataset_name=table, schema=self._schema[table])
+		ParquetDB(table, self._path).create(data, schema=self._schema[table])
 
 	def truncate_all(self):
 		for table in self.schema:
-			if self._db.dataset_exists(table):
-				self._db.drop_dataset(table)
+			db = ParquetDB(table, self._path)
+			if db.dataset_exists():
+				db.drop_dataset()
 
 	def del_units_after(self, many):
+		db = ParquetDB("units", self._path)
 		ids = []
 		for character, graph, node, branch, turn, tick in many:
-			try:
-				result = self._db.read(
-					"units",
-					filters=[
-						pc.field("character_graph") == character,
-						pc.field("unit_graph") == graph,
-						pc.field("unit_node") == node,
-						pc.field("branch") == branch,
-						pc.field("turn") >= turn,
-					],
-					columns=["id", "turn", "tick"],
-				)
-			except ArrowInvalid:
-				continue
-			for d in result.to_pylist():
+			for d in db.read(
+				filters=[
+					pc.field("character_graph") == character,
+					pc.field("unit_graph") == graph,
+					pc.field("unit_node") == node,
+					pc.field("branch") == branch,
+					pc.field("turn") >= turn,
+				],
+				columns=["id", "turn", "tick"],
+			).to_pylist():
 				if d["turn"] == turn:
 					if d["tick"] >= tick:
 						ids.append(d["id"])
 				else:
 					ids.append(d["id"])
 		if ids:
-			self._db.delete(ids, "units")
+			db.delete(ids)
 
 	def del_things_after(self, many):
+		db = ParquetDB("things", self._path)
 		ids = []
 		for character, thing, branch, turn, tick in many:
-			try:
-				result = self._db.read(
-					"things",
-					filters=[
-						pc.field("character") == character,
-						pc.field("thing") == thing,
-						pc.field("branch") == branch,
-						pc.field("turn") >= turn,
-					],
-					columns=["id", "turn", "tick"],
-				)
-			except ArrowInvalid:
-				continue
-			for d in result.to_pylist():
+			for d in db.read(
+				"things",
+				filters=[
+					pc.field("character") == character,
+					pc.field("thing") == thing,
+					pc.field("branch") == branch,
+					pc.field("turn") >= turn,
+				],
+				columns=["id", "turn", "tick"],
+			).to_pylist():
 				if d["turn"] == turn:
 					if d["tick"] >= tick:
 						ids.append(d["id"])
 				else:
 					ids.append(d["id"])
 		if ids:
-			self._db.delete(ids, "things")
+			db.delete(ids)
 
 	def dump(self, table: str) -> list:
-		return self._db.read(dataset_name=table).to_pylist()
+		return ParquetDB(table, self._path).read().to_pylist()
 
 	def rowcount(self, table: str) -> int:
-		return self._db.read(dataset_name=table).rowcount
+		return ParquetDB(table, self._path).read().rowcount
 
 	def rulebooks(self):
-		try:
-			return set(
-				self._db.read(dataset="rulebooks", columns=["rulebook"])[
-					"rulebook"
-				]
-			)
-		except ArrowInvalid:
-			return set()
+		return set(
+			ParquetDB("rulebooks", self._path).read(columns=["rulebook"])[
+				"rulebook"
+			]
+		)
 
 	def graphs(self):
-		try:
-			return set(
-				name.as_py()
-				for name in self._db.read(
-					dataset_name="graphs", columns=["graph"]
-				)["graph"]
-			)
-		except ArrowInvalid:
-			return set()
+		return set(
+			name.as_py()
+			for name in ParquetDB("graphs", self._path).read(
+				columns=["graph"]
+			)["graph"]
+		)
 
 	def list_keyframes(self) -> list:
-		try:
-			return self._db.read(
-				dataset_name="keyframes",
+		return (
+			ParquetDB("keyframes", self._path)
+			.read(
 				columns=["graph", "branch", "turn", "tick"],
-			).to_pylist()
-		except ArrowInvalid:
-			return []
+			)
+			.to_pylist()
+		)
 
 	def get_keyframe(
 		self, graph: bytes, branch: str, turn: int, tick: int
 	) -> Optional[Tuple[bytes, bytes, bytes]]:
-		try:
-			rec = self._db.read(
-				"keyframes",
-				filters=[
-					pc.field("graph") == pc.scalar(graph),
-					pc.field("branch") == pc.scalar(branch),
-					pc.field("turn") == pc.scalar(turn),
-					pc.field("tick") == pc.scalar(tick),
-				],
-			)
-		except ArrowInvalid:
-			return None
+		rec = ParquetDB("keyframes", self._path).read(
+			"keyframes",
+			filters=[
+				pc.field("graph") == pc.scalar(graph),
+				pc.field("branch") == pc.scalar(branch),
+				pc.field("turn") == pc.scalar(turn),
+				pc.field("tick") == pc.scalar(tick),
+			],
+			columns=["nodes", "edges", "graph_val"],
+		)
 		if not rec.num_rows:
 			return None
+		if rec.num_rows > 1:
+			raise ValueError("Ambiguous keyframe, probably corrupt table")
 		return (
 			rec["nodes"][0].as_py(),
 			rec["edges"][0].as_py(),
@@ -1536,50 +1523,54 @@ class ParquetDBHolder:
 		)
 
 	def graph_exists(self, graph: bytes) -> bool:
-		try:
-			return bool(
-				self._db.read(
-					"graphs", filters=[pc.field("graph") == pc.scalar(graph)]
-				).num_rows
+		return bool(
+			ParquetDB("graphs", self._path)
+			.read(
+				filters=[pc.field("graph") == pc.scalar(graph)], columns=["id"]
 			)
-		except ArrowInvalid:
-			return False
+			.num_rows
+		)
 
 	def get_global(self, key: bytes) -> bytes:
 		try:
-			return self._db.read("global", filters=[pc.field("key") == key])[
-				"value"
-			][0].as_py()
-		except (ArrowInvalid, IndexError) as ex:
+			return (
+				ParquetDB("global", self._path)
+				.read(filters=[pc.field("key") == key])["value"][0]
+				.as_py()
+			)
+		except IndexError as ex:
 			raise KeyError(f"No such global: {key}") from ex
 
 	def set_global(self, key: bytes, value: bytes):
 		try:
 			id_ = self.field_get_id("global", "key", key)
-			return self._db.update(
-				{"id": id_, "key": key, "value": value}, "global"
+			return ParquetDB("global", self._path).update(
+				{"id": id_, "key": key, "value": value}
 			)
-		except (ArrowInvalid, KeyError):
-			return self._db.create({"key": key, "value": value}, "global")
+		except KeyError:
+			return ParquetDB("global", self._path).create(
+				{"key": key, "value": value}
+			)
 
 	def global_keys(self):
-		try:
-			return [
-				d["key"]
-				for d in self._db.read("global", columns=["key"]).to_pylist()
-			]
-		except (ArrowInvalid, KeyError):
-			return []
+		return [
+			d["key"]
+			for d in ParquetDB("global", self._path)
+			.read("global", columns=["key"])
+			.to_pylist()
+		]
 
 	def field_get_id(self, table, keyfield, value):
 		return self.filter_get_id(table, filters=[pc.field(keyfield) == value])
 
 	def filter_get_id(self, table, filters):
 		try:
-			return self._db.read(table, filters=filters, columns=["id"])["id"][
-				0
-			].as_py()
-		except (IndexError, ArrowInvalid):
+			return (
+				ParquetDB(table, self._path)
+				.read(filters=filters, columns=["id"])["id"][0]
+				.as_py()
+			)
+		except KeyError:
 			return None
 
 	def update_branch(
@@ -1594,7 +1585,7 @@ class ParquetDBHolder:
 		id_ = self.field_get_id("branches", "branch", branch)
 		if id_ is None:
 			raise KeyError(f"No branch: {branch}")
-		return self._db.update(
+		return ParquetDB("branch", self._path).update(
 			{
 				"id": id_,
 				"parent": parent,
@@ -1603,7 +1594,6 @@ class ParquetDBHolder:
 				"end_turn": end_turn,
 				"end_tick": end_tick,
 			},
-			dataset_name="branches",
 		)
 
 	def set_branch(
@@ -1633,14 +1623,11 @@ class ParquetDBHolder:
 			)
 
 	def have_branch(self, branch: str) -> bool:
-		try:
-			return bool(
-				self._db.read(
-					"branches", filters=[pc.field("branch") == branch]
-				).rowcount
-			)
-		except ArrowInvalid:
-			return False
+		return bool(
+			ParquetDB("branches", self._path)
+			.read("branches", filters=[pc.field("branch") == branch])
+			.rowcount
+		)
 
 	def update_turn(
 		self, branch: str, turn: int, end_tick: int, plan_end_tick: int
@@ -1649,16 +1636,15 @@ class ParquetDBHolder:
 			"turns", [pc.field("branch") == branch, pc.field("turn") == turn]
 		)
 		if id_ is None:
-			return self._db.create(
+			return ParquetDB("turns", self._path).create(
 				{
 					"branch": branch,
 					"turn": turn,
 					"end_tick": end_tick,
 					"plan_end_tick": plan_end_tick,
 				},
-				dataset_name="turns",
 			)
-		return self._db.update(
+		return ParquetDB("turns", self._path).update(
 			{
 				"id": id_,
 				"branch": branch,
@@ -1666,7 +1652,6 @@ class ParquetDBHolder:
 				"end_tick": end_tick,
 				"plan_end_tick": plan_end_tick,
 			},
-			dataset_name="turns",
 		)
 
 	def set_turn(
@@ -1675,7 +1660,7 @@ class ParquetDBHolder:
 		try:
 			self.update_turn(branch, turn, end_tick, plan_end_tick)
 		except (ArrowInvalid, IndexError):
-			self._db.create(
+			ParquetDB("turns", self._path).create(
 				{
 					"branch": branch,
 					"turn": turn,
@@ -1685,19 +1670,17 @@ class ParquetDBHolder:
 			)
 
 	def set_turn_completed(self, branch: str, turn: int) -> None:
+		db = ParquetDB("turns_completed", self._path)
 		try:
-			id_ = self._db.read(
-				"turns_completed",
+			id_ = db.read(
 				filters=[
 					pc.field("branch") == branch,
 					pc.field("turn") == turn,
 				],
 			)["id"][0]
-			self._db.update({"id": id_, "branch": branch, "turn": turn})
-		except (ArrowInvalid, IndexError):
-			self._db.create(
-				{"branch": branch, "turn": turn}, "turns_completed"
-			)
+			db.update({"id": id_, "branch": branch, "turn": turn})
+		except IndexError:
+			db.create({"branch": branch, "turn": turn})
 
 	def load_things_tick_to_end(
 		self, character: bytes, branch: str, turn_from: int, tick_from: int
@@ -1711,18 +1694,17 @@ class ParquetDBHolder:
 	def _iter_things_tick_to_end(
 		self, character: bytes, branch: str, turn_from: int, tick_from: int
 	) -> Iterator[Tuple[bytes, int, int, bytes]]:
-		try:
-			results = self._db.read(
-				"things",
+		for d in (
+			ParquetDB("things", self._path)
+			.read(
 				filters=[
 					pc.field("character") == character,
 					pc.field("branch") == branch,
 					pc.field("turn") >= turn_from,
 				],
 			)
-		except ArrowInvalid:
-			return
-		for d in results.to_pylist():
+			.to_pylist()
+		):
 			if d["turn"] == turn_from:
 				if d["tick"] >= tick_from:
 					yield d["thing"], d["turn"], d["tick"], d["location"]
@@ -1753,36 +1735,27 @@ class ParquetDBHolder:
 		turn_to: int,
 		tick_to: int,
 	):
+		db = ParquetDB("things", self._path)
 		if turn_from == turn_to:
-			try:
-				results = self._db.read(
-					"things",
-					filters=[
-						pc.field("character") == character,
-						pc.field("branch") == branch,
-						pc.field("turn") == turn_from,
-						pc.field("tick") >= tick_from,
-						pc.field("tick") <= tick_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				filters=[
+					pc.field("character") == character,
+					pc.field("branch") == branch,
+					pc.field("turn") == turn_from,
+					pc.field("tick") >= tick_from,
+					pc.field("tick") <= tick_to,
+				],
+			).to_pylist():
 				yield d["thing"], d["turn"], d["tick"], d["location"]
 		else:
-			try:
-				results = self._db.read(
-					"things",
-					filters=[
-						pc.field("character") == character,
-						pc.field("branch") == branch,
-						pc.field("turn_from") >= turn_from,
-						pc.field("turn_to") <= turn_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				filters=[
+					pc.field("character") == character,
+					pc.field("branch") == branch,
+					pc.field("turn_from") >= turn_from,
+					pc.field("turn_to") <= turn_to,
+				],
+			).to_pylist():
 				if d["turn"] == turn_from:
 					if d["tick"] >= tick_from:
 						yield d["thing"], d["turn"], d["tick"], d["location"]
@@ -1804,8 +1777,9 @@ class ParquetDBHolder:
 	def _iter_graph_val_tick_to_end(
 		self, graph: bytes, branch: str, turn_from: int, tick_from: int
 	) -> Iterator[Tuple[bytes, int, int, bytes]]:
-		try:
-			results = self._db.read(
+		for d in (
+			ParquetDB("graph_val", self._path)
+			.read(
 				"graph_val",
 				filters=[
 					pc.field("graph") == graph,
@@ -1813,9 +1787,8 @@ class ParquetDBHolder:
 					pc.field("turn") >= turn_from,
 				],
 			)
-		except ArrowInvalid:
-			return
-		for d in results.to_pylist():
+			.to_pylist()
+		):
 			if d["turn"] == turn_from:
 				if d["tick"] >= tick_from:
 					yield d["key"], d["turn"], d["tick"], d["value"]
@@ -1830,7 +1803,7 @@ class ParquetDBHolder:
 		tick_from: int,
 		turn_to: int,
 		tick_to: int,
-	) -> Iterator[Tuple[bytes, int, int, bytes]]:
+	) -> List[Tuple[bytes, int, int, bytes]]:
 		return list(
 			self._iter_graph_val_tick_to_tick(
 				graph, branch, turn_from, tick_from, turn_to, tick_to
@@ -1846,36 +1819,27 @@ class ParquetDBHolder:
 		turn_to: int,
 		tick_to: int,
 	) -> Iterator[Tuple[bytes, int, int, bytes]]:
+		db = ParquetDB("graph_val", self._path)
 		if turn_from == tick_from:
-			try:
-				results = self._db.read(
-					"graph_val",
-					filters=[
-						pc.field("graph") == graph,
-						pc.field("branch") == branch,
-						pc.field("turn") == turn_from,
-						pc.field("tick") >= tick_from,
-						pc.field("tick") <= tick_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				filters=[
+					pc.field("graph") == graph,
+					pc.field("branch") == branch,
+					pc.field("turn") == turn_from,
+					pc.field("tick") >= tick_from,
+					pc.field("tick") <= tick_to,
+				],
+			).to_pylist():
 				yield d["key"], d["turn"], d["tick"], d["value"]
 		else:
-			try:
-				results = self._db.read(
-					"graph_val",
-					filters=[
-						pc.field("graph") == graph,
-						pc.field("branch") == branch,
-						pc.field("turn") >= turn_from,
-						pc.field("turn") <= turn_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				filters=[
+					pc.field("graph") == graph,
+					pc.field("branch") == branch,
+					pc.field("turn") >= turn_from,
+					pc.field("turn") <= turn_to,
+				],
+			).to_pylist():
 				if d["turn"] == turn_from:
 					if d["tick"] >= tick_from:
 						yield d["key"], d["turn"], d["tick"], d["value"]
@@ -1895,8 +1859,9 @@ class ParquetDBHolder:
 	def _iter_nodes_tick_to_end(
 		self, graph: bytes, branch: str, turn_from: int, tick_from: int
 	) -> Iterator[Tuple[bytes, int, int, bool]]:
-		try:
-			results = self._db.read(
+		for d in (
+			ParquetDB("nodes", self._path)
+			.read(
 				"nodes",
 				filters=[
 					pc.field("graph") == graph,
@@ -1904,9 +1869,8 @@ class ParquetDBHolder:
 					pc.field("turn") >= turn_from,
 				],
 			)
-		except ArrowInvalid:
-			return
-		for d in results.to_pylist():
+			.to_pylist()
+		):
 			if d["turn"] == turn_from:
 				if d["tick"] >= tick_from:
 					yield (
@@ -1946,22 +1910,19 @@ class ParquetDBHolder:
 		tick_from: int,
 		turn_to: int,
 		tick_to: int,
-	) -> Iterator[Tuple[bytes, str, int, int, bool]]:
+	) -> Iterator[Tuple[bytes, int, int, bool]]:
+		db = ParquetDB("nodes", self._path)
 		if turn_from == turn_to:
-			try:
-				results = self._db.read(
-					"nodes",
-					filters=[
-						pc.field("graph") == graph,
-						pc.field("branch") == branch,
-						pc.field("turn") == turn_from,
-						pc.field("tick") >= tick_from,
-						pc.field("tick") <= tick_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				"nodes",
+				filters=[
+					pc.field("graph") == graph,
+					pc.field("branch") == branch,
+					pc.field("turn") == turn_from,
+					pc.field("tick") >= tick_from,
+					pc.field("tick") <= tick_to,
+				],
+			).to_pylist():
 				yield (
 					d["node"],
 					d["turn"],
@@ -1969,19 +1930,15 @@ class ParquetDBHolder:
 					d["extant"],
 				)
 		else:
-			try:
-				results = self._db.read(
-					"nodes",
-					filters=[
-						pc.field("graph") == graph,
-						pc.field("branch") == branch,
-						pc.field("turn") >= turn_from,
-						pc.field("turn") <= turn_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				"nodes",
+				filters=[
+					pc.field("graph") == graph,
+					pc.field("branch") == branch,
+					pc.field("turn") >= turn_from,
+					pc.field("turn") <= turn_to,
+				],
+			).to_pylist():
 				if d["turn"] == turn_from:
 					if d["tick"] >= tick_from:
 						yield (
@@ -2018,18 +1975,17 @@ class ParquetDBHolder:
 	def _iter_node_val_tick_to_end(
 		self, graph: bytes, branch: str, turn_from: int, tick_from: int
 	) -> Iterator[Tuple[bytes, bytes, int, int, bytes]]:
-		try:
-			results = self._db.read(
-				"node_val",
+		for d in (
+			ParquetDB("node_val", self._path)
+			.read(
 				filters=[
 					pc.field("graph") == graph,
 					pc.field("branch") == branch,
 					pc.field("turn_from") >= turn_from,
 				],
 			)
-		except ArrowInvalid:
-			return
-		for d in results.to_pylist():
+			.to_pylist()
+		):
 			if d["turn"] == turn_from:
 				if d["tick"] >= tick_from:
 					yield (
@@ -2065,21 +2021,18 @@ class ParquetDBHolder:
 		turn_to: int,
 		tick_to: int,
 	) -> Iterator[Tuple[bytes, bytes, int, int, bytes]]:
+		db = ParquetDB("node_val", self._path)
 		if turn_from == turn_to:
-			try:
-				results = self._db.read(
-					"node_val",
-					filters=[
-						pc.field("graph") == graph,
-						pc.field("branch") == branch,
-						pc.field("turn") == turn_from,
-						pc.field("tick") >= tick_from,
-						pc.field("tick") <= tick_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				"node_val",
+				filters=[
+					pc.field("graph") == graph,
+					pc.field("branch") == branch,
+					pc.field("turn") == turn_from,
+					pc.field("tick") >= tick_from,
+					pc.field("tick") <= tick_to,
+				],
+			).to_pylist():
 				yield (
 					d["node"],
 					d["key"],
@@ -2088,19 +2041,15 @@ class ParquetDBHolder:
 					d["value"],
 				)
 		else:
-			try:
-				results = self._db.read(
-					"node_val",
-					filters=[
-						pc.field("graph") == graph,
-						pc.field("branch") == branch,
-						pc.field("turn") >= turn_from,
-						pc.field("turn") <= turn_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				"node_val",
+				filters=[
+					pc.field("graph") == graph,
+					pc.field("branch") == branch,
+					pc.field("turn") >= turn_from,
+					pc.field("turn") <= turn_to,
+				],
+			).to_pylist():
 				if d["turn"] == turn_from:
 					if d["tick"] >= tick_from:
 						yield (
@@ -2138,8 +2087,9 @@ class ParquetDBHolder:
 	def _iter_edges_tick_to_end(
 		self, graph: bytes, branch: str, turn_from: int, tick_from: int
 	) -> Iterator[Tuple[bytes, bytes, int, int, int, bool]]:
-		try:
-			results = self._db.read(
+		for d in (
+			ParquetDB("edges", self._path)
+			.read(
 				"edges",
 				filters=[
 					pc.field("graph") == graph,
@@ -2147,9 +2097,8 @@ class ParquetDBHolder:
 					pc.field("turn_from") >= turn_from,
 				],
 			)
-		except ArrowInvalid:
-			return
-		for d in results.to_pylist():
+			.to_pylist()
+		):
 			if d["turn"] == turn_from:
 				if d["tick"] >= tick_from:
 					yield (
@@ -2178,7 +2127,7 @@ class ParquetDBHolder:
 		tick_from: int,
 		turn_to: int,
 		tick_to: int,
-	) -> List[Tuple[bytes, bytes, bytes, int, str, int, int, bytes]]:
+	) -> List[Tuple[bytes, bytes, bytes, int, int, int, bytes]]:
 		return list(
 			self._iter_edges_tick_to_tick(
 				graph, branch, turn_from, tick_from, turn_to, tick_to
@@ -2194,21 +2143,18 @@ class ParquetDBHolder:
 		turn_to: int,
 		tick_to: int,
 	) -> Iterator[Tuple[bytes, bytes, bytes, int, int, int, bytes]]:
+		db = ParquetDB("edges", self._path)
 		if turn_from == turn_to:
-			try:
-				results = self._db.read(
-					"edges",
-					filters=[
-						pc.field("graph") == graph,
-						pc.field("branch") == branch,
-						pc.field("turn") == turn_from,
-						pc.field("tick") >= tick_from,
-						pc.field("tick") <= tick_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				"edges",
+				filters=[
+					pc.field("graph") == graph,
+					pc.field("branch") == branch,
+					pc.field("turn") == turn_from,
+					pc.field("tick") >= tick_from,
+					pc.field("tick") <= tick_to,
+				],
+			).to_pylist():
 				yield (
 					d["orig"],
 					d["dest"],
@@ -2218,19 +2164,15 @@ class ParquetDBHolder:
 					d["extant"],
 				)
 		else:
-			try:
-				results = self._db.read(
-					"edges",
-					filters=[
-						pc.field("graph") == graph,
-						pc.field("branch") == branch,
-						pc.field("turn") >= turn_from,
-						pc.field("turn") <= turn_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				"edges",
+				filters=[
+					pc.field("graph") == graph,
+					pc.field("branch") == branch,
+					pc.field("turn") >= turn_from,
+					pc.field("turn") <= turn_to,
+				],
+			).to_pylist():
 				if d["turn"] == turn_from:
 					if d["tick"] >= tick_from:
 						yield (
@@ -2273,18 +2215,17 @@ class ParquetDBHolder:
 	def _iter_edge_val_tick_to_end(
 		self, graph: bytes, branch: str, turn_from: int, tick_from: int
 	) -> Iterator[Tuple[bytes, bytes, int, bytes, int, int, bytes]]:
-		try:
-			results = self._db.read(
-				"edge_val",
+		for d in (
+			ParquetDB("edge_val", self._path)
+			.read(
 				filters=[
 					pc.field("graph") == graph,
 					pc.field("branch") == branch,
 					pc.field("turn") >= turn_from,
 				],
 			)
-		except ArrowInvalid:
-			return
-		for d in results.to_pylist():
+			.to_pylist()
+		):
 			if d["turn"] == turn_from:
 				if d["tick"] >= tick_from:
 					yield (
@@ -2330,22 +2271,19 @@ class ParquetDBHolder:
 		tick_from: int,
 		turn_to: int,
 		tick_to: int,
-	) -> Iterator[Tuple[bytes, bytes, int, bytes, int, int, bytes]]:
+	) -> Iterator[Tuple[bytes, bytes, bytes, int, int, int, bytes]]:
+		db = ParquetDB("edge_val", self._path)
 		if turn_from == turn_to:
-			try:
-				results = self._db.read(
-					"edge_val",
-					filters=[
-						pc.field("graph") == graph,
-						pc.field("branch") == branch,
-						pc.field("turn") == turn_from,
-						pc.field("tick") >= tick_from,
-						pc.field("tick") <= tick_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				"edge_val",
+				filters=[
+					pc.field("graph") == graph,
+					pc.field("branch") == branch,
+					pc.field("turn") == turn_from,
+					pc.field("tick") >= tick_from,
+					pc.field("tick") <= tick_to,
+				],
+			).to_pylist():
 				yield (
 					d["orig"],
 					d["dest"],
@@ -2356,19 +2294,15 @@ class ParquetDBHolder:
 					d["value"],
 				)
 		else:
-			try:
-				results = self._db.read(
-					"edge_val",
-					filters=[
-						pc.field("graph") == graph,
-						pc.field("branch") == branch,
-						pc.field("turn") >= turn_from,
-						pc.field("turn") <= turn_to,
-					],
-				)
-			except ArrowInvalid:
-				return
-			for d in results.to_pylist():
+			for d in db.read(
+				"edge_val",
+				filters=[
+					pc.field("graph") == graph,
+					pc.field("branch") == branch,
+					pc.field("turn") >= turn_from,
+					pc.field("turn") <= turn_to,
+				],
+			).to_pylist():
 				if d["turn"] == turn_from:
 					if d["tick"] >= tick_from:
 						yield (
@@ -2413,7 +2347,7 @@ class ParquetDBHolder:
 		)
 		if id_ is None:
 			raise KeyError("No value at this time")
-		self._db.delete([id_], table)
+		ParquetDB(table, self._path).delete([id_])
 
 	def nodes_del_time(self, branch: str, turn: int, tick: int):
 		self._del_time("nodes", branch, turn, tick)
