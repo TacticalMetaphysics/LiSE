@@ -4946,7 +4946,7 @@ class QueryEngine(query.QueryEngine, AbstractLiSEQueryEngine):
 			("_portal_rules_handled", "portal_rules_handled_insert"),
 		]:
 			if getattr(self, attr):
-				put(("silent", "many", cmd, getattr(self, attr)))
+				put(("silent", "many", cmd, [dict(character=character, rulebook=rulebook, rule=rule, branch=branch, turn=turn, tick=tick) for (character, rulebook, rule, branch, turn, tick) in getattr(self, attr)]))
 			setattr(self, attr, [])
 		assert self.echo("flushed") == "flushed"
 
