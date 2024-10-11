@@ -3318,33 +3318,15 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 						{},
 					)
 				)
-				put(
-					(
-						"silent",
-						"insert",
-						"units",
-						[
-							{
-								"character_graph": character,
-								"unit_graph": graph,
-								"node": node,
-								"branch": branch,
-								"turn": turn,
-								"tick": tick,
-								"is_unit": isunit,
-							}
-							for (
-								character,
-								graph,
-								node,
-								branch,
-								turn,
-								tick,
-								isunit,
-							) in self._unitness
-						],
-					)
-				)
+				put(("silent", "insert", "units", {
+					"character_graph": character,
+					"unit_graph": graph,
+					"node": node,
+					"branch": branch,
+					"turn": turn,
+					"tick": tick,
+					"is_unit": isunit
+				} for (character, graph, node, branch, turn, tick, isunit) in self._unitness))
 				self._unitness = []
 			if self._location:
 				records += len(self._location)
@@ -4158,17 +4140,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		is_unit: bool,
 	):
 		pack = self.pack
-		self._unitness.append(
-			(
-				pack(character),
-				pack(graph),
-				pack(node),
-				branch,
-				turn,
-				tick,
-				pack(is_unit),
-			)
-		)
+		self._unitness.append((pack(character), pack(graph), pack(node), branch, turn, tick, pack(is_unit)))
 		self._increc()
 
 	def rulebook_set(
@@ -4974,31 +4946,7 @@ class QueryEngine(query.QueryEngine, AbstractLiSEQueryEngine):
 			("_portal_rules_handled", "portal_rules_handled_insert"),
 		]:
 			if getattr(self, attr):
-				put(
-					(
-						"silent",
-						"many",
-						cmd,
-						[
-							dict(
-								character=character,
-								rulebook=rulebook,
-								rule=rule,
-								branch=branch,
-								turn=turn,
-								tick=tick,
-							)
-							for (
-								character,
-								rulebook,
-								rule,
-								branch,
-								turn,
-								tick,
-							) in getattr(self, attr)
-						],
-					)
-				)
+				put(("silent", "many", cmd, [dict(character=character, rulebook=rulebook, rule=rule, branch=branch, turn=turn, tick=tick) for (character, rulebook, rule, branch, turn, tick) in getattr(self, attr)]))
 			setattr(self, attr, [])
 		assert self.echo("flushed") == "flushed"
 
