@@ -3416,7 +3416,6 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 				("_portal_rules_handled", "portal_rules_handled"),
 			]:
 				if getattr(self, attr):
-					records += len(getattr(self, attr))
 					put(
 						(
 							"silent",
