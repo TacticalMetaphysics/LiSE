@@ -4127,6 +4127,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 		self._location.append(
 			(pack(character), pack(thing), branch, turn, tick, pack(loc))
 		)
+		self._increc()
 
 	def unit_set(
 		self,
@@ -4140,6 +4141,7 @@ class ParquetQueryEngine(AbstractLiSEQueryEngine):
 	):
 		pack = self.pack
 		self._unitness.append((pack(character), pack(graph), pack(node), branch, turn, tick, pack(is_unit)))
+		self._increc()
 
 	def rulebook_set(
 		self,
