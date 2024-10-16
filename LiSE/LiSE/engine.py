@@ -231,87 +231,7 @@ class NullSchema(AbstractSchema):
 		return True
 
 
-class LiSEProcessPoolExecutor(Executor):
-	def __init__(self, eng: "Engine"):
-		self.eng = eng
-		self._how_many_futs_running = 0
-		self._fut_manager_thread = Thread(
-			target=self._manage_futs, daemon=True
-		)
-		self._futs_to_start: SimpleQueue[Future] = SimpleQueue()
-		self._uid_to_fut: dict[int, Future] = {}
-		self._fut_manager_thread.start()
-
-	def _call_in_subprocess(
-		self, uid, method, func_name, future: Future, *args, **kwargs
-	):
-		i = uid % len(self.eng._worker_inputs)
-		argbytes = zlib.compress(
-			self.eng.pack((uid, method, (func_name, *args), kwargs))
-		)
-		with self.eng._worker_locks[i]:
-			self.eng._update_worker_process_state(i)
-			self.eng._worker_inputs[i].send_bytes(argbytes)
-			output = self.eng._worker_outputs[i].recv_bytes()
-		got_uid, result = self.eng.unpack(zlib.decompress(output))
-		assert got_uid == uid
-		self._how_many_futs_running -= 1
-		del self._uid_to_fut[uid]
-		if isinstance(result, Exception):
-			future.set_exception(result)
-		else:
-			future.set_result(result)
-
-	def submit(
-		self, fn: Union[FunctionType, MethodType], /, *args, **kwargs
-	) -> Future:
-		if fn.__module__ == "function":
-			method = "_call_function"
-		elif fn.__module__ == "method":
-			method = "_call_method"
-		else:
-			raise ValueError(
-				"Function is not stored in this LiSE engine. "
-				"Use the engine's attributes `function` and `method` to store it."
-			)
-		uid = self.eng._top_uid
-		ret = Future()
-		ret.uid = uid
-		ret._t = Thread(
-			target=self._call_in_subprocess,
-			args=(uid, method, fn.__name__, ret, *args),
-			kwargs=kwargs,
-		)
-		self.eng._top_uid += 1
-		self._uid_to_fut[uid] = ret
-		self._futs_to_start.put(ret)
-		return ret
-
-	def _manage_futs(self):
-		while True:
-			while self._how_many_futs_running < len(
-				self.eng._worker_processes
-			):
-				try:
-					fut = self._futs_to_start.get()
-				except Empty:
-					break
-				if not fut.running():
-					fut.set_running_or_notify_cancel()
-					fut._t.start()
-					self._how_many_futs_running += 1
-			sleep(0.001)
-
-	def shutdown(self, wait=True, *, cancel_futures=False) -> None:
-		if cancel_futures:
-			for fut in self._uid_to_fut.values():
-				fut.cancel()
-		if wait:
-			futwait(self._uid_to_fut.values())
-		self._uid_to_fut = {}
-
-
-class Engine(AbstractEngine, gORM):
+class Engine(AbstractEngine, gORM, Executor):
 	"""LiSE, the Life Simulator Engine.
 
 	:param prefix: directory containing the simulation and its code;
@@ -388,10 +308,10 @@ class Engine(AbstractEngine, gORM):
 		subprocesses as we have CPU cores. When ``0``, parallel processing
 		is not necessarily disabled; threads may still be used, which
 		may or may not run in parallel, depending on your Python interpreter.
-		However, note that ``worker_processes=0`` implies that trigger
+		However, note that ``workerss=0`` implies that trigger
 		functions operate on bare LiSE objects, and can therefore have
 		side effects. If you don't want this, instead use
-		``worker_processes=1``, which *does* disable parallelism in the case
+		``workers=1``, which *does* disable parallelism in the case
 		of trigger functions.
 
 	"""
@@ -431,7 +351,7 @@ class Engine(AbstractEngine, gORM):
 		connect_string: str = None,
 		connect_args: dict = None,
 		schema_cls: Type[AbstractSchema] = NullSchema,
-		flush_interval: Optional[int] = None,
+		flush_interval: int = None,
 		keyframe_interval: Optional[int] = 1000,
 		commit_interval: int = None,
 		random_seed: int = None,
@@ -447,10 +367,13 @@ class Engine(AbstractEngine, gORM):
 		if logfun is None:
 			from logging import getLogger
 
-			logger = getLogger("Life Sim Engine")
+			logger = getLogger("LiSE")
 
 			def logfun(level, msg):
-				getattr(logger, level)(msg)
+				if isinstance(level, int):
+					logger.log(level, msg)
+				else:
+					getattr(logger, level)(msg)
 
 		self.log = logfun
 		self._prefix = prefix
@@ -575,7 +498,13 @@ class Engine(AbstractEngine, gORM):
 				with wlk[-1]:
 					inpipe_here.send_bytes(branches_payload)
 					inpipe_here.send_bytes(initial_payload)
-			self.pool = LiSEProcessPoolExecutor(self)
+			self._how_many_futs_running = 0
+			self._fut_manager_thread = Thread(
+				target=self._manage_futs, daemon=True
+			)
+			self._futs_to_start: SimpleQueue[Future] = SimpleQueue()
+			self._uid_to_fut: dict[int, Future] = {}
+			self._fut_manager_thread.start()
 			self.trigger.connect(self._reimport_trigger_functions)
 			self.function.connect(self._reimport_worker_functions)
 			self.method.connect(self._reimport_worker_methods)
@@ -598,6 +527,95 @@ class Engine(AbstractEngine, gORM):
 				self.universal["rando_state"] = rando_state
 		if cache_arranger:
 			self._start_cache_arranger()
+
+	def _call_in_subprocess(
+		self, uid, method, func_name, future: Future, *args, **kwargs
+	):
+		i = uid % len(self._worker_inputs)
+		argbytes = zlib.compress(
+			self.pack((uid, method, (func_name, *args), kwargs))
+		)
+		with self._worker_locks[i]:
+			self._update_worker_process_state(i)
+			self._worker_inputs[i].send_bytes(argbytes)
+			output = self._worker_outputs[i].recv_bytes()
+		got_uid, result = self.unpack(zlib.decompress(output))
+		assert got_uid == uid
+		self._how_many_futs_running -= 1
+		del self._uid_to_fut[uid]
+		if isinstance(result, Exception):
+			future.set_exception(result)
+		else:
+			future.set_result(result)
+
+	def snap_keyframe(self, silent=False) -> Optional[dict]:
+		ret = super().snap_keyframe(silent)
+		if hasattr(self, "_worker_processes"):
+			self._update_all_worker_process_states(clobber=True)
+		return ret
+
+	def submit(
+		self, fn: Union[FunctionType, MethodType], /, *args, **kwargs
+	) -> Future:
+		if not hasattr(self, "_worker_processes"):
+			raise RuntimeError("LiSE was launched with no worker processes")
+		if fn.__module__ == "function":
+			method = "_call_function"
+		elif fn.__module__ == "method":
+			method = "_call_method"
+		else:
+			raise ValueError(
+				"Function is not stored in this LiSE engine. "
+				"Use the engine's attributes `function` and `method` to store it."
+			)
+		uid = self._top_uid
+		ret = Future()
+		ret.uid = uid
+		ret._t = Thread(
+			target=self._call_in_subprocess,
+			args=(uid, method, fn.__name__, ret, *args),
+			kwargs=kwargs,
+		)
+		self._top_uid += 1
+		self._uid_to_fut[uid] = ret
+		self._futs_to_start.put(ret)
+		return ret
+
+	def _manage_futs(self):
+		while True:
+			while self._how_many_futs_running < len(self._worker_processes):
+				try:
+					fut = self._futs_to_start.get()
+				except Empty:
+					break
+				if not fut.running() and fut.set_running_or_notify_cancel():
+					fut._t.start()
+					self._how_many_futs_running += 1
+			sleep(0.001)
+
+	def shutdown(self, wait=True, *, cancel_futures=False) -> None:
+		if not hasattr(self, "_worker_processes"):
+			return
+		if cancel_futures:
+			for fut in self._uid_to_fut.values():
+				fut.cancel()
+		if wait:
+			futwait(self._uid_to_fut.values())
+		self._uid_to_fut = {}
+		for lock, pipein, pipeout, proc in zip(
+			self._worker_locks,
+			self._worker_inputs,
+			self._worker_outputs,
+			self._worker_processes,
+		):
+			with lock:
+				pipein.send_bytes(b"shutdown")
+				recvd = pipeout.recv_bytes()
+				assert (
+					recvd == b"done"
+				), f"expected 'done', got {self.unpack(zlib.decompress(recvd))}"
+				proc.join()
+				proc.close()
 
 	def _detect_kf_interval_override(self):
 		if getattr(self, "_no_kc", False):
@@ -644,7 +662,7 @@ class Engine(AbstractEngine, gORM):
 						None,
 						None,
 						(
-							self.snap_keyframe(),
+							super().snap_keyframe(),
 							self.eternal,
 							dict(self.function.iterplain()),
 							dict(self.method.iterplain()),
@@ -992,14 +1010,16 @@ class Engine(AbstractEngine, gORM):
 	def _make_edge(
 		self,
 		graph: Character,
-		orig: Union[thing_cls, place_cls],
-		dest: Union[thing_cls, place_cls],
+		orig: Key,
+		dest: Key,
 		idx=0,
 	) -> portal_cls:
 		return self.portal_cls(graph, orig, dest)
 
-	def _get_kf(self, branch, turn, tick):
-		kf = super()._get_kf(branch, turn, tick)
+	def _get_kf(
+		self, branch: str, turn: int, tick: int, copy: bool = True
+	) -> dict:
+		kf = super()._get_kf(branch, turn, tick, copy=copy)
 		try:
 			kf["universal"] = self._universal_cache.get_keyframe(
 				branch, turn, tick
@@ -1547,8 +1567,8 @@ class Engine(AbstractEngine, gORM):
 			raise RuntimeError("Already closed")
 		if hasattr(self, "cache_arrange_queue"):
 			self.cache_arrange_queue.put("shutdown")
-		if self._cache_arrange_thread.is_alive():
-			self._cache_arrange_thread.join()
+			if self._cache_arrange_thread.is_alive():
+				self._cache_arrange_thread.join()
 		if (
 			self._keyframe_on_close
 			and self._btt() not in self._keyframes_times
@@ -1565,21 +1585,7 @@ class Engine(AbstractEngine, gORM):
 				del sys.modules[modname]
 		self.commit()
 		self.query.close()
-		if hasattr(self, "_worker_processes"):
-			for lock, pipein, pipeout, proc in zip(
-				self._worker_locks,
-				self._worker_inputs,
-				self._worker_outputs,
-				self._worker_processes,
-			):
-				with lock:
-					pipein.send_bytes(b"shutdown")
-					recvd = pipeout.recv_bytes()
-					assert (
-						recvd == b"done"
-					), f"expected 'done', got {self.unpack(zlib.decompress(recvd))}"
-					proc.join()
-					proc.close()
+		self.shutdown()
 		self._closed = True
 
 	def _snap_keyframe_from_delta(
@@ -1679,50 +1685,42 @@ class Engine(AbstractEngine, gORM):
 			# Seems not great that I have to double-retrieve like this but I can't
 			# be bothered to dig into the delta logic
 			# Zack 2024-04-27
+			delt = delta.get(graph)
+			if delt is None:
+				continue
 			try:
 				charrb = self._characters_rulebooks_cache.retrieve(
 					graph, b, r, t
 				)
 			except KeyError:
 				charrb = (graph, "character")
-			charrbs[graph] = delta.pop(
-				(graph, "character"), {"character_rulebook": charrb}
-			)["character_rulebook"]
+			charrbs[graph] = delt.get("character_rulebook", charrb)
 			try:
 				unitrb = self._units_rulebooks_cache.retrieve(graph, b, r, t)
 			except KeyError:
 				unitrb = (graph, "unit")
-			unitrbs[graph] = delta.pop(
-				(graph, "unit"), {"unit_rulebook": unitrb}
-			)["unit_rulebook"]
+			unitrbs[graph] = delt.get("unit_rulebook", unitrb)
 			try:
 				thingrb = self._characters_things_rulebooks_cache.retrieve(
 					graph, b, r, t
 				)
 			except KeyError:
 				thingrb = (graph, "thing")
-			thingrbs[graph] = delta.pop(
-				(graph, "thing"), {"character_thing_rulebook": thingrb}
-			)["character_thing_rulebook"]
+			thingrbs[graph] = delt.get("character_thing_rulebook", thingrb)
 			try:
 				placerb = self._characters_places_rulebooks_cache.retrieve(
 					graph, b, r, t
 				)
 			except KeyError:
 				placerb = (graph, "place")
-			placerbs[graph] = delta.pop(
-				(graph, "place"), {"character_place_rulebook": placerb}
-			)["character_place_rulebook"]
+			placerbs[graph] = delt.get("character_place_rulebook", placerb)
 			try:
 				portrb = self._characters_portals_rulebooks_cache.retrieve(
 					graph, b, r, t
 				)
 			except KeyError:
 				portrb = (graph, "portrb")
-			portrbs[graph] = delta.pop(
-				(graph, "portal"), {"character_portal_rulebook": portrb}
-			)["character_portal_rulebook"]
-			delt = delta.get(graph, {})
+			portrbs[graph] = delt.get("character_portal_rulebook", portrb)
 			if (graph,) in self._things_cache.keyframe:
 				try:
 					locs = self._things_cache.get_keyframe(
@@ -1740,7 +1738,7 @@ class Engine(AbstractEngine, gORM):
 			else:
 				locs = {}
 				conts = {}
-			if delt is not None and "node_val" in delt:
+			if "node_val" in delt:
 				for node, val in delt["node_val"].items():
 					if "location" in val:
 						locs[node] = loc = val["location"]
@@ -2037,12 +2035,22 @@ class Engine(AbstractEngine, gORM):
 		for lock in self._worker_locks:
 			lock.acquire()
 		kf_payload = None
+		deltas = {}
 		for i in range(len(self._worker_processes)):
 			branch_from, turn_from, tick_from = self._worker_updated_btts[i]
 			if not clobber and branch_from == self.branch:
-				delt = self.get_delta(
-					branch_from, turn_from, tick_from, self.turn, self.tick
-				)
+				if (branch_from, turn_from, tick_from) in deltas:
+					delt = deltas[branch_from, turn_from, tick_from]
+				else:
+					delt = deltas[branch_from, turn_from, tick_from] = (
+						self.get_delta(
+							branch_from,
+							turn_from,
+							tick_from,
+							self.turn,
+							self.tick,
+						)
+					)
 				argbytes = zlib.compress(
 					self.pack(
 						(
@@ -2062,7 +2070,7 @@ class Engine(AbstractEngine, gORM):
 				self._worker_inputs[i].send_bytes(argbytes)
 			else:
 				if kf_payload is None:
-					kf_payload = self._get_worker_kf_payload()
+					kf_payload = self._get_worker_kf_payload(-1)
 				self._worker_inputs[i].send_bytes(kf_payload)
 			self._worker_updated_btts[i] = self._btt()
 		for lock in self._worker_locks:

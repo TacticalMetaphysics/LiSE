@@ -125,7 +125,11 @@ class GridBoard(Widget):
 			raise KeyError(f"No such thing: {thingn}")
 		if thingn in self.pawn:
 			raise KeyError(f"Already have a pawn for {thingn}")
-		pwn = self.make_pawn(self.character.thing[thingn])
+		thing = self.character.thing[thingn]
+		if thing["location"] not in self.spot:
+			# The location is not in the grid. That's fine.
+			return
+		pwn = self.make_pawn(thing)
 		self.pawn[thingn] = self.pawn_cls(board=self, proxy=pwn["proxy"])
 		location = pwn["location"]
 		self.contained[location].add(thingn)
@@ -181,7 +185,15 @@ class GridBoard(Widget):
 		wide = max(datum["x"] for datum in spot_data) + self.tile_width
 		high = max(datum["y"] for datum in spot_data) + self.tile_width
 		self.size = self.spot_plane.size = self.pawn_plane.size = wide, high
-		pawn_data = list(map(self.make_pawn, self.character.thing.values()))
+		pawn_data = list(
+			map(
+				self.make_pawn,
+				filter(
+					lambda thing: thing["location"] in self.spot,
+					self.character.thing.values(),
+				),
+			)
+		)
 		for pwn in pawn_data:
 			self.pawn[pwn["name"]] = self.pawn_cls(
 				board=self, proxy=pwn["proxy"]

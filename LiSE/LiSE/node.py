@@ -21,7 +21,6 @@ have a lot in common.
 
 from __future__ import annotations
 from collections.abc import Mapping, ValuesView, Set
-from itertools import chain
 from typing import Optional, Union, Iterator, List
 
 import networkx as nx
@@ -815,7 +814,7 @@ class Thing(Node):
 		if len(path) < 2:
 			raise ValueError("Paths need at least 2 nodes")
 		eng = self.character.engine
-		with eng.plan():
+		with eng.world_lock:
 			if check:
 				prevplace = path.pop(0)
 				if prevplace != self["location"]:
@@ -841,25 +840,56 @@ class Thing(Node):
 				subpath = path.copy()
 			turns_total = 0
 			prevsubplace = subpath.pop(0)
-			subsubpath = [prevsubplace]
+			turn_incs = []
+			myname = self.name
+			charn = self.character.name
+			branch, turn, tick = eng._btt()
 			for subplace in subpath:
 				if weight is not None:
-					turn_inc = self.engine._edge_val_cache.retrieve(
-						self.character.name,
-						prevsubplace,
-						subplace,
-						0,
-						*self.engine._btt(),
+					turn_incs.append(
+						self.engine._edge_val_cache.retrieve(
+							charn,
+							prevsubplace,
+							subplace,
+							0,
+							branch,
+							turn,
+							tick,
+						)
 					)
 				else:
-					turn_inc = 1
-				eng.turn += turn_inc
-				self["location"] = subplace
-				turns_total += turn_inc
-				subsubpath.append(subplace)
-				prevsubplace = subplace
-			self["location"] = subplace
-		return turns_total
+					turn_incs.append(1)
+				turns_total += turn_incs[-1]
+				turn += turn_incs[-1]
+				tick = eng._turn_end_plan.get(turn, 0)
+				if check:
+					eng._nodes_cache.retrieve(
+						charn, subplace, branch, turn, tick
+					)
+				_, start_turn, start_tick, end_turn, end_tick = eng._branches[
+					branch
+				]
+				if (
+					(start_turn < turn < end_turn)
+					or (
+						start_turn == end_turn == turn
+						and start_tick <= tick < end_tick
+					)
+					or (start_turn == turn and start_tick <= tick)
+					or (end_turn == turn and tick < end_tick)
+				):
+					eng.load_at(branch, turn, tick)
+			with eng.plan():
+				for subplace, turn_inc in zip(subpath, turn_incs):
+					eng.turn += turn_inc
+					branch, turn, tick = eng._nbtt()
+					eng._things_cache.store(
+						charn, myname, branch, turn, tick, subplace
+					)
+					eng.query.set_thing_loc(
+						charn, myname, branch, turn, tick, subplace
+					)
+			return turns_total
 
 	def travel_to(
 		self,

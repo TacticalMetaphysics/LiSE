@@ -179,28 +179,6 @@ class StructuredDefaultDict(dict):
 class Cache:
 	"""A data store that's useful for tracking graph revisions."""
 
-	__slots__ = (
-		"db",
-		"parents",
-		"keys",
-		"keycache",
-		"branches",
-		"shallowest",
-		"settings",
-		"presettings",
-		"time_entity",
-		"_kc_lru",
-		"_store_stuff",
-		"_remove_stuff",
-		"_truncate_stuff",
-		"setdb",
-		"deldb",
-		"keyframe",
-		"name",
-		"_store_journal_stuff",
-		"_lock",
-	)
-
 	def __init__(self, db, kfkvs=None):
 		super().__init__()
 		self.db = db
@@ -288,7 +266,7 @@ class Cache:
 			PickyDefaultDict, PickyDefaultDict, callable
 		] = (self.settings, self.presettings, self._base_retrieve)
 
-	def get_keyframe(
+	def _get_keyframe(
 		self, graph_ent: tuple, branch: str, turn: int, tick: int, copy=True
 	):
 		if graph_ent not in self.keyframe:
@@ -306,6 +284,11 @@ class Cache:
 		if copy:
 			ret = ret.copy()
 		return ret
+
+	def get_keyframe(
+		self, graph_ent: tuple, branch: str, turn: int, tick: int, copy=True
+	):
+		return self._get_keyframe(graph_ent, branch, turn, tick, copy=copy)
 
 	def set_keyframe(
 		self, graph_ent: tuple, branch: str, turn: int, tick: int, keyframe
@@ -497,20 +480,18 @@ class Cache:
 					ret = frozenset(adds)
 			elif stoptime == (branch, turn, tick):
 				try:
-					kf = self.keyframe[parentity][branch][turn][tick]
+					kf = self._get_keyframe(parentity, branch, turn, tick)
 					ret = frozenset(kf.keys())
-				except HistoricKeyError:
-					# there's a keyframe now, but we have no data in it.
-					ret = frozenset()
+				except KeyError:
+					adds, _ = get_adds_dels(
+						parentity, branch, turn, tick, stoptime=stoptime
+					)
+					ret = frozenset(adds)
 			else:
-				adds, dels = get_adds_dels(
+				adds, _ = get_adds_dels(
 					parentity, branch, turn, tick, stoptime=stoptime
 				)
-				kf = self.keyframe[parentity][stoptime[0]][stoptime[1]][
-					stoptime[2]
-				]
-				keys_now = kf.keys().union(adds).difference(dels)
-				ret = frozenset(keys_now)
+				ret = frozenset(adds)
 			if keycache2:
 				if keycache3:
 					keycache3[tick] = ret
@@ -619,9 +600,11 @@ class Cache:
 				else:
 					added.add(key)
 				break
-		if stoptime or not kf:
+		if not kf:
 			return added, deleted
-		for branc, trn, tck in self.db._iter_parent_btt(branch, turn, tick):
+		for branc, trn, tck in self.db._iter_parent_btt(
+			branch, turn, tick, stoptime=stoptime
+		):
 			if branc not in kf or not kf[branc].rev_gettable(trn):
 				continue
 			kfb = kf[branc]
@@ -726,7 +709,7 @@ class Cache:
 					)
 				)
 				if contras:
-					self.shallowest = OrderedDict()
+					self.shallowest = {}
 				for contra_turn, contra_tick in contras:
 					if (
 						branch,
@@ -736,10 +719,7 @@ class Cache:
 						delete_plan(
 							time_plan[branch, contra_turn, contra_tick]
 						)
-				if not turns:  # turns may be mutated in delete_plan
-					branches[branch] = turns
-				if parentikey not in self_branches:
-					self_branches[parentikey] = branches
+			branches[branch] = turns
 			if not loading and not planning:
 				parbranch, turn_start, tick_start, turn_end, tick_end = (
 					db_branches[branch]
@@ -1106,7 +1086,9 @@ class Cache:
 			presettings_turns[turn] = {tick: parent + (entity, key, prev)}
 			settings_turns[turn] = {tick: parent + (entity, key, value)}
 
-	def _base_retrieve(self, args, store_hint=True, retrieve_hint=True):
+	def _base_retrieve(
+		self, args, store_hint=True, retrieve_hint=True, search=False
+	):
 		"""Hot code.
 
 		Swim up the timestream trying to find a value for the
@@ -1140,10 +1122,17 @@ class Cache:
 						# but *earlier* than (b, r, t), use the
 						# keyframe instead
 						if b in keyframes and r in keyframes[b]:
-							kfbr = keyframes[b][r]
-							if kfbr.rev_before(t) is not None and (
-								brancs[r].rev_before(t)
-								< kfbr.rev_before(t)
+							if search:
+								kfbr = keyframes[b].search(r)
+							else:
+								kfbr = keyframes[b][r]
+							if search:
+								brancs.search(r)
+							if kfbr.rev_before(
+								t, search=search
+							) is not None and (
+								brancs[r].rev_before(t, search=search)
+								< kfbr.rev_before(t, search=search)
 								< t
 							):
 								kf = kfbr[t]
@@ -1156,16 +1145,21 @@ class Cache:
 									return NotInKeyframeError(
 										f"No value for {entikey} at {b, r, t}"
 									)
-						ret = brancs[r][t]
+						if search:
+							ret = brancs.search(r).search(t)
+						else:
+							ret = brancs[r][t]
 						if store_hint:
 							shallowest[args] = ret
 						return ret
 					elif brancs.rev_gettable(r - 1):
 						if b in keyframes and keyframes[b].rev_gettable(r - 1):
 							kfb = keyframes[b]
-							if kfb.rev_before(r - 1) is not None and (
-								brancs.rev_before(r - 1)
-								< kfb.rev_before(r - 1)
+							if kfb.rev_before(
+								r - 1, search=search
+							) is not None and (
+								brancs.rev_before(r - 1, search=search)
+								< kfb.rev_before(r - 1, search=search)
 							):
 								kfbr = kfb[r - 1]
 								kf = kfbr.final()
@@ -1178,11 +1172,15 @@ class Cache:
 									return NotInKeyframeError(
 										f"No value for {entikey} at {b, r, t}"
 									)
-							elif brancs.rev_before(r - 1) == kfb.rev_before(
-								r - 1
-							):
-								kfbr = kfb[r - 1]
-								trns = brancs[r - 1]
+							elif brancs.rev_before(
+								r - 1, search=search
+							) == kfb.rev_before(r - 1, search=search):
+								if search:
+									kfbr = kfb.search(r - 1)
+									trns = brancs.search(r - 1)
+								else:
+									kfbr = kfb[r - 1]
+									trns = brancs[r - 1]
 								if trns.end < kfbr.end:
 									kf = kfbr.final()
 									if key in kf:
@@ -1194,14 +1192,20 @@ class Cache:
 										return NotInKeyframeError(
 											f"No value for {entikey} at {b, r, t}"
 										)
-						ret = brancs[r - 1].final()
+						if search:
+							ret = brancs.search(r - 1).final()
+						else:
+							ret = brancs[r - 1].final()
 						if store_hint:
 							shallowest[args] = ret
 						return ret
 					elif (
 						b in keyframes
 						and r in keyframes[b]
-						and keyframes[b][r].rev_gettable(t)
+						and (
+							(search and keyframes[b].search(r).rev_gettable(t))
+							or (not search and keyframes[b][r].rev_gettable(t))
+						)
 					):
 						brtk = keyframes[b][r][t]
 						if key in brtk:
@@ -1214,7 +1218,10 @@ class Cache:
 								f"No value for {entikey} at {b, r, t}"
 							)
 					elif b in keyframes and keyframes[b].rev_gettable(r - 1):
-						finl = keyframes[b][r - 1].final()
+						if search:
+							finl = keyframes[b].search(r - 1)
+						else:
+							finl = keyframes[b][r - 1].final()
 						if key in finl:
 							ret = finl[key]
 							if store_hint:
@@ -1256,7 +1263,10 @@ class Cache:
 				if b in keyframes:
 					kfb = keyframes[b]
 					if r in kfb:
-						kfbr = kfb[r]
+						if search:
+							kfbr = kfb.search(r)
+						else:
+							kfbr = kfb[r]
 						if kfbr.rev_gettable(t):
 							kf = kfbr[t]
 							if key in kf:
@@ -1282,7 +1292,7 @@ class Cache:
 							)
 		return KeyError("No value, ever")
 
-	def retrieve(self, *args):
+	def retrieve(self, *args, search=False):
 		"""Get a value previously .store(...)'d.
 
 		Needs at least five arguments. The -1th is the tick
@@ -1291,8 +1301,11 @@ class Cache:
 		and the -4th is the key. All other arguments identify
 		the entity that the key is in.
 
+		With ``search=True``, use binary search; otherwise,
+		seek back and forth like a tape head.
+
 		"""
-		ret = self._base_retrieve(args)
+		ret = self._base_retrieve(args, search=search)
 		if ret is None:
 			raise HistoricKeyError("Set, then deleted", deleted=True)
 		elif isinstance(ret, Exception):
@@ -1488,6 +1501,19 @@ class EdgesCache(Cache):
 			self.successors,
 		)
 
+	def _get_keyframe(
+		self, graph_ent: tuple, branch: str, turn: int, tick: int, copy=True
+	):
+		if len(graph_ent) == 3:
+			return super()._get_keyframe(graph_ent, branch, turn, tick, copy)
+		ret = {}
+		for graph, orig, dest in self.keyframe:
+			if (graph, orig) == graph_ent:
+				ret[dest] = super()._get_keyframe(
+					(graph, orig, dest), branch, turn, tick, copy
+				)
+		return ret
+
 	def _update_keycache(self, *args, forward: bool):
 		super()._update_keycache(*args, forward=forward)
 		dest: Hashable
@@ -1618,14 +1644,14 @@ class EdgesCache(Cache):
 				elif delidx and not addidx:
 					deleted.add(orig)
 		else:
-			if stoptime:
-				return added, deleted
 			kf = self.keyframe
 			itparbtt = self.db._iter_parent_btt
 			for (grap, orig, dst), kfg in kf.items():  # too much iteration!
 				if (grap, dst) != (graph, dest):
 					continue
-				for branc, trn, tck in itparbtt(branch, turn, tick):
+				for branc, trn, tck in itparbtt(
+					branch, turn, tick, stoptime=stoptime
+				):
 					if branc not in kfg:
 						continue
 					kfgb = kfg[branc]
@@ -1796,17 +1822,17 @@ class EdgesCache(Cache):
 		*,
 		forward: bool = None,
 	):
-		"""Return whether an edge connects the origin to the destination now
-
-		Doesn't require the edge's index, which makes it slower than retrieving
-		a particular edge.
-
-		"""
-		if forward is None:
-			forward = self.db._forward
-		return dest in self._get_destcache(
-			graph, orig, branch, turn, tick, forward=forward
-		)
+		"""Return whether an edge connects the origin to the destination now"""
+		# Use a keycache if we have it.
+		# If we don't, only generate one if we're forwarding, and only
+		# if it's no more than a turn ago.
+		keycache_key = (graph, orig, dest, branch)
+		if keycache_key in self.keycache:
+			return dest in self._get_destcache(
+				graph, orig, branch, turn, tick, forward=forward
+			)
+		got = self._base_retrieve((graph, orig, dest, 0, branch, turn, tick))
+		return got is not None and not isinstance(got, Exception)
 
 	def has_predecessor(
 		self,
@@ -1819,17 +1845,9 @@ class EdgesCache(Cache):
 		*,
 		forward: bool = None,
 	):
-		"""Return whether an edge connects the destination to the origin now
-
-		Doesn't require the edge's index, which makes it slower than retrieving
-		a particular edge.
-
-		"""
-		if forward is None:
-			forward = self.db._forward
-		return orig in self._get_origcache(
-			graph, dest, branch, turn, tick, forward=forward
-		)
+		"""Return whether an edge connects the destination to the origin now"""
+		got = self._base_retrieve((graph, orig, dest, 0, branch, turn, tick))
+		return got is not None and not isinstance(got, Exception)
 
 	def store(
 		self,
@@ -1867,9 +1885,12 @@ class EdgesCache(Cache):
 			loading=loading,
 			contra=contra,
 		)
-		predecessors[graph, dest][orig][idx][branch][turn] = successors[
-			graph, orig
-		][dest][idx][branch][turn]
+		try:
+			predecessors[graph, dest][orig][idx][branch][turn] = successors[
+				graph, orig
+			][dest][idx][branch][turn]
+		except HistoricKeyError:
+			pass
 
 	# if ex:
 	# assert self.retrieve(graph, orig, dest, idx, branch, turn, tick)

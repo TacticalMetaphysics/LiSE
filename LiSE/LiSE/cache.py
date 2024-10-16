@@ -15,6 +15,7 @@
 from functools import partial
 from operator import sub, or_
 
+from .allegedb import Key
 from .allegedb.cache import (
 	Cache,
 	PickyDefaultDict,
@@ -24,6 +25,7 @@ from .allegedb.cache import (
 	HistoricKeyError,
 	EntitylessCache,
 )
+from .allegedb.window import EntikeySettingsTurnDict, SettingsTurnDict
 from .util import singleton_get, sort_set
 from collections import OrderedDict
 
@@ -659,12 +661,13 @@ class ThingsCache(Cache):
 				*args, planning=planning, loading=loading, contra=contra
 			)
 			node_contents_cache = self.db._node_contents_cache
+			this = frozenset((thing,))
 			# Cache the contents of nodes
 			if oldloc is not None:
 				oldconts_orig = node_contents_cache.retrieve(
 					character, oldloc, branch, turn, tick
 				)
-				newconts_orig = oldconts_orig.difference({thing})
+				newconts_orig = oldconts_orig.difference(this)
 				node_contents_cache.store(
 					character,
 					oldloc,
@@ -675,18 +678,20 @@ class ThingsCache(Cache):
 					contra=False,
 					loading=True,
 				)
-				future_location_data = node_contents_cache.settings[
-					branch
-				].future(turn)
 				todo = []
-				if future_location_data:
-					for trn in future_location_data:
-						for tck in future_location_data[trn]:
-							char, loca, contents = future_location_data[trn][
-								tck
-							]
-							if char == character and loca == oldloc:
-								todo.append((trn, tck))
+				# update any future contents caches pertaining to the old location
+				if (character, oldloc) in node_contents_cache.loc_settings:
+					locset = node_contents_cache.loc_settings[
+						character, oldloc
+					][branch]
+					if turn in locset:
+						for future_tick in locset[turn].future(tick):
+							todo.append((turn, future_tick))
+					for future_turn, future_ticks in locset.future(
+						turn
+					).items():
+						for future_tick in future_ticks:
+							todo.append((future_turn, future_tick))
 				for trn, tck in todo:
 					node_contents_cache.store(
 						character,
@@ -695,20 +700,21 @@ class ThingsCache(Cache):
 						trn,
 						tck,
 						node_contents_cache.retrieve(
-							character, oldloc, branch, trn, tck
-						).difference({thing}),
+							character, oldloc, branch, trn, tck, search=True
+						).difference(this),
 						planning=False,
 						contra=False,
 						loading=True,
 					)
 			if location is not None:
+				todo = []
 				try:
 					oldconts_dest = node_contents_cache.retrieve(
 						character, location, branch, turn, tick
 					)
 				except KeyError:
 					oldconts_dest = frozenset()
-				newconts_dest = oldconts_dest.union({thing})
+				newconts_dest = oldconts_dest.union(this)
 				node_contents_cache.store(
 					character,
 					location,
@@ -719,18 +725,19 @@ class ThingsCache(Cache):
 					contra=False,
 					loading=True,
 				)
-				future_location_data = node_contents_cache.settings[
-					branch
-				].future(turn)
-				todo = []
-				if future_location_data:
-					for trn in future_location_data:
-						for tck in sorted(future_location_data[trn]):
-							char, loca, contents = future_location_data[trn][
-								tck
-							]
-							if char == character and loca == location:
-								todo.append((trn, tck))
+				# and the new location
+				if (character, location) in node_contents_cache.loc_settings:
+					locset = node_contents_cache.loc_settings[
+						character, location
+					][branch]
+					if turn in locset:
+						for future_tick in locset[turn].future(tick):
+							todo.append((turn, future_tick))
+					for future_turn, future_ticks in locset.future(
+						turn
+					).items():
+						for future_tick in future_ticks:
+							todo.append((future_turn, future_tick))
 				for trn, tck in todo:
 					node_contents_cache.store(
 						character,
@@ -739,8 +746,8 @@ class ThingsCache(Cache):
 						trn,
 						tck,
 						node_contents_cache.retrieve(
-							character, location, branch, trn, tck
-						).union({thing}),
+							character, location, branch, trn, tck, search=True
+						).union(this),
 						planning=False,
 						contra=False,
 						loading=True,
@@ -765,6 +772,40 @@ class ThingsCache(Cache):
 
 class NodeContentsCache(Cache):
 	name = "node_contents_cache"
+
+	def __init__(self, db, kfkvs=None):
+		super().__init__(db, kfkvs)
+		self.loc_settings = StructuredDefaultDict(1, SettingsTurnDict)
+
+	def store(
+		self,
+		character: Key,
+		place: Key,
+		branch: str,
+		turn: int,
+		tick: int,
+		contents: frozenset,
+		planning: bool = None,
+		forward: bool = None,
+		loading=False,
+		contra=None,
+	):
+		self.loc_settings[character, place][branch].store_at(
+			turn, tick, contents
+		)
+
+		return super().store(
+			character,
+			place,
+			branch,
+			turn,
+			tick,
+			contents,
+			planning=planning,
+			forward=forward,
+			loading=loading,
+			contra=contra,
+		)
 
 	def _iter_future_contradictions(
 		self, entity, key, turns, branch, turn, tick, value

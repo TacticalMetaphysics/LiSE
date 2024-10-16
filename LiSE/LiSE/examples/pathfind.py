@@ -11,7 +11,7 @@ def install(eng, seed=None):
 	for node in list(grid):
 		if random.random() < 0.1:
 			grid.remove_node(node)
-		elif random.random() < 0.005:
+		elif random.random() < 0.01:
 			grid.add_node(f"{node}_inhabitant", location=node)
 
 	phys = eng.new_character("physical", grid)
@@ -38,30 +38,46 @@ def install(eng, seed=None):
 			(destx, desty),
 			lambda a, b: sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2),
 		)
-		print(f"{node.name}'s shortest path to {destx, desty} is {ret}")
+		node.engine.debug(
+			f"{node.name}'s shortest path to {destx, desty} is {ret}"
+		)
 		return ret
 
 	@phys.rule
 	def go_places(char):
+		from time import monotonic
 		from networkx.exception import NetworkXNoPath
 
-		futs = []
-		with char.engine.pool as pool:
-			for thing in char.thing.values():
-				fut = pool.submit(
-					char.engine.function.find_path_somewhere, thing
+		def log_as_completed(fut):
+			try:
+				char.engine.debug(
+					f"Got path for {fut.thing.name}: {fut.result()}"
 				)
-				fut.thing = thing
-				futs.append(fut)
+			except NetworkXNoPath:
+				char.engine.debug(f"No path for {fut.thing.name}")
+
+		futs = []
+		for thing in char.thing.values():
+			fut = char.engine.submit(
+				char.engine.function.find_path_somewhere, thing
+			)
+			fut.thing = thing
+			fut.add_done_callback(log_as_completed)
+			futs.append(fut)
 		with char.engine.batch():
 			for fut in futs:
 				try:
 					result = fut.result()
 					thing = fut.thing
-					print(f"got path {result} for thing {thing.name}")
+					start = monotonic()
 					thing.follow_path(result, check=False)
+					char.engine.debug(
+						f"followed path for thing {thing.name} in {monotonic() - start:.2} seconds"
+					)
 				except NetworkXNoPath:
-					print(f"got no path for thing {fut.thing.name}")
+					char.engine.debug(
+						f"got no path for thing {fut.thing.name}"
+					)
 					continue
 
 	@go_places.trigger
